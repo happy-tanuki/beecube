@@ -7,17 +7,16 @@ compatibility_date = "2026-10-01"
 [vars]
 # A shared project is hidden once it has this many reports, until a moderator reviews it.
 REPORT_HIDE_THRESHOLD = "3"
-# Turnstile site key. This is Cloudflare's test key, which always passes; set the
-# real one when deploying, with the TURNSTILE_SECRET secret to match.
-TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+# Turnstile site key, for beecube.pages.dev; the TURNSTILE_SECRET secret matches it.
+# Local development overrides it in .dev.vars with Cloudflare's test key, which always passes.
+TURNSTILE_SITE_KEY = "0x4AAAAAAFaMfwFNi07TsXgp"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "beecube"
-# Local development only; set the real id when the database is created for deployment.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "9432198f-5676-464f-b439-4df8707d8e9e"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
 binding = "PROJECTS"
-bucket_name = "beecube-projects"
+bucket_name = "beecube"

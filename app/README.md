@@ -87,8 +87,8 @@ Locally:
 
 ```sh
 npm run db:migrate:local      # once: create the local D1 tables
-# secrets for local use (Turnstile's test secret always passes)
-printf 'ADMIN_TOKEN=some-local-token\nTURNSTILE_SECRET=1x0000000000000000000000000000000AA\n' > .dev.vars
+# secrets for local use, and Turnstile's test keys (they always pass)
+printf 'ADMIN_TOKEN=some-local-token\nTURNSTILE_SECRET=1x0000000000000000000000000000000AA\nTURNSTILE_SITE_KEY=1x00000000000000000000AA\n' > .dev.vars
 npm run build && npm run pages:dev   # app + API on http://localhost:8788
 npm run dev                   # optional: the Vite dev server proxies /api to 8788
 ```
