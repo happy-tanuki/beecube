@@ -13,11 +13,11 @@ Tinkercad, and physics comes as an extension.
 **Try it at [beecube.pages.dev](https://beecube.pages.dev)**: it runs in the
 browser, with no account.
 
+![Two short scripts make 300 clones of a cube and turn on physics for each; on the stage beside them, the cubes fall and pile up](docs/images/blocks-and-stage.gif)
+
+*Two short scripts drop 300 cubes with physics. [Try this project](https://beecube.pages.dev/p/cu3dzbbrds).*
+
 ![The BeeCube editor: Scratch-style blocks on the left draw a spiral with the pen around a cube on the 3D stage on the right](docs/images/editor.png)
-
-<img src="docs/images/physics.gif" alt="300 cubes falling and piling up on the stage, with the physics extension" width="480">
-
-*[300 cubes dropped with the physics extension](https://beecube.pages.dev/p/cu3dzbbrds)*
 
 > BeeCube is under active development. It is not affiliated with or endorsed
 > by the Scratch Foundation; "Scratch" is a trademark of the Scratch Foundation.
