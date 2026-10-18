@@ -4,7 +4,8 @@
  * the shape; every other locale translates all of it.
  *
  * `{app}` is replaced by the app's name and `{contact}` by CONTACT in
- * brand.ts; the section with id "contact" appears only once CONTACT is set.
+ * brand.ts, and `{x}` by a link to X_ACCOUNT; the sections with id "contact"
+ * and "news" appear only when those are set.
  * `[text](url)` becomes a link.
  */
 
@@ -46,6 +47,11 @@ export const en: Pages = {
           '{app} is open-source software under the MIT License. You can read, change and share its code.',
           'The software it uses has its own licenses: [see the list](licenses.txt).',
         ],
+      },
+      {
+        id: 'news',
+        heading: 'News',
+        paragraphs: ['News about {app} is posted on X: {x}'],
       },
     ],
   },

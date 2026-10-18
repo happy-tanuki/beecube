@@ -1,5 +1,5 @@
 /** Link-preview tags (Open Graph) for a shared project's page. */
-import { APP_NAME } from '../src/brand'
+import { APP_NAME, X_ACCOUNT } from '../src/brand'
 import type { SharedInfo } from './api'
 
 const escape = (s: string) =>
@@ -24,6 +24,7 @@ export function pageMeta(info: SharedInfo, url: string): { title: string; tags: 
   ]
     .map(([property, content]) => `<meta property="${property}" content="${escape(content)}" />`)
     .concat(`<meta name="twitter:card" content="${info.thumbnailPath ? 'summary_large_image' : 'summary'}" />`)
+    .concat(X_ACCOUNT ? [`<meta name="twitter:site" content="@${X_ACCOUNT}" />`] : [])
     .join('\n')
   return { title, tags }
 }

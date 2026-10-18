@@ -3,7 +3,7 @@
  * (#privacy) and the terms of use (#terms), from src/i18n/pages/.
  */
 import { Fragment, useEffect, type ReactNode } from 'react'
-import { APP_NAME, CONTACT, SOURCE_URL } from '../brand'
+import { APP_NAME, CONTACT, SOURCE_URL, X_ACCOUNT } from '../brand'
 import { pageContent, t } from '../i18n'
 import type { PageContent } from '../i18n/pages/en'
 
@@ -12,10 +12,14 @@ const LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g
 /** A link target: absolute URLs as they are, others relative to the app. */
 const href = (url: string) => (/^(https?:|mailto:)/.test(url) ? url : `${import.meta.env.BASE_URL}${url}`)
 
-/** Text with `{app}` and `{contact}` filled in and `[text](url)` made into links. */
+/** Sections that appear only when brand.ts sets what they point to. */
+const OPTIONAL_SECTIONS: Record<string, unknown> = { contact: CONTACT, news: X_ACCOUNT }
+
+/** Text with `{app}`, `{contact}` and `{x}` filled in and `[text](url)` made into links. */
 function rich(text: string): ReactNode[] {
   const contact = CONTACT ? `[${CONTACT.replace(/^mailto:/, '')}](${CONTACT})` : ''
-  const filled = text.replaceAll('{app}', APP_NAME).replaceAll('{contact}', contact)
+  const x = X_ACCOUNT ? `[@${X_ACCOUNT}](https://x.com/${X_ACCOUNT})` : ''
+  const filled = text.replaceAll('{app}', APP_NAME).replaceAll('{contact}', contact).replaceAll('{x}', x)
   const parts: ReactNode[] = []
   let last = 0
   for (const m of filled.matchAll(LINK)) {
@@ -37,20 +41,20 @@ function Page({ id, page }: { id: string; page: PageContent }) {
       <h1>{rich(page.title)}</h1>
       {page.updated && <p className="about-updated">{page.updated}</p>}
       {page.sections
-        .filter((s) => s.id !== 'contact' || CONTACT)
+        .filter((s) => !(s.id in OPTIONAL_SECTIONS) || OPTIONAL_SECTIONS[s.id])
         .map((s) => (
           <Fragment key={s.id}>
             <h2>{rich(s.heading)}</h2>
             {s.paragraphs.map((p, i) => (
               <p key={i}>{rich(p)}</p>
             ))}
+            {s.id === 'source' && SOURCE_URL && (
+              <p>
+                <a href={SOURCE_URL}>{t('footer.source')}</a>
+              </p>
+            )}
           </Fragment>
         ))}
-      {id === 'about' && SOURCE_URL && (
-        <p>
-          <a href={SOURCE_URL}>{t('footer.source')}</a>
-        </p>
-      )}
     </section>
   )
 }

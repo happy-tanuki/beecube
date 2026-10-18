@@ -21,6 +21,11 @@ export const ja: Pages = {
           '{app} が使っているソフトウェアには、それぞれのライセンスがあります: [一覧を見る](licenses.txt)',
         ],
       },
+      {
+        id: 'news',
+        heading: 'お知らせ',
+        paragraphs: ['{app} のお知らせは X にのせています: {x}'],
+      },
     ],
   },
   privacy: {

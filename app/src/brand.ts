@@ -12,6 +12,9 @@ export const PROJECT_FILE_EXTENSION = '.beecube.json'
 /** The public source repository, which the app links to; null to leave the link out. */
 export const SOURCE_URL: string | null = 'https://github.com/happy-tanuki/beecube'
 
+/** The project's X (Twitter) account, without the @, for news; null to leave it out. */
+export const X_ACCOUNT: string | null = 'beecube_dev'
+
 /**
  * How grown-ups reach the people running the site (to remove a project, or
  * ask about privacy): a mailto: or https: URL. The privacy policy leaves the
