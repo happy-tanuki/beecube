@@ -15,6 +15,6 @@ export const SOURCE_URL: string | null = 'https://github.com/happy-tanuki/beecub
 /**
  * How grown-ups reach the people running the site (to remove a project, or
  * ask about privacy): a mailto: or https: URL. The privacy policy leaves the
- * contact section out until it is set; it must be set before release.
+ * contact section out when it is null.
  */
-export const CONTACT: string | null = null
+export const CONTACT: string | null = 'mailto:expensive.frog@gmail.com'

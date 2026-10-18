@@ -107,10 +107,12 @@ extensions are added from the menu bar, as in Scratch. The first is physics
   privacy policy and the terms of use, on the About page (`about.html`,
   text in `app/src/i18n/pages/`).
 - **A way for grown-ups to reach us** (to remove a project, or ask about
-  privacy) is required before release: `CONTACT` in `app/src/brand.ts`. The
-  privacy policy leaves that section out until it is set.
+  privacy) is required: `CONTACT` in `app/src/brand.ts`, an email address,
+  shown in the privacy policy.
 - **Ads**, if any, are non-personalized ads for a child-directed site. They
-  stay away from the editor, the stage and full screen.
+  stay away from the editor, the stage and full screen. For now the pages
+  carry only AdSense's site verification tag, and no ads; the privacy policy
+  is updated before any ads appear.
 
 ## 8. The player
 
