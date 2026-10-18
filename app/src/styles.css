@@ -1,0 +1,716 @@
+/* The editor page. */
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ui-bg);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.menu-bar {
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--menu-bar);
+  color: #fff;
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.file-menu {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.file-menu button {
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.file-menu button:hover {
+  background: var(--menu-bar-dark);
+}
+
+.extension-menu {
+  position: relative;
+}
+
+.extension-menu > button {
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.extension-menu > button:hover,
+.extension-menu > button[aria-expanded='true'] {
+  background: var(--menu-bar-dark);
+}
+
+.share-button {
+  margin-left: 8px;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  background: #ff8c1a;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.share-button:hover {
+  background: #e67a0e;
+}
+
+/* Pushed to the right end of the menu bar, with the language menu. */
+.about-link {
+  margin-left: auto;
+  padding: 6px 12px;
+  color: #fff;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.about-link:hover {
+  text-decoration: underline;
+}
+
+.language-menu {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: var(--menu-bar-dark);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.extension-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  min-width: 240px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: #fff;
+  color: #575e75;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 20%);
+}
+
+.extension-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+}
+
+.extension-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.extension-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.extension-list button {
+  border: 1px solid var(--menu-bar);
+  border-radius: 4px;
+  padding: 4px 10px;
+  background: var(--menu-bar);
+  color: #fff;
+  cursor: pointer;
+}
+
+.extension-list button:disabled {
+  background: #fff;
+  color: #999;
+  border-color: #ddd;
+  cursor: default;
+}
+
+.workspace-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+}
+
+.code-area {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.blocks-editor {
+  width: 100%;
+  height: 100%;
+}
+
+.right-column {
+  width: 488px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+/* ---- sprite pane ---- */
+
+.sprite-pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.sprite-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.field input:not([type='checkbox']):not([type='color']),
+.field select {
+  width: 56px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.field.name input {
+  width: 110px !important;
+}
+
+.field select {
+  width: 76px;
+}
+
+.field input[type='color'] {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+}
+
+.sprite-list {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+  padding: 10px;
+  background: #f9fbfe;
+}
+
+.sprite-tile {
+  position: relative;
+  width: 72px;
+  height: 76px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sprite-tile:hover {
+  border-color: var(--menu-bar);
+}
+
+.sprite-tile.selected {
+  border-color: var(--menu-bar);
+  box-shadow: 0 0 0 3px rgba(76, 151, 255, 0.3);
+}
+
+.sprite-thumb {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.sprite-name {
+  margin-top: 6px;
+  font-size: 11px;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sprite-delete {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--menu-bar);
+  color: #fff;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.add-sprite {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+}
+
+.add-sprite-button {
+  width: 44px;
+  height: 44px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: none;
+  border-radius: 50%;
+  background: var(--menu-bar);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.add-sprite-button:hover {
+  background: var(--menu-bar-dark);
+}
+
+.add-sprite-menu {
+  position: absolute;
+  bottom: 52px;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.add-sprite-menu button {
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.add-sprite-menu button:hover {
+  background: var(--flag-hover);
+}
+
+/* ---- scratch-blocks pieces whose styling normally comes from the host app ---- */
+
+.blocklyFlyoutButtonBackground {
+  fill: #ffffff;
+  stroke: #c6c6c6;
+}
+
+.blocklyFlyoutButtonShadow {
+  fill: transparent;
+}
+
+.blocklyFlyout .blocklyFlyoutButton text.blocklyText {
+  fill: var(--text);
+}
+
+.blocklyFlyoutButton:hover .blocklyFlyoutButtonBackground {
+  fill: var(--flag-hover);
+}
+
+/* ---- "Make a Block" dialog ---- */
+
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(76 151 255 / 70%);
+}
+
+.modal {
+  width: min(720px, calc(100vw - 32px));
+  overflow: hidden;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 25%);
+  color: #575e75;
+}
+
+.modal header {
+  padding: 14px;
+  background: var(--menu-bar);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+
+.procedure-workspace {
+  height: 200px;
+  background: #f9f9f9;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.procedure-add {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 16px;
+}
+
+.procedure-add button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 160px;
+  padding: 12px 8px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.procedure-add button:hover {
+  border-color: var(--menu-bar);
+}
+
+.procedure-add small {
+  color: #999;
+}
+
+.arg-shape {
+  display: inline-block;
+  min-width: 40px;
+  height: 22px;
+  background: #ff6680;
+  color: #fff;
+  font-size: 11px;
+  line-height: 22px;
+}
+
+.arg-shape.round {
+  border-radius: 11px;
+}
+
+.arg-shape.hex {
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%);
+}
+
+.arg-shape.label {
+  background: none;
+  color: #ff4d6a;
+  font-weight: 700;
+}
+
+.procedure-warp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px 8px;
+  font-size: 14px;
+}
+
+.modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.modal footer button {
+  padding: 8px 18px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.modal footer button.primary {
+  border-color: var(--menu-bar);
+  background: var(--menu-bar);
+  color: #fff;
+}
+
+/* ---- In-page alert / confirm / prompt ---- */
+
+.small-dialog {
+  width: min(360px, calc(100vw - 32px));
+}
+
+.small-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 20px 4px;
+  font-size: 14px;
+}
+
+.small-dialog-body input {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.small-dialog-scope {
+  display: flex;
+  gap: 16px;
+  padding: 8px 20px 4px;
+  font-size: 13px;
+}
+
+.small-dialog-scope label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.small-dialog-body:is(p) {
+  margin: 0;
+  padding-bottom: 8px;
+  white-space: pre-wrap;
+}
+
+.small-dialog-body input:focus {
+  outline: none;
+  border-color: var(--menu-bar);
+  box-shadow: 0 0 0 3px rgb(76 151 255 / 25%);
+}
+
+.perf-overlay .perf-detail {
+  padding-left: 1em;
+  opacity: 0.8;
+}
+
+.perf-overlay {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(34, 40, 49, 0.75);
+  color: #fff;
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  pointer-events: none;
+}
+
+/* The logic trial page (?bench=A&logic=…): the stage alone, full page. */
+.logic-trial {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* ---- Share dialog ---- */
+
+.share-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.share-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 160px);
+  padding: 16px 20px 4px;
+  overflow-y: auto;
+  font-size: 14px;
+}
+
+.share-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.share-body input,
+.share-body textarea {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.share-body input:focus,
+.share-body textarea:focus {
+  border-color: var(--menu-bar);
+  outline: none;
+}
+
+.share-privacy a {
+  color: inherit;
+}
+
+.share-privacy {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #fff4e5;
+  color: #8a5300;
+  line-height: 1.5;
+}
+
+.share-done p {
+  margin: 0 0 8px;
+}
+
+.share-link {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.share-link input {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-link button,
+.share-link a,
+.share-actions button {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.share-check:empty {
+  display: none;
+}
+
+.share-error {
+  margin: 0;
+  color: #d32f2f;
+}
+
+.share-mine h3 {
+  margin: 4px 0 6px;
+  font-size: 14px;
+}
+
+.share-mine ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share-mine li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid #eee;
+}
+
+.share-mine li a {
+  overflow: hidden;
+  color: var(--menu-bar-dark);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.share-updated {
+  color: #2e7d32;
+  font-size: 12px;
+}
+
+.share-note {
+  margin: 6px 0 0;
+  color: #8a91a6;
+  font-size: 12px;
+}

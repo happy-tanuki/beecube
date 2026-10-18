@@ -1,0 +1,176 @@
+{
+ "title": "Arrow keys",
+ "notes": "Move the cube with the arrow keys. Space lifts it up.",
+ "project": {
+  "format": "beecube-project",
+  "version": 1,
+  "sprites": [
+   {
+    "id": "sprite-mvd234b8-0",
+    "name": "Cube1",
+    "x": 0,
+    "y": 0,
+    "z": 20,
+    "direction": 90,
+    "pitch": 0,
+    "roll": 0,
+    "size": 100,
+    "color": "#4c97ff",
+    "shape": "cube",
+    "visible": true,
+    "pen": {
+     "down": false,
+     "color": "#0fbd8c"
+    },
+    "blocks": {
+     "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+       {
+        "type": "event_whenkeypressed",
+        "id": "k0",
+        "x": 40,
+        "y": 40,
+        "fields": {
+         "KEY_OPTION": "right arrow"
+        },
+        "next": {
+         "block": {
+          "type": "motion_changexby",
+          "id": "c0",
+          "inputs": {
+           "DX": {
+            "shadow": {
+             "type": "math_number",
+             "id": "n0",
+             "fields": {
+              "NUM": 10
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       {
+        "type": "event_whenkeypressed",
+        "id": "k1",
+        "x": 40,
+        "y": 130,
+        "fields": {
+         "KEY_OPTION": "left arrow"
+        },
+        "next": {
+         "block": {
+          "type": "motion_changexby",
+          "id": "c1",
+          "inputs": {
+           "DX": {
+            "shadow": {
+             "type": "math_number",
+             "id": "n1",
+             "fields": {
+              "NUM": -10
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       {
+        "type": "event_whenkeypressed",
+        "id": "k2",
+        "x": 40,
+        "y": 220,
+        "fields": {
+         "KEY_OPTION": "up arrow"
+        },
+        "next": {
+         "block": {
+          "type": "motion_changeyby",
+          "id": "c2",
+          "inputs": {
+           "DY": {
+            "shadow": {
+             "type": "math_number",
+             "id": "n2",
+             "fields": {
+              "NUM": 10
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       {
+        "type": "event_whenkeypressed",
+        "id": "k3",
+        "x": 40,
+        "y": 310,
+        "fields": {
+         "KEY_OPTION": "down arrow"
+        },
+        "next": {
+         "block": {
+          "type": "motion_changeyby",
+          "id": "c3",
+          "inputs": {
+           "DY": {
+            "shadow": {
+             "type": "math_number",
+             "id": "n3",
+             "fields": {
+              "NUM": -10
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       {
+        "type": "event_whenkeypressed",
+        "id": "k4",
+        "x": 40,
+        "y": 400,
+        "fields": {
+         "KEY_OPTION": "space"
+        },
+        "next": {
+         "block": {
+          "type": "motion_changezby",
+          "id": "c4",
+          "inputs": {
+           "DZ": {
+            "shadow": {
+             "type": "math_number",
+             "id": "n4",
+             "fields": {
+              "NUM": 20
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      ]
+     }
+    },
+    "variables": {},
+    "lists": {}
+   }
+  ],
+  "variables": [],
+  "lists": [],
+  "broadcasts": [],
+  "extensions": [],
+  "monitors": [],
+  "settings": {
+   "cloneLimit": 30000,
+   "randomSeed": null
+  }
+ }
+}

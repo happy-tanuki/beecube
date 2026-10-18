@@ -1,0 +1,16 @@
+[package]
+name = "collision"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Trial: the engine's touching test (spatial grid and GJK) compiled to wasm, for measuring against the JS version."
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

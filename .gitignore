@@ -1,0 +1,5 @@
+.DS_Store
+.worktrees/
+# Local workspace, not published: reference checkouts (scratch-editor is AGPL and
+# must not be vendored) and Japanese working docs (finalised docs go to docs/ in English).
+.work/

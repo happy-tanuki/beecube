@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="BeeCube">
+  <ellipse cx="124.7" cy="246" rx="57" ry="5" fill="#3B2A1F" opacity="0.12"/>
+  <g transform="translate(17.3 19.0) scale(0.92) rotate(-10 56 216)">
+  <ellipse cx="168" cy="46" rx="22" ry="27" transform="rotate(-18 168 46)" fill="#E3F4FF" stroke="#3B2A1F" stroke-width="8"/><path d="M161 55 Q168 43 176 35" transform="rotate(-18 168 46)" fill="none" stroke="#9CC9E8" stroke-width="4" stroke-linecap="round"/><ellipse cx="200" cy="40" rx="24" ry="29" transform="rotate(18 200 40)" fill="#E3F4FF" stroke="#3B2A1F" stroke-width="8"/><path d="M193 50 Q200 37 208 28" transform="rotate(18 200 40)" fill="none" stroke="#9CC9E8" stroke-width="4" stroke-linecap="round"/>
+  <polygon points="56,96 96,64 216,64 176,96" fill="#FFE27A"/>
+  <polygon points="176,96 216,64 216,184 176,216" fill="#F2A61C"/>
+  <polygon points="56,96 176,96 176,216 56,216" fill="#FFC83A"/>
+  <rect x="56" y="160" width="120" height="16" fill="#3B2A1F"/>
+  <rect x="56" y="188" width="120" height="16" fill="#3B2A1F"/>
+  <polygon points="176,160 216,128 216,144 176,176" fill="#3B2A1F"/>
+  <polygon points="176,188 216,156 216,172 176,204" fill="#3B2A1F"/>
+  <g fill="none" stroke="#3B2A1F" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="56,96 96,64 216,64 216,184 176,216 56,216"/>
+    <polyline points="56,96 176,96 216,64"/>
+    <line x1="176" y1="96" x2="176" y2="216"/>
+    <path d="M100 84 Q88 62 70 52"/>
+    <path d="M128 80 Q124 58 110 42"/>
+  </g>
+  <circle cx="66" cy="49" r="8" fill="#3B2A1F"/>
+  <circle cx="107" cy="38" r="8" fill="#3B2A1F"/>
+  <ellipse cx="78" cy="144" rx="9" ry="6" fill="#FF8FA3"/>
+  <ellipse cx="154" cy="144" rx="9" ry="6" fill="#FF8FA3"/>
+  <circle cx="94" cy="126" r="9" fill="#3B2A1F"/>
+  <circle cx="138" cy="126" r="9" fill="#3B2A1F"/>
+  <circle cx="91" cy="123" r="3" fill="#FFFFFF"/>
+  <circle cx="135" cy="123" r="3" fill="#FFFFFF"/>
+  <path d="M106 140 Q116 150 126 140" fill="none" stroke="#3B2A1F" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>

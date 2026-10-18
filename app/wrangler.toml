@@ -1,0 +1,23 @@
+# Cloudflare Pages: the built app (dist/) plus Pages Functions (functions/).
+# Local development: `npm run build && npm run pages:dev` (see README.md).
+name = "beecube"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-10-01"
+
+[vars]
+# A shared project is hidden once it has this many reports, until a moderator reviews it.
+REPORT_HIDE_THRESHOLD = "3"
+# Turnstile site key. This is Cloudflare's test key, which always passes; set the
+# real one when deploying, with the TURNSTILE_SECRET secret to match.
+TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "beecube"
+# Local development only; set the real id when the database is created for deployment.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "PROJECTS"
+bucket_name = "beecube-projects"

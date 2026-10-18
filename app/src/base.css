@@ -1,0 +1,31 @@
+/* Shared by the editor and the player: colours, fonts, box model. */
+
+:root {
+  --menu-bar: #4c97ff;
+  --menu-bar-dark: #3373cc;
+  --ui-bg: #e9f1fc;
+  --panel: #ffffff;
+  --border: #d9e3f2;
+  --text: #575e75;
+  --accent: #855cd6;
+  --flag-hover: #e6f0ff;
+  --bubble-border: #c5ccd6;
+  font-family: 'Helvetica Neue', Helvetica, Arial, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The app's name with the bee icon, in each page's top bar. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand img {
+  width: 32px;
+  height: 32px;
+}

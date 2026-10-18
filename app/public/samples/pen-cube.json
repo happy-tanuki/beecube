@@ -1,0 +1,269 @@
+{
+ "title": "Pen cube",
+ "notes": "Click the green flag: the cube draws a spiral with its pen, then a wireframe cube.\nDrag on the stage to look around.",
+ "project": {
+  "format": "beecube-project",
+  "version": 1,
+  "sprites": [
+   {
+    "id": "sprite-mvd234b8-0",
+    "name": "Cube1",
+    "x": 0,
+    "y": 0,
+    "z": 20,
+    "direction": 90,
+    "pitch": 0,
+    "roll": 0,
+    "size": 100,
+    "color": "#4c97ff",
+    "shape": "cube",
+    "visible": true,
+    "pen": {
+     "down": false,
+     "color": "#0fbd8c"
+    },
+    "blocks": {
+     "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+       {
+        "type": "event_whenflagclicked",
+        "id": "sample-8",
+        "next": {
+         "block": {
+          "type": "pen_clear",
+          "id": "sample-9",
+          "next": {
+           "block": {
+            "type": "motion_gotoxyz",
+            "id": "sample-13",
+            "inputs": {
+             "X": {
+              "shadow": {
+               "type": "math_number",
+               "id": "sample-10",
+               "fields": {
+                "NUM": 0
+               }
+              }
+             },
+             "Y": {
+              "shadow": {
+               "type": "math_number",
+               "id": "sample-11",
+               "fields": {
+                "NUM": -50
+               }
+              }
+             },
+             "Z": {
+              "shadow": {
+               "type": "math_number",
+               "id": "sample-12",
+               "fields": {
+                "NUM": 20
+               }
+              }
+             }
+            },
+            "next": {
+             "block": {
+              "type": "motion_pointindirection",
+              "id": "sample-15",
+              "inputs": {
+               "DIRECTION": {
+                "shadow": {
+                 "type": "math_angle",
+                 "id": "sample-14",
+                 "fields": {
+                  "NUM": 90
+                 }
+                }
+               }
+              },
+              "next": {
+               "block": {
+                "type": "pen_setPenColorToColor",
+                "id": "sample-17",
+                "inputs": {
+                 "COLOR": {
+                  "shadow": {
+                   "type": "colour_picker",
+                   "id": "sample-16",
+                   "fields": {
+                    "COLOUR": "#0fbd8c"
+                   }
+                  }
+                 }
+                },
+                "next": {
+                 "block": {
+                  "type": "pen_penDown",
+                  "id": "sample-18",
+                  "next": {
+                   "block": {
+                    "type": "control_repeat",
+                    "id": "sample-7",
+                    "inputs": {
+                     "TIMES": {
+                      "shadow": {
+                       "type": "math_whole_number",
+                       "id": "sample-0",
+                       "fields": {
+                        "NUM": 72
+                       }
+                      }
+                     },
+                     "SUBSTACK": {
+                      "block": {
+                       "type": "motion_movesteps",
+                       "id": "sample-2",
+                       "inputs": {
+                        "STEPS": {
+                         "shadow": {
+                          "type": "math_number",
+                          "id": "sample-1",
+                          "fields": {
+                           "NUM": 12
+                          }
+                         }
+                        }
+                       },
+                       "next": {
+                        "block": {
+                         "type": "motion_turnright",
+                         "id": "sample-4",
+                         "inputs": {
+                          "DEGREES": {
+                           "shadow": {
+                            "type": "math_number",
+                            "id": "sample-3",
+                            "fields": {
+                             "NUM": 15
+                            }
+                           }
+                          }
+                         },
+                         "next": {
+                          "block": {
+                           "type": "motion_changezby",
+                           "id": "sample-6",
+                           "inputs": {
+                            "DZ": {
+                             "shadow": {
+                              "type": "math_number",
+                              "id": "sample-5",
+                              "fields": {
+                               "NUM": 1.5
+                              }
+                             }
+                            }
+                           }
+                          }
+                         }
+                        }
+                       }
+                      }
+                     }
+                    },
+                    "next": {
+                     "block": {
+                      "type": "pen_penUp",
+                      "id": "sample-19",
+                      "next": {
+                       "block": {
+                        "type": "pen_setPenColorToColor",
+                        "id": "sample-21",
+                        "inputs": {
+                         "COLOR": {
+                          "shadow": {
+                           "type": "colour_picker",
+                           "id": "sample-20",
+                           "fields": {
+                            "COLOUR": "#ff6680"
+                           }
+                          }
+                         }
+                        },
+                        "next": {
+                         "block": {
+                          "type": "pen_drawCube",
+                          "id": "sample-23",
+                          "inputs": {
+                           "SIZE": {
+                            "shadow": {
+                             "type": "math_number",
+                             "id": "sample-22",
+                             "fields": {
+                              "NUM": 60
+                             }
+                            }
+                           }
+                          },
+                          "next": {
+                           "block": {
+                            "type": "looks_sayforsecs",
+                            "id": "sample-26",
+                            "inputs": {
+                             "MESSAGE": {
+                              "shadow": {
+                               "type": "text",
+                               "id": "sample-24",
+                               "fields": {
+                                "TEXT": "Done!"
+                               }
+                              }
+                             },
+                             "SECS": {
+                              "shadow": {
+                               "type": "math_number",
+                               "id": "sample-25",
+                               "fields": {
+                                "NUM": 2
+                               }
+                              }
+                             }
+                            }
+                           }
+                          }
+                         }
+                        }
+                       }
+                      }
+                     }
+                    }
+                   }
+                  }
+                 }
+                }
+               }
+              }
+             }
+            }
+           }
+          }
+         }
+        },
+        "x": 40,
+        "y": 40
+       }
+      ]
+     }
+    },
+    "variables": {},
+    "lists": {}
+   }
+  ],
+  "variables": [],
+  "lists": [],
+  "broadcasts": [],
+  "extensions": [],
+  "monitors": [
+   "motion_xposition:sprite-mvd234b8-0"
+  ],
+  "settings": {
+   "cloneLimit": 30000,
+   "randomSeed": null
+  }
+ }
+}

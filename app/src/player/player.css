@@ -1,0 +1,208 @@
+/* The share page. Phones first: the stage spans the screen's width. */
+
+html,
+body {
+  margin: 0;
+  background: var(--ui-bg);
+}
+
+.player {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-bar {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--menu-bar);
+}
+
+.player-logo {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.player-main {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+}
+
+.player .stage-panel:not(.fullscreen) {
+  padding: 4px 8px 8px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+/* Larger buttons for fingers. */
+.player .stage-header {
+  height: 44px;
+}
+
+.player .flag-button,
+.player .stop-button,
+.player .fullscreen-button {
+  width: 44px;
+  height: 40px;
+}
+
+.player .view-buttons button {
+  min-height: 36px;
+  padding: 2px 14px;
+}
+
+.player-title {
+  margin: 16px 0 8px;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.player-notes {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.player-notes h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.player-notes p {
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.player-message {
+  margin: 48px 0;
+  text-align: center;
+}
+
+.player-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.player-link-button {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.player-actions a.player-link-button {
+  border-color: var(--menu-bar);
+  background: var(--menu-bar);
+  color: #fff;
+  font-weight: 700;
+}
+
+.player-report {
+  flex: 1 1 280px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.player-report h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.player-report label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.player-check {
+  margin-top: 8px;
+}
+
+.player-report-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.player-report-buttons button {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.player-report-buttons .primary {
+  border-color: var(--menu-bar);
+  background: var(--menu-bar);
+  color: #fff;
+}
+
+.player-report-buttons .primary:disabled {
+  opacity: 0.5;
+}
+
+.player-report-done {
+  margin: 8px 0;
+}
+
+.player-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  margin-top: auto;
+  padding: 16px;
+  font-size: 13px;
+}
+
+.player-footer a {
+  color: #8a91a6;
+}
+
+/* On phones the stage goes edge to edge. */
+@media (max-width: 600px) {
+  .player-main {
+    padding: 0 0 24px;
+  }
+
+  .player .stage-panel:not(.fullscreen) {
+    padding: 0 4px;
+    border-radius: 0;
+  }
+
+  .player .stage-panel:not(.fullscreen) .stage {
+    border-right: none;
+    border-left: none;
+    border-radius: 0;
+  }
+
+  .player-title,
+  .player-notes,
+  .player-actions,
+  .player-message {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+}
