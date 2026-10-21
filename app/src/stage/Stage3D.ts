@@ -360,18 +360,19 @@ export class Stage3D {
   /** Uploads only the segments added since the last frame. */
   private syncPen(): void {
     const pen = this.rt.pen
-    const geometry = this.penLines.geometry
     if (pen.clears !== this.penClears) {
       this.penClears = pen.clears
       this.penDrawn = 0
     }
     if (pen.positions !== this.penArray) {
-      // The pen's arrays grew: point the geometry at the new ones.
+      // The pen's arrays grew: build a geometry on the new ones. Reusing the old
+      // geometry would keep three.js's instance limit at the old capacity.
       this.penArray = pen.positions
-      geometry.setPositions(pen.positions)
-      geometry.setColors(pen.colors)
+      this.penLines.geometry.dispose()
+      this.penLines.geometry = new LineSegmentsGeometry().setPositions(pen.positions).setColors(pen.colors)
       this.penDrawn = 0
     }
+    const geometry = this.penLines.geometry
     const n = pen.segmentCount
     if (n > this.penDrawn) {
       const positions = (geometry.attributes.instanceStart as THREE.InterleavedBufferAttribute).data
