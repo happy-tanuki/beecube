@@ -3,7 +3,7 @@
  * properties read and write the entity store, so they always show the live
  * state. Hot paths never use these.
  */
-import { intToColor, colorToInt } from './ops'
+import { clampPenSize, clampPercent, intToColor, colorToInt } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
 import { F_CLONE, F_PEN, F_VISIBLE, type PoseColumn } from './store'
@@ -58,13 +58,22 @@ export class EntityView {
   }
 
   get pen(): PenState {
-    return { down: (this.rt.store.flags[this.slot] & F_PEN) !== 0, color: intToColor(this.rt.store.penColor[this.slot]) }
+    const E = this.rt.store
+    return {
+      down: (E.flags[this.slot] & F_PEN) !== 0,
+      color: intToColor(E.penColor[this.slot]),
+      transparency: E.penTransparency[this.slot],
+      size: E.penSize[this.slot],
+    }
   }
 
   set pen(p: PenState) {
-    const f = this.rt.store.flags
+    const E = this.rt.store
+    const f = E.flags
     f[this.slot] = p.down ? f[this.slot] | F_PEN : f[this.slot] & ~F_PEN
-    this.rt.store.penColor[this.slot] = colorToInt(p.color)
+    E.setPenRgb(this.slot, colorToInt(p.color))
+    E.penTransparency[this.slot] = clampPercent(p.transparency ?? 0)
+    E.penSize[this.slot] = clampPenSize(p.size ?? 1)
   }
 
   get saying(): string | null {

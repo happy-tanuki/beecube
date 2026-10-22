@@ -15,6 +15,7 @@ import type { ExtensionBlock, ReporterBlock, CommandBlock } from './extension'
 import type { Kind } from './instances'
 import {
   clampPitch,
+  clampPenSize,
   clampSize,
   colorToInt,
   compare,
@@ -40,7 +41,7 @@ import {
 import type { Vec3 } from './pen'
 import type { Runtime, WaitRecord } from './runtime'
 import { EntityRef } from './ref'
-import { F_ALIVE, F_DYING, F_VISIBLE } from './store'
+import { F_ALIVE, F_DYING, F_VISIBLE, type PenParam } from './store'
 import { MOUSE, MYSELF, type Value } from './types'
 
 const DEG = Math.PI / 180
@@ -162,8 +163,7 @@ export function makeLib(rt: Runtime) {
     resetTimer: (): void => rt.resetTimer(),
 
     pen(i: number, x: number, y: number, z: number): void {
-      const s = E()
-      rt.pen.addSegment(s.x[i], s.y[i], s.z[i], x, y, z, s.penColor[i])
+      rt.pen.lineFrom(E(), i, x, y, z)
     },
     penClear: (): void => rt.pen.clear(),
     bounce(i: number): void {
@@ -172,7 +172,7 @@ export function makeLib(rt: Runtime) {
       const d = bounced.direction
       s.direction[i] = d > -180 && d <= 180 ? d : wrapDirection(d)
       s.pitch[i] = bounced.pitch
-      if (s.flags[i] & 4) rt.pen.addSegment(s.x[i], s.y[i], s.z[i], bounced.x, bounced.y, bounced.z, s.penColor[i])
+      if (s.flags[i] & 4) rt.pen.lineFrom(s, i, bounced.x, bounced.y, bounced.z)
       s.x[i] = bounced.x
       s.y[i] = bounced.y
       s.z[i] = bounced.z
@@ -185,11 +185,14 @@ export function makeLib(rt: Runtime) {
       E().color[i] = colorToInt(v)
     },
     setPenColor(i: number, v: Value): void {
-      if (isColorString(v)) E().penColor[i] = colorToInt(v)
+      if (isColorString(v)) E().setPenRgb(i, colorToInt(v))
     },
+    penRgb: (i: number, rgb: number): void => E().setPenRgb(i, rgb),
+    penParam: (i: number, param: PenParam, v: number, change: boolean): void => E().setPenParam(i, param, v, change),
+    clampPenSize,
+    stamp: (i: number): void => rt.pen.stamp(E(), i),
     drawCube(i: number, size: number): void {
       const h = size / 2
-      const color = E().penColor[i]
       const corners = [
         [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
         [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
@@ -198,11 +201,10 @@ export function makeLib(rt: Runtime) {
       for (const [a, b] of edges) {
         const p = corners[a]
         const q = corners[b]
-        rt.pen.addSegment(p.x, p.y, p.z, q.x, q.y, q.z, color)
+        rt.pen.addSegment(p.x, p.y, p.z, q.x, q.y, q.z, E(), i)
       }
     },
     drawSphere(i: number, r: number): void {
-      const color = E().penColor[i]
       const SEG = 24
       const LONGITUDES = 8
       const LATITUDES = 5
@@ -213,7 +215,7 @@ export function makeLib(rt: Runtime) {
           const t = (j / SEG) * 2 * Math.PI
           pts.push(yawed(i, r * Math.cos(t) * Math.cos(lon), r * Math.cos(t) * Math.sin(lon), r * Math.sin(t)))
         }
-        rt.pen.addLoop(pts, color)
+        rt.pen.addLoop(pts, E(), i)
       }
       for (let b = 1; b <= LATITUDES; b++) {
         const lat = -Math.PI / 2 + (b / (LATITUDES + 1)) * Math.PI
@@ -222,7 +224,7 @@ export function makeLib(rt: Runtime) {
           const t = (j / SEG) * 2 * Math.PI
           pts.push(yawed(i, r * Math.cos(lat) * Math.cos(t), r * Math.cos(lat) * Math.sin(t), r * Math.sin(lat)))
         }
-        rt.pen.addLoop(pts, color)
+        rt.pen.addLoop(pts, E(), i)
       }
     },
 

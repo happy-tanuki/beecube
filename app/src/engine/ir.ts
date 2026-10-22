@@ -205,6 +205,11 @@ const STATEMENTS: Record<string, { inputs?: string[]; fields?: string[]; substac
   pen_penDown: {},
   pen_penUp: {},
   pen_setPenColorToColor: { inputs: ['COLOR'] },
+  pen_changePenColorParamBy: { inputs: ['VALUE'], fields: ['COLOR_PARAM'] },
+  pen_setPenColorParamTo: { inputs: ['VALUE'], fields: ['COLOR_PARAM'] },
+  pen_changePenSizeBy: { inputs: ['SIZE'] },
+  pen_setPenSizeTo: { inputs: ['SIZE'] },
+  pen_stamp: {},
   pen_drawCube: { inputs: ['SIZE'] },
   pen_drawSphere: { inputs: ['RADIUS'] },
 }

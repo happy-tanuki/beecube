@@ -69,6 +69,8 @@ class EntityStore {
   // looks
   color: Uint32Array       // 0xRRGGBB
   penColor: Uint32Array
+  // the pen color's parts (0–100) and the pen size
+  penHue, penSaturation, penBrightness, penTransparency, penSize: Float64Array
   shape: Uint8Array        // ShapeKind index
   flags: Uint8Array        // alive, visible, pen down, clone, dying
   kind: Uint16Array        // the original sprite whose scripts the entity runs
@@ -447,8 +449,9 @@ collision, determinism in stage 8), not for the compiler.
 - **Speech bubbles**: DOM (CSS2D) bubbles are pooled; at most 64 are shown,
   nearest to the camera first. Drawing text into textures for more is
   considered later.
-- **Pen**: segments are appended to typed arrays and the drawn range grows;
-  line geometry is not rebuilt.
+- **Pen**: segments (with their size and opacity) and stamps are appended
+  to typed arrays and the drawn range grows; line geometry is not rebuilt.
+  Stamps are instanced shapes, one InstancedMesh per shape.
 - **Interpolation**: each frame draws the pose interpolated between the
   start and end of the last tick (on the GPU, see above).
 - **Picking**: a ray against bounding spheres from the store, then an exact

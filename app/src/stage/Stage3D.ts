@@ -18,11 +18,13 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
+import { APP_ID } from '../brand'
 import type { Runtime } from '../engine/runtime'
 import type { EntityView } from '../engine/sprite'
 import { F_ALIVE, F_VISIBLE } from '../engine/store'
 import { BASE_SIZE, STAGE_HEIGHT, STAGE_WIDTH } from '../engine/types'
 import { EntityInstances, writeMatrix } from './instances'
+import { StampInstances } from './stamps'
 
 export type ViewName = 'home' | 'top' | 'front' | 'side'
 
@@ -39,6 +41,37 @@ const DRAG_THRESHOLD_PX = 3
 const MAX_BUBBLES = 64
 /** Bounding-sphere radius per unit half-size, by shape index (as in collision.ts). */
 const BOUNDING = [Math.sqrt(3), 1, Math.SQRT2, Math.SQRT2]
+/** Pen lines are at least this many CSS pixels wide, however far away, so thin ones don't vanish. */
+const PEN_MIN_PIXELS = 1.5
+
+/**
+ * Gives pen lines their own width and opacity, from the per-segment
+ * `instanceStyle` attribute (pen size, opacity), in place of the material's.
+ * The width is in stage units (pen size 1 is 1 unit, as a pixel of Scratch's
+ * stage), so lines look thinner further away, like the shapes around them.
+ */
+function usePenStyles(material: LineMaterial): void {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        'uniform float linewidth;',
+        'attribute vec2 instanceStyle;\nvarying float vPenOpacity;\nvarying float vPenWidth;\nfloat penWidth;\n#define linewidth penWidth',
+      )
+      .replace(
+        'vec4 end = modelViewMatrix * vec4( instanceEnd, 1.0 );',
+        `vec4 end = modelViewMatrix * vec4( instanceEnd, 1.0 );
+        // Stage units per CSS pixel at the segment's middle.
+        float unitsPerPixel = 2.0 * max( - 0.5 * ( start.z + end.z ), 0.0 ) / ( projectionMatrix[ 1 ][ 1 ] * resolution.y );
+        penWidth = max( instanceStyle.x, ${PEN_MIN_PIXELS.toFixed(1)} * unitsPerPixel );
+        vPenWidth = penWidth;
+        vPenOpacity = instanceStyle.y;`,
+      )
+    shader.fragmentShader = shader.fragmentShader
+      .replace('uniform float linewidth;', 'varying float vPenOpacity;\nvarying float vPenWidth;\n#define linewidth vPenWidth')
+      .replace('gl_FragColor = vec4( diffuseColor.rgb, alpha );', 'gl_FragColor = vec4( diffuseColor.rgb, alpha * vPenOpacity );')
+  }
+  material.customProgramCacheKey = () => `${APP_ID}-pen`
+}
 
 /** Lights (with shadows) and the workplane: floor, grid, axes and border. */
 export function addEnvironment(scene: THREE.Scene): void {
@@ -96,6 +129,7 @@ export class Stage3D {
   private penArray: Float32Array | null = null
   private penDrawn = 0
   private penClears = -1
+  private readonly stamps: StampInstances
   private readonly selection: THREE.Group
   private readonly heightHandle: THREE.Mesh
   private readonly raycaster = new THREE.Raycaster()
@@ -168,11 +202,13 @@ export class Stage3D {
     this.pickMesh = new THREE.Mesh(this.instances.geometries[0], this.instances.material)
     this.pickMesh.matrixAutoUpdate = false
 
-    this.penMaterial = new LineMaterial({ linewidth: 2.5, vertexColors: true, worldUnits: false })
+    this.penMaterial = new LineMaterial({ vertexColors: true, worldUnits: true, transparent: true })
+    usePenStyles(this.penMaterial)
     this.penLines = new LineSegments2(new LineSegmentsGeometry(), this.penMaterial)
     this.penLines.frustumCulled = false
     this.penLines.visible = false
     this.scene.add(this.penLines)
+    this.stamps = new StampInstances(this.scene)
 
     this.selection = this.buildSelection()
     this.scene.add(this.selection)
@@ -200,6 +236,7 @@ export class Stage3D {
     this.resizeObserver.disconnect()
     this.controls.dispose()
     this.instances.dispose()
+    this.stamps.dispose()
     this.renderer.dispose()
     this.renderer.domElement.remove()
     this.labels.domElement.remove()
@@ -296,6 +333,7 @@ export class Stage3D {
     this.syncSelection(alpha)
     this.syncBubbles(alpha)
     this.syncPen()
+    this.stamps.sync(this.rt.pen)
     this.controls.update()
     const prepared = performance.now()
     this.renderer.render(this.scene, this.camera)
@@ -369,7 +407,9 @@ export class Stage3D {
       // geometry would keep three.js's instance limit at the old capacity.
       this.penArray = pen.positions
       this.penLines.geometry.dispose()
-      this.penLines.geometry = new LineSegmentsGeometry().setPositions(pen.positions).setColors(pen.colors)
+      const geometry = new LineSegmentsGeometry().setPositions(pen.positions).setColors(pen.colors)
+      geometry.setAttribute('instanceStyle', new THREE.InstancedBufferAttribute(pen.styles, 2))
+      this.penLines.geometry = geometry
       this.penDrawn = 0
     }
     const geometry = this.penLines.geometry
@@ -377,10 +417,13 @@ export class Stage3D {
     if (n > this.penDrawn) {
       const positions = (geometry.attributes.instanceStart as THREE.InterleavedBufferAttribute).data
       const colors = (geometry.attributes.instanceColorStart as THREE.InterleavedBufferAttribute).data
+      const styles = geometry.attributes.instanceStyle as THREE.InstancedBufferAttribute
       positions.addUpdateRange(this.penDrawn * 6, (n - this.penDrawn) * 6)
       colors.addUpdateRange(this.penDrawn * 6, (n - this.penDrawn) * 6)
+      styles.addUpdateRange(this.penDrawn * 2, (n - this.penDrawn) * 2)
       positions.needsUpdate = true
       colors.needsUpdate = true
+      styles.needsUpdate = true
     }
     this.penDrawn = n
     geometry.instanceCount = n

@@ -112,7 +112,12 @@ function parseSprite(v: unknown, where: string): SavedSprite {
     color: str(v, 'color', where),
     shape,
     visible: v.visible !== false,
-    pen: { down: pen.down === true, color: str(pen, 'color', `${where}.pen`) },
+    pen: {
+      down: pen.down === true,
+      color: str(pen, 'color', `${where}.pen`),
+      ...(pen.transparency === undefined ? {} : { transparency: num(pen, 'transparency', `${where}.pen`) }),
+      ...(pen.size === undefined ? {} : { size: num(pen, 'size', `${where}.pen`) }),
+    },
     blocks: (v.blocks as WorkspaceJson | null) ?? null,
     variables: parseRecord(v.variables, `${where}.variables`, (x, at) => ({ name: str(x, 'name', at), value: isValue(x.value) ? x.value : 0 })),
     lists: parseRecord(v.lists, `${where}.lists`, (x, at) => {

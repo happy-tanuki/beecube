@@ -60,13 +60,24 @@ export function makeGeometry(shape: ShapeKind): THREE.BufferGeometry {
 /** Writes an entity's (interpolated) world matrix, column-major, into `out` at `o`. */
 export function writeMatrix(E: RenderColumns, i: number, a: number, out: Float32Array, o: number): void {
   const b = 1 - a
-  const x = E.px[i] * b + E.x[i] * a
-  const y = E.py[i] * b + E.y[i] * a
-  const z = E.pz[i] * b + E.z[i] * a
-  const dir = E.pdirection[i] + wrapDirection(E.direction[i] - E.pdirection[i]) * a
-  const pitch = E.ppitch[i] * b + E.pitch[i] * a
-  const roll = E.proll[i] + wrapDirection(E.roll[i] - E.proll[i]) * a
-  const s = (E.psize[i] * b + E.size[i] * a) / 100
+  poseMatrix(
+    E.px[i] * b + E.x[i] * a,
+    E.py[i] * b + E.y[i] * a,
+    E.pz[i] * b + E.z[i] * a,
+    E.pdirection[i] + wrapDirection(E.direction[i] - E.pdirection[i]) * a,
+    E.ppitch[i] * b + E.pitch[i] * a,
+    E.proll[i] + wrapDirection(E.roll[i] - E.proll[i]) * a,
+    E.psize[i] * b + E.size[i] * a,
+    out,
+    o,
+  )
+}
+
+/** Writes the world matrix of a pose (size in percent), column-major, into `out` at `o`. */
+export function poseMatrix(
+  x: number, y: number, z: number, dir: number, pitch: number, roll: number, size: number, out: Float32Array, o: number,
+): void {
+  const s = size / 100
   const yaw = (90 - dir) * DEG
   const p = pitch * DEG
   const r = roll * DEG

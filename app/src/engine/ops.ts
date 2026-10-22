@@ -80,6 +80,15 @@ export function clampSize(s: number): number {
   return Math.max(5, Math.min(1000, s))
 }
 
+export function clampPercent(n: number): number {
+  return Math.max(0, Math.min(100, n))
+}
+
+/** Pen sizes run from 1 to 1200, as in Scratch. */
+export function clampPenSize(s: number): number {
+  return Math.max(1, Math.min(1200, s))
+}
+
 /** Whether a "pick random" bound counts as a whole number (so the result is one too). */
 export function isWholeBound(v: Value): boolean {
   return Number.isInteger(toNumber(v)) && !String(v).includes('.')
@@ -106,6 +115,34 @@ export function intToColor(n: number): string {
 
 export function isColorString(v: Value): v is string {
   return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)
+}
+
+/** 0xRRGGBB to hue, saturation and brightness, each 0–100 (as the pen's color blocks use them). */
+export function rgbToHsv(rgb: number): [number, number, number] {
+  const r = ((rgb >> 16) & 0xff) / 255
+  const g = ((rgb >> 8) & 0xff) / 255
+  const b = (rgb & 0xff) / 255
+  const max = Math.max(r, g, b)
+  const d = max - Math.min(r, g, b)
+  let h = 0
+  if (d > 0) {
+    if (max === r) h = ((g - b) / d + 6) % 6
+    else if (max === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+  }
+  return [(h / 6) * 100, max === 0 ? 0 : (d / max) * 100, max * 100]
+}
+
+/** Hue, saturation and brightness (0–100; hue wraps) to 0xRRGGBB. */
+export function hsvToRgb(h: number, s: number, v: number): number {
+  const hue = (mod(h, 100) / 100) * 6
+  const sat = s / 100
+  const val = v / 100
+  const channel = (n: number) => {
+    const k = (n + hue) % 6
+    return Math.round((val - val * sat * Math.max(0, Math.min(k, 4 - k, 1))) * 255)
+  }
+  return (channel(5) << 16) | (channel(3) << 8) | channel(1)
 }
 
 // ---- lists ----------------------------------------------------------------

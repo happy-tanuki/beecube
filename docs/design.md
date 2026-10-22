@@ -11,7 +11,8 @@ BeeCube is a Scratch-style block programming environment in 3D:
 - Sprites are 3D objects and the stage is a 3D space.
 - The blocks are Scratch's, with blocks added or changed for the third
   dimension.
-- The pen draws in space: lines, and wireframe shapes.
+- The pen draws in space: lines, wireframe shapes and stamps of a sprite's
+  shape.
 - Objects and the camera are handled like in Tinkercad.
 - Physics comes as an extension.
 
@@ -58,12 +59,20 @@ or changed:
 | Looks | set color to (in place of costumes) |
 | Events | when I touch (a sprite, or my own clones) |
 | Sensing | touched sprite (a sprite reference); "of" for another sprite's properties and sprite-only variables |
-| Pen | lines drawn in space; draw cube, draw sphere (wireframes) |
+| Pen | lines drawn in space; draw cube, draw sphere (wireframes); stamp leaves a copy of the shape |
 
 Changed meanings:
 
 - **"touching color"** means touching a sprite of that color, because a 3D
   view has no single picture to sample pixels from.
+- **Pen size** is a width in space, in stage units (size 1 is 1 unit, as a
+  pixel of Scratch's stage), so lines look thinner further away, like the
+  shapes around them. They stay at least 1.5 pixels wide on the screen so
+  they don't vanish. The pen color's parts (color, saturation, brightness,
+  transparency) are as in Scratch.
+- **"stamp"** leaves a copy of the sprite's shape, color and pose, even when
+  the sprite is hidden (so a hidden sprite can stamp). Stamps are not
+  sprites: they don't move, aren't touched, and "erase all" removes them.
 - **"touching"** tests the real shapes in 3D, and **"distance to"** measures
   between centers in 3D.
 - **Sprite references.** Some reporters return a sprite (or clone) rather

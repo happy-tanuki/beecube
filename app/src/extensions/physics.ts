@@ -304,7 +304,7 @@ export class PhysicsWorld {
       if (b.mode !== 'dynamic' || !(E.flags[slot] & F_VISIBLE) || b.body.isSleeping()) continue
       const t = b.body.translation()
       applyRotation(E, slot, b.body.rotation())
-      if (E.flags[slot] & F_PEN) this.rt.pen.addSegment(E.x[slot], E.y[slot], E.z[slot], t.x, t.y, t.z, E.penColor[slot])
+      if (E.flags[slot] & F_PEN) this.rt.pen.lineFrom(E, slot, t.x, t.y, t.z)
       E.x[slot] = t.x
       E.y[slot] = t.y
       E.z[slot] = t.z

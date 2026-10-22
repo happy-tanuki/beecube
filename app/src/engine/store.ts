@@ -5,6 +5,7 @@
  * Capacity is reserved up front (originals + clone limit), so columns are
  * only replaced between ticks and generated code may keep them in locals.
  */
+import { clampPercent, hsvToRgb, mod, rgbToHsv } from './ops'
 
 export const F_ALIVE = 1
 export const F_VISIBLE = 2
@@ -12,6 +13,10 @@ export const F_PEN = 4
 export const F_CLONE = 8
 /** Deleted during this tick; removed at its end. */
 export const F_DYING = 16
+
+/** The pen color's parts that "change pen (color) by" adjusts, by menu value. */
+export const PEN_PARAMS = ['color', 'saturation', 'brightness', 'transparency'] as const
+export type PenParam = (typeof PEN_PARAMS)[number]
 
 /** Handles pack a generation above the slot number. */
 const SLOT_SPAN = 2 ** 22
@@ -45,7 +50,14 @@ export class EntityStore {
 
   /** 0xRRGGBB */
   color = new Uint32Array(0)
+  /** 0xRRGGBB, kept in step with the pen's hue, saturation and brightness. */
   penColor = new Uint32Array(0)
+  /** The pen color as Scratch's pen blocks see it, each 0–100. Hue is kept even where the color is gray. */
+  penHue = new Float64Array(0)
+  penSaturation = new Float64Array(0)
+  penBrightness = new Float64Array(0)
+  penTransparency = new Float64Array(0)
+  penSize = new Float64Array(0)
   /** Index into SHAPES. */
   shape = new Uint8Array(0)
   flags = new Uint8Array(0)
@@ -89,6 +101,11 @@ export class EntityStore {
     this.psize = grow(this.psize, f64)
     this.color = grow(this.color, (n) => new Uint32Array(n))
     this.penColor = grow(this.penColor, (n) => new Uint32Array(n))
+    this.penHue = grow(this.penHue, f64)
+    this.penSaturation = grow(this.penSaturation, f64)
+    this.penBrightness = grow(this.penBrightness, f64)
+    this.penTransparency = grow(this.penTransparency, f64)
+    this.penSize = grow(this.penSize, f64)
     this.shape = grow(this.shape, (n) => new Uint8Array(n))
     this.flags = grow(this.flags, (n) => new Uint8Array(n))
     this.kind = grow(this.kind, (n) => new Uint16Array(n))
@@ -164,7 +181,35 @@ export class EntityStore {
     this.psize[to] = this.size[from]
     this.color[to] = this.color[from]
     this.penColor[to] = this.penColor[from]
+    this.penHue[to] = this.penHue[from]
+    this.penSaturation[to] = this.penSaturation[from]
+    this.penBrightness[to] = this.penBrightness[from]
+    this.penTransparency[to] = this.penTransparency[from]
+    this.penSize[to] = this.penSize[from]
     this.shape[to] = this.shape[from]
+  }
+
+  /** Sets the pen color from 0xRRGGBB; as in Scratch, the pen becomes opaque. */
+  setPenRgb(slot: number, rgb: number): void {
+    const [h, s, v] = rgbToHsv(rgb)
+    // A gray has no hue of its own: keep the old one, so "change pen color" carries on from it.
+    if (s > 0 && v > 0) this.penHue[slot] = h
+    this.penSaturation[slot] = s
+    this.penBrightness[slot] = v
+    this.penTransparency[slot] = 0
+    this.penColor[slot] = rgb
+  }
+
+  /** Sets or changes one part of the pen color. Hue wraps; the others stay within 0–100. */
+  setPenParam(slot: number, param: PenParam, value: number, change: boolean): void {
+    const column =
+      param === 'color' ? this.penHue
+      : param === 'saturation' ? this.penSaturation
+      : param === 'brightness' ? this.penBrightness
+      : this.penTransparency
+    const v = change ? column[slot] + value : value
+    column[slot] = param === 'color' ? mod(v, 100) : clampPercent(v)
+    this.penColor[slot] = hsvToRgb(this.penHue[slot], this.penSaturation[slot], this.penBrightness[slot])
   }
 
   say(slot: number, text: string | null): void {

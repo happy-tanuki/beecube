@@ -15,6 +15,7 @@ import { BUILTIN_PROPERTIES, paramKey, type KindFacts, type Layout, type Project
 import type { CommandBlock, ExtensionBlock } from './extension'
 import type { Expr, ProcIR, ScriptIR, Stmt } from './ir'
 import { colorToInt, compare, contains, isColorString, isWholeBound, letterOf, mathop, mod, toBoolean, toNumber, toText, waitTicks } from './ops'
+import { PEN_PARAMS } from './store'
 import { BASE_SIZE, EDGE, MOUSE, MYSELF, STAGE_HEIGHT, STAGE_WIDTH, type Value } from './types'
 
 export interface CodegenEnv {
@@ -122,7 +123,7 @@ const num = (v: V) => (v.k !== undefined ? toNumber(v.k) : undefined)
 /** Column names in generated code. */
 const COLUMNS: Record<string, string> = {
   x: 'X', y: 'Y', z: 'Z', direction: 'D', pitch: 'PT', roll: 'RL', size: 'SZ',
-  color: 'CO', penColor: 'PCO', flags: 'FL',
+  color: 'CO', penSize: 'PSZ', flags: 'FL',
 }
 
 /** Flag bits, as in store.ts. */
@@ -695,12 +696,29 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
     case 'pen_setPenColorToColor': {
       const v = e('COLOR')
       if (v.k !== undefined) {
-        if (isColorString(v.k)) emit(ctx, `${f.col('penColor')}[i] = ${colorToInt(v.k)};`)
+        if (isColorString(v.k)) emit(ctx, `L.penRgb(i, ${colorToInt(v.k)});`)
       } else {
         emit(ctx, `L.setPenColor(i, ${v.c});`)
       }
       break
     }
+    case 'pen_changePenColorParamBy':
+    case 'pen_setPenColorParamTo':
+      if ((PEN_PARAMS as readonly string[]).includes(s.f.COLOR_PARAM)) {
+        emit(ctx, `L.penParam(i, ${lit(s.f.COLOR_PARAM)}, ${n('VALUE')}, ${s.op === 'pen_changePenColorParamBy'});`)
+      }
+      break
+    case 'pen_setPenSizeTo':
+      emit(ctx, `${f.col('penSize')}[i] = L.clampPenSize(${n('SIZE')});`)
+      break
+    case 'pen_changePenSizeBy': {
+      const PSZ = f.col('penSize')
+      emit(ctx, `${PSZ}[i] = L.clampPenSize(${PSZ}[i] + ${n('SIZE')});`)
+      break
+    }
+    case 'pen_stamp':
+      emit(ctx, 'L.stamp(i);')
+      break
     case 'pen_drawCube':
       emit(ctx, `L.drawCube(i, ${n('SIZE')});`)
       break

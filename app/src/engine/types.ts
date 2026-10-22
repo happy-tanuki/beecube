@@ -21,6 +21,10 @@ export interface PenState {
   down: boolean
   /** `#rrggbb` */
   color: string
+  /** 0–100; 0 when absent. */
+  transparency?: number
+  /** 1–1200; 1 when absent. */
+  size?: number
 }
 
 /** A Blockly workspace serialized with `Blockly.serialization.workspaces.save`. */

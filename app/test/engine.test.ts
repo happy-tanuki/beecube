@@ -292,6 +292,89 @@ describe('pen', () => {
     ticks(1)
     expect(rt.pen.segmentCount).toBe(12)
   })
+
+  const colorParam = (op: string, param: string, n: number) =>
+    blk(op, { fields: { COLOR_PARAM: param }, inputs: { VALUE: num(n) } })
+  const moveZ = (z: number) => blk('motion_gotoxyz', { inputs: { X: num(0), Y: num(0), Z: num(z) } })
+
+  it('changes the pen color by hue, saturation and brightness, wrapping the hue', () => {
+    const { rt, ticks } = setup([
+      makeSprite('a', [
+        flag(
+          blk('pen_setPenColorToColor', { inputs: { COLOR: { shadow: blk('colour_picker', { fields: { COLOUR: '#ff0000' } }) } } }),
+          colorParam('pen_changePenColorParamBy', 'color', 133.333),
+        ),
+      ]),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    const a = rt.getSprite('a')!
+    // Red (hue 0) plus a third of the way round is green.
+    expect(a.pen.color).toBe('#00ff00')
+    expect(rt.store.penHue[a.slot]).toBeCloseTo(33.333)
+
+    rt.stopAll()
+    a.blocks = { blocks: { languageVersion: 0, blocks: [flag(colorParam('pen_setPenColorParamTo', 'brightness', 50), colorParam('pen_changePenColorParamBy', 'saturation', -200))] } }
+    rt.greenFlag()
+    ticks(1)
+    expect(a.pen.color).toBe('#808080')
+    // Gray keeps its hue, so color changes carry on from it.
+    expect(rt.store.penHue[a.slot]).toBeCloseTo(33.333)
+  })
+
+  it('draws segments with the pen size and transparency', () => {
+    const { rt, ticks } = setup([
+      makeSprite('a', [
+        flag(
+          blk('pen_setPenSizeTo', { inputs: { SIZE: num(4) } }),
+          blk('pen_changePenSizeBy', { inputs: { SIZE: num(2000) } }),
+          colorParam('pen_setPenColorParamTo', 'transparency', 25),
+          blk('pen_penDown'),
+          moveZ(10),
+        ),
+      ]),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    expect(rt.pen.segmentCount).toBe(1)
+    expect([...rt.pen.styles.subarray(0, 2)]).toEqual([1200, 0.75])
+    expect(rt.getSprite('a')!.pen).toMatchObject({ size: 1200, transparency: 25 })
+  })
+
+  it('stamps the shape where it is, and erase all removes stamps', () => {
+    const { rt, ticks } = setup([
+      makeSprite('a', [flag(blk('pen_stamp'), moveZ(30), blk('pen_stamp'))], { shape: 'sphere', color: '#336699' }),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    expect(rt.pen.stampCount).toBe(2)
+    expect(rt.pen.stampPoses[7 + 2]).toBe(30)
+    expect(rt.pen.stampShapes[0]).toBe(1)
+    expect(rt.pen.stampColors[0]).toBe(0x336699)
+    rt.stopAll()
+    rt.getSprite('a')!.blocks = { blocks: { languageVersion: 0, blocks: [flag(blk('pen_clear'))] } }
+    rt.greenFlag()
+    ticks(1)
+    expect(rt.pen.stampCount).toBe(0)
+  })
+
+  it('gives clones the pen size and color parts', () => {
+    const { rt, ticks } = setup([
+      makeSprite('a', [
+        flag(blk('pen_setPenSizeTo', { inputs: { SIZE: num(7) } }), colorParam('pen_setPenColorParamTo', 'transparency', 40), cloneOf()),
+      ]),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    const clone = rt.clonesOf(rt.getSprite('a')!)[0]
+    expect(clone.pen).toMatchObject({ size: 7, transparency: 40 })
+  })
+
+  it('keeps the pen size and transparency in the project file', () => {
+    const { rt } = setup([makeSprite('a', [], { pen: { down: false, color: '#000000', size: 3, transparency: 20 } })])
+    const file = parseProject(JSON.parse(JSON.stringify(serializeProject(rt))))
+    expect(file.sprites[0].pen).toEqual({ down: false, color: '#000000', size: 3, transparency: 20 })
+  })
 })
 
 describe('operators and types', () => {

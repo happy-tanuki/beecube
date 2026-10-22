@@ -17,7 +17,7 @@ import type { ExtensionSpec } from './extension'
 import { FramePool, Kind, ScriptRun, type SystemFn } from './instances'
 import { parseClicked, parseWorkspace, registerExtensionBlocks, type ScriptIR } from './ir'
 import { makeLib, type Lib } from './lib'
-import { colorToInt, toNumber, wrapDirection } from './ops'
+import { clampPenSize, clampPercent, colorToInt, toNumber, wrapDirection } from './ops'
 import { PenBuffer } from './pen'
 import { Random } from './random'
 import { EntityRef } from './ref'
@@ -228,7 +228,10 @@ export class Runtime {
     s.size[slot] = data.size
     s.snapPose(slot)
     s.color[slot] = colorToInt(data.color)
-    s.penColor[slot] = colorToInt(data.pen.color)
+    s.penHue[slot] = 0
+    s.setPenRgb(slot, colorToInt(data.pen.color))
+    s.penTransparency[slot] = clampPercent(data.pen.transparency ?? 0)
+    s.penSize[slot] = clampPenSize(data.pen.size ?? 1)
     s.shape[slot] = Math.max(0, SHAPES.indexOf(data.shape))
     s.flags[slot] = F_ALIVE | (data.visible ? F_VISIBLE : 0) | (data.pen.down ? F_PEN : 0)
     const sprite = new Sprite(this, slot, data.id, data.name, structuredClone(data.blocks))
@@ -343,7 +346,7 @@ export class Runtime {
   moveTo(e: EntityView | number, x: number, y: number, z: number): void {
     const i = typeof e === 'number' ? e : e.slot
     const s = this.store
-    if (s.flags[i] & F_PEN) this.pen.addSegment(s.x[i], s.y[i], s.z[i], x, y, z, s.penColor[i])
+    if (s.flags[i] & F_PEN) this.pen.lineFrom(s, i, x, y, z)
     s.x[i] = x
     s.y[i] = y
     s.z[i] = z

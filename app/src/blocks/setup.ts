@@ -149,6 +149,31 @@ function defineSensingOf(): void {
   }
 }
 
+/** "change / set pen (color) by / to": the menu of the pen color's parts (PEN_PARAMS). */
+function definePenParam(type: string, msgKey: string): void {
+  ScratchBlocks.Blocks[type] = {
+    init(this: ScratchBlocks.Block) {
+      this.jsonInit({
+        message0: ScratchBlocks.Msg[msgKey],
+        args0: [
+          {
+            type: 'field_dropdown',
+            name: 'COLOR_PARAM',
+            options: (): MenuOption[] => [
+              [ScratchBlocks.Msg.PEN_PARAM_COLOR, 'color'],
+              [ScratchBlocks.Msg.PEN_PARAM_SATURATION, 'saturation'],
+              [ScratchBlocks.Msg.PEN_PARAM_BRIGHTNESS, 'brightness'],
+              [ScratchBlocks.Msg.PEN_PARAM_TRANSPARENCY, 'transparency'],
+            ],
+          },
+          arg('VALUE'),
+        ],
+        extensions: ['colours_pen', 'shape_statement'],
+      })
+    },
+  }
+}
+
 let defined = false
 
 /** Registers this project's blocks. Messages are read at block creation, so locale changes apply. */
@@ -196,6 +221,11 @@ export function defineCustomBlocks(): void {
   defineStatement('pen_penDown', 'PEN_PENDOWN', [], 'pen')
   defineStatement('pen_penUp', 'PEN_PENUP', [], 'pen')
   defineStatement('pen_setPenColorToColor', 'PEN_SETCOLORTO', [arg('COLOR')], 'pen')
+  definePenParam('pen_changePenColorParamBy', 'PEN_CHANGECOLORPARAMBY')
+  definePenParam('pen_setPenColorParamTo', 'PEN_SETCOLORPARAMTO')
+  defineStatement('pen_changePenSizeBy', 'PEN_CHANGESIZEBY', [arg('SIZE')], 'pen')
+  defineStatement('pen_setPenSizeTo', 'PEN_SETSIZETO', [arg('SIZE')], 'pen')
+  defineStatement('pen_stamp', 'PEN_STAMP', [], 'pen')
   defineStatement('pen_drawCube', 'PEN_DRAWCUBE', [arg('SIZE')], 'pen')
   defineStatement('pen_drawSphere', 'PEN_DRAWSPHERE', [arg('RADIUS')], 'pen')
 }
