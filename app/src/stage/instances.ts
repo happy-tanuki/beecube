@@ -36,7 +36,13 @@ export interface RenderColumns {
   readonly ppitch: Floats
   readonly proll: Floats
   readonly psize: Floats
+  readonly width: Floats
+  readonly depth: Floats
+  readonly height: Floats
 }
+
+/** Pose values EntityInstances remembers per slot: x, y, z, direction, pitch, roll, size, width, depth, height. */
+const POSE_VALUES = 10
 
 /** Above this many entities, shapes stop casting shadows. */
 export const SHADOW_LIMIT = 2000
@@ -57,8 +63,8 @@ export function makeGeometry(shape: ShapeKind): THREE.BufferGeometry {
   }
 }
 
-/** Writes an entity's (interpolated) world matrix, column-major, into `out` at `o`. */
-export function writeMatrix(E: RenderColumns, i: number, a: number, out: Float32Array, o: number): void {
+/** Writes an entity's (interpolated) world matrix, column-major, into `out` at `o`; `stretched` false leaves out width, depth and height. */
+export function writeMatrix(E: RenderColumns, i: number, a: number, out: Float32Array, o: number, stretched = true): void {
   const b = 1 - a
   poseMatrix(
     E.px[i] * b + E.x[i] * a,
@@ -68,16 +74,23 @@ export function writeMatrix(E: RenderColumns, i: number, a: number, out: Float32
     E.ppitch[i] * b + E.pitch[i] * a,
     E.proll[i] + wrapDirection(E.roll[i] - E.proll[i]) * a,
     E.psize[i] * b + E.size[i] * a,
+    stretched ? E.width[i] : 100,
+    stretched ? E.depth[i] : 100,
+    stretched ? E.height[i] : 100,
     out,
     o,
   )
 }
 
-/** Writes the world matrix of a pose (size in percent), column-major, into `out` at `o`. */
+/** Writes the world matrix of a pose (size, width, depth and height in percent), column-major, into `out` at `o`. */
 export function poseMatrix(
-  x: number, y: number, z: number, dir: number, pitch: number, roll: number, size: number, out: Float32Array, o: number,
+  x: number, y: number, z: number, dir: number, pitch: number, roll: number,
+  size: number, width: number, depth: number, height: number, out: Float32Array, o: number,
 ): void {
   const s = size / 100
+  const kx = (s * width) / 100
+  const ky = (s * depth) / 100
+  const kz = (s * height) / 100
   const yaw = (90 - dir) * DEG
   const p = pitch * DEG
   const r = roll * DEG
@@ -87,17 +100,17 @@ export function poseMatrix(
   // Columns: the local x (heading), y and z axes, as Rz(yaw)·Ry(-pitch)·Rx(roll).
   const y0 = -sy, y1 = cy
   const z0 = -cy * sp, z1 = -sy * sp, z2 = cp
-  out[o] = cy * cp * s
-  out[o + 1] = sy * cp * s
-  out[o + 2] = sp * s
+  out[o] = cy * cp * kx
+  out[o + 1] = sy * cp * kx
+  out[o + 2] = sp * kx
   out[o + 3] = 0
-  out[o + 4] = (cr * y0 + sr * z0) * s
-  out[o + 5] = (cr * y1 + sr * z1) * s
-  out[o + 6] = sr * z2 * s
+  out[o + 4] = (cr * y0 + sr * z0) * ky
+  out[o + 5] = (cr * y1 + sr * z1) * ky
+  out[o + 6] = sr * z2 * ky
   out[o + 7] = 0
-  out[o + 8] = (cr * z0 - sr * y0) * s
-  out[o + 9] = (cr * z1 - sr * y1) * s
-  out[o + 10] = cr * z2 * s
+  out[o + 8] = (cr * z0 - sr * y0) * kz
+  out[o + 9] = (cr * z1 - sr * y1) * kz
+  out[o + 10] = cr * z2 * kz
   out[o + 11] = 0
   out[o + 12] = x
   out[o + 13] = y
@@ -108,8 +121,10 @@ export function poseMatrix(
 /**
  * Instanced shapes take their pose at the start and end of the last tick
  * (position and size, then direction, pitch and roll) and build their matrix
- * in the vertex shader, interpolating by `poseAlpha`. So the CPU writes 14
- * numbers per moved entity per tick, and nothing on frames between ticks.
+ * in the vertex shader, interpolating by `poseAlpha`, and are stretched by
+ * `stretch` (width, depth and height in percent, not interpolated). So the
+ * CPU writes 17 numbers per moved entity per tick, and nothing on frames
+ * between ticks.
  */
 const POSE_DECLARATIONS = /* glsl */ `
 #ifdef USE_INSTANCING
@@ -117,6 +132,7 @@ attribute vec4 poseFrom;
 attribute vec4 poseTo;
 attribute vec3 turnFrom;
 attribute vec3 turnTo;
+attribute vec3 stretch;
 uniform float poseAlpha;
 float shortestTurn(float d) { return d - 360.0 * floor((d + 180.0) / 360.0); }
 mat4 entityMatrix() {
@@ -129,14 +145,14 @@ mat4 entityMatrix() {
   float cy = cos(yaw), sy = sin(yaw);
   float cp = cos(radians(pitch)), sp = sin(radians(pitch));
   float cr = cos(radians(roll)), sr = sin(radians(roll));
-  float s = p.w / 100.0;
+  vec3 s = p.w * stretch / 10000.0;
   // As writeMatrix: the local x (heading), y and z axes, as Rz(yaw)·Ry(-pitch)·Rx(roll).
   float y0 = -sy, y1 = cy;
   float z0 = -cy * sp, z1 = -sy * sp, z2 = cp;
   return mat4(
-    vec4(cy * cp * s, sy * cp * s, sp * s, 0.0),
-    vec4((cr * y0 + sr * z0) * s, (cr * y1 + sr * z1) * s, sr * z2 * s, 0.0),
-    vec4((cr * z0 - sr * y0) * s, (cr * z1 - sr * y1) * s, cr * z2 * s, 0.0),
+    vec4(cy * cp * s.x, sy * cp * s.x, sp * s.x, 0.0),
+    vec4((cr * y0 + sr * z0) * s.y, (cr * y1 + sr * z1) * s.y, sr * z2 * s.y, 0.0),
+    vec4((cr * z0 - sr * y0) * s.z, (cr * z1 - sr * y1) * s.z, cr * z2 * s.z, 0.0),
     vec4(p.xyz, 1.0)
   );
 }
@@ -159,6 +175,7 @@ const POSE_ATTRIBUTES = [
   ['poseTo', 4],
   ['turnFrom', 3],
   ['turnTo', 3],
+  ['stretch', 3],
 ] as const
 
 /** One shape's instances, densely packed; entities are swapped with the last one when removed. */
@@ -173,6 +190,7 @@ export class ShapeBatch {
   poseTo = new Float32Array(0)
   turnFrom = new Float32Array(0)
   turnTo = new Float32Array(0)
+  stretch = new Float32Array(0)
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -266,7 +284,7 @@ export class ShapeBatch {
   writePose(index: number, E: RenderColumns, i: number, moving: boolean): void {
     const p = index * 4
     const t = index * 3
-    const { poseFrom, poseTo, turnFrom, turnTo } = this
+    const { poseFrom, poseTo, turnFrom, turnTo, stretch } = this
     poseTo[p] = E.x[i]
     poseTo[p + 1] = E.y[i]
     poseTo[p + 2] = E.z[i]
@@ -274,6 +292,9 @@ export class ShapeBatch {
     turnTo[t] = E.direction[i]
     turnTo[t + 1] = E.pitch[i]
     turnTo[t + 2] = E.roll[i]
+    stretch[t] = E.width[i]
+    stretch[t + 1] = E.depth[i]
+    stretch[t + 2] = E.height[i]
     if (moving) {
       poseFrom[p] = E.px[i]
       poseFrom[p + 1] = E.py[i]
@@ -313,7 +334,7 @@ export class EntityInstances {
   instanceOf = new Int32Array(0)
   batchOf = new Uint8Array(0)
   /**
-   * Per slot: the pose (7 values) last written without interpolation, or NaN.
+   * Per slot: the pose (POSE_VALUES) last written without interpolation, or NaN.
    * Compared with the store each tick, so edits made between ticks (dragging,
    * the sprite pane) are never missed.
    */
@@ -351,7 +372,7 @@ export class EntityInstances {
     const batch = new Uint8Array(capacity)
     batch.set(this.batchOf)
     this.batchOf = batch
-    const drawn = new Float64Array(capacity * 7).fill(NaN)
+    const drawn = new Float64Array(capacity * POSE_VALUES).fill(NaN)
     drawn.set(this.drawn)
     this.drawn = drawn
     const color = new Uint32Array(capacity)
@@ -399,11 +420,12 @@ export class EntityInstances {
         E.x[i] !== E.px[i] || E.y[i] !== E.py[i] || E.z[i] !== E.pz[i] ||
         E.direction[i] !== E.pdirection[i] || E.pitch[i] !== E.ppitch[i] || E.roll[i] !== E.proll[i] || E.size[i] !== E.psize[i]
       const d = this.drawn
-      const o = i * 7
+      const o = i * POSE_VALUES
       if (
         !moving && !changed &&
         d[o] === E.x[i] && d[o + 1] === E.y[i] && d[o + 2] === E.z[i] && d[o + 3] === E.direction[i] &&
-        d[o + 4] === E.pitch[i] && d[o + 5] === E.roll[i] && d[o + 6] === E.size[i]
+        d[o + 4] === E.pitch[i] && d[o + 5] === E.roll[i] && d[o + 6] === E.size[i] &&
+        d[o + 7] === E.width[i] && d[o + 8] === E.depth[i] && d[o + 9] === E.height[i]
       ) continue
       const batch = this.batches[shape]
       batch.writePose(inst[i], E, i, moving)
@@ -425,6 +447,9 @@ export class EntityInstances {
         d[o + 4] = E.pitch[i]
         d[o + 5] = E.roll[i]
         d[o + 6] = E.size[i]
+        d[o + 7] = E.width[i]
+        d[o + 8] = E.depth[i]
+        d[o + 9] = E.height[i]
       }
       batch.dirty = true
     }

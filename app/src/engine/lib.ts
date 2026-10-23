@@ -4,7 +4,7 @@
  */
 import { BUILTIN_PROPERTIES } from './analyze'
 import {
-  BOUNDING,
+  boundingRadius,
   bounced,
   bounceOffEdge,
   shapesIntersect,
@@ -14,6 +14,7 @@ import {
 import type { ExtensionBlock, ReporterBlock, CommandBlock } from './extension'
 import type { Kind } from './instances'
 import {
+  clampDimension,
   clampPitch,
   clampPenSize,
   clampSize,
@@ -119,6 +120,9 @@ export function makeLib(rt: Runtime) {
       case 'pitch': return round6(s.pitch[o])
       case 'roll': return round6(s.roll[o])
       case 'size': return Math.round(s.size[o])
+      case 'width': return Math.round(s.width[o])
+      case 'depth': return Math.round(s.depth[o])
+      case 'height': return Math.round(s.height[o])
       default: return 0
     }
   }
@@ -132,7 +136,7 @@ export function makeLib(rt: Runtime) {
   }
 
   return {
-    BOUNDING,
+    boundingRadius: (i: number): number => boundingRadius(E(), i),
     num: toNumber,
     str: toText,
     bool: toBoolean,
@@ -147,6 +151,7 @@ export function makeLib(rt: Runtime) {
     wrap: wrapDirection,
     clampPitch,
     clampSize,
+    clampDimension,
     listText,
 
     rnd: (): number => rt.random.next(),

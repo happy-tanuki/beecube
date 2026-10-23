@@ -18,6 +18,13 @@ export const F_DYING = 16
 export const PEN_PARAMS = ['color', 'saturation', 'brightness', 'transparency'] as const
 export type PenParam = (typeof PEN_PARAMS)[number]
 
+/**
+ * A shape's own width, depth and height, in percent of its size, along its
+ * local x (the heading), y and z axes. A cube stretched this way is a cuboid.
+ */
+export const DIMENSIONS = ['width', 'depth', 'height'] as const
+export type Dimension = (typeof DIMENSIONS)[number]
+
 /** Handles pack a generation above the slot number. */
 const SLOT_SPAN = 2 ** 22
 export const NO_HANDLE = -1
@@ -47,6 +54,10 @@ export class EntityStore {
   ppitch = new Float64Array(0)
   proll = new Float64Array(0)
   psize = new Float64Array(0)
+  /** Percent of the size along each local axis (DIMENSIONS). Not interpolated. */
+  width = new Float64Array(0)
+  depth = new Float64Array(0)
+  height = new Float64Array(0)
 
   /** 0xRRGGBB */
   color = new Uint32Array(0)
@@ -99,6 +110,9 @@ export class EntityStore {
     this.ppitch = grow(this.ppitch, f64)
     this.proll = grow(this.proll, f64)
     this.psize = grow(this.psize, f64)
+    this.width = grow(this.width, f64)
+    this.depth = grow(this.depth, f64)
+    this.height = grow(this.height, f64)
     this.color = grow(this.color, (n) => new Uint32Array(n))
     this.penColor = grow(this.penColor, (n) => new Uint32Array(n))
     this.penHue = grow(this.penHue, f64)
@@ -115,13 +129,17 @@ export class EntityStore {
     this.capacity = capacity
   }
 
-  /** Takes a free slot, or returns -1 when full. The slot's columns are left as they were. */
+  /**
+   * Takes a free slot, or returns -1 when full. Width, depth and height start
+   * at 100%; the slot's other columns are left as they were.
+   */
   alloc(): number {
     let slot: number
     if (this.free.length > 0) slot = this.free.pop()!
     else if (this.highWater < this.capacity) slot = this.highWater++
     else return -1
     this.flags[slot] = F_ALIVE
+    this.width[slot] = this.depth[slot] = this.height[slot] = 100
     this.saying[slot] = null
     this.count++
     return slot
@@ -179,6 +197,9 @@ export class EntityStore {
     this.ppitch[to] = this.pitch[from]
     this.proll[to] = this.roll[from]
     this.psize[to] = this.size[from]
+    this.width[to] = this.width[from]
+    this.depth[to] = this.depth[from]
+    this.height[to] = this.height[from]
     this.color[to] = this.color[from]
     this.penColor[to] = this.penColor[from]
     this.penHue[to] = this.penHue[from]

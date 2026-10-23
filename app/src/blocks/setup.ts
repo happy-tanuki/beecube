@@ -108,6 +108,9 @@ const propertyLabels = (): Record<SpriteProperty, string> => ({
   pitch: ScratchBlocks.Msg.MOTION_PITCH,
   roll: ScratchBlocks.Msg.MOTION_ROLL,
   size: ScratchBlocks.Msg.SENSING_OF_SIZE,
+  width: ScratchBlocks.Msg.LOOKS_WIDTH,
+  depth: ScratchBlocks.Msg.LOOKS_DEPTH,
+  height: ScratchBlocks.Msg.LOOKS_HEIGHT,
 })
 
 /** "(x position) of (sprite)": the property menu adds the chosen sprite's own variables. */
@@ -174,6 +177,30 @@ function definePenParam(type: string, msgKey: string): void {
   }
 }
 
+/** "set / change (width) to / by": the menu of the shape's dimensions (DIMENSIONS). */
+function defineDimension(type: string, msgKey: string): void {
+  ScratchBlocks.Blocks[type] = {
+    init(this: ScratchBlocks.Block) {
+      this.jsonInit({
+        message0: ScratchBlocks.Msg[msgKey],
+        args0: [
+          {
+            type: 'field_dropdown',
+            name: 'DIMENSION',
+            options: (): MenuOption[] => [
+              [ScratchBlocks.Msg.LOOKS_WIDTH, 'width'],
+              [ScratchBlocks.Msg.LOOKS_DEPTH, 'depth'],
+              [ScratchBlocks.Msg.LOOKS_HEIGHT, 'height'],
+            ],
+          },
+          arg('VALUE'),
+        ],
+        extensions: ['colours_looks', 'shape_statement'],
+      })
+    },
+  }
+}
+
 let defined = false
 
 /** Registers this project's blocks. Messages are read at block creation, so locale changes apply. */
@@ -216,6 +243,11 @@ export function defineCustomBlocks(): void {
   ])
 
   defineStatement('looks_setcolorto', 'LOOKS_SETCOLORTO', [arg('COLOR')], 'looks')
+  defineDimension('looks_changedimensionby', 'LOOKS_CHANGEDIMENSIONBY')
+  defineDimension('looks_setdimensionto', 'LOOKS_SETDIMENSIONTO')
+  defineReporter('looks_width', 'LOOKS_WIDTH', 'looks')
+  defineReporter('looks_depth', 'LOOKS_DEPTH', 'looks')
+  defineReporter('looks_height', 'LOOKS_HEIGHT', 'looks')
 
   defineStatement('pen_clear', 'PEN_CLEAR', [], 'pen')
   defineStatement('pen_penDown', 'PEN_PENDOWN', [], 'pen')

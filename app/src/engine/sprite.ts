@@ -3,10 +3,10 @@
  * properties read and write the entity store, so they always show the live
  * state. Hot paths never use these.
  */
-import { clampPenSize, clampPercent, intToColor, colorToInt } from './ops'
+import { clampDimension, clampPenSize, clampPercent, intToColor, colorToInt } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
-import { F_CLONE, F_PEN, F_VISIBLE, type PoseColumn } from './store'
+import { F_CLONE, F_PEN, F_VISIBLE, type Dimension, type PoseColumn } from './store'
 import { SHAPES, type LocalList, type LocalVariable, type PenState, type ShapeKind, type SpriteData, type WorkspaceJson } from './types'
 
 export class EntityView {
@@ -29,6 +29,12 @@ export class EntityView {
   set roll(v: number) { this.setPose('roll', v) }
   get size(): number { return this.rt.store.size[this.slot] }
   set size(v: number) { this.setPose('size', v) }
+  get width(): number { return this.rt.store.width[this.slot] }
+  set width(v: number) { this.setDimension('width', v) }
+  get depth(): number { return this.rt.store.depth[this.slot] }
+  set depth(v: number) { this.setDimension('depth', v) }
+  get height(): number { return this.rt.store.height[this.slot] }
+  set height(v: number) { this.setDimension('height', v) }
 
   get color(): string {
     return intToColor(this.rt.store.color[this.slot])
@@ -107,6 +113,11 @@ export class EntityView {
     this.rt.store[col][this.slot] = v
     this.rt.posesChanged(this.slot)
   }
+
+  private setDimension(col: Dimension, v: number): void {
+    this.rt.store[col][this.slot] = clampDimension(v)
+    this.rt.posesChanged(this.slot)
+  }
 }
 
 /** An original sprite: its definition (name, blocks, own variables) plus the live state of its entity. */
@@ -175,6 +186,9 @@ export class Sprite extends EntityView {
       pitch: this.pitch,
       roll: this.roll,
       size: this.size,
+      width: this.width,
+      depth: this.depth,
+      height: this.height,
       color: this.color,
       shape: this.shape,
       visible: this.visible,

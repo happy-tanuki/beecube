@@ -17,7 +17,7 @@ import type { ExtensionSpec } from './extension'
 import { FramePool, Kind, ScriptRun, type SystemFn } from './instances'
 import { parseClicked, parseWorkspace, registerExtensionBlocks, type ScriptIR } from './ir'
 import { makeLib, type Lib } from './lib'
-import { clampPenSize, clampPercent, colorToInt, toNumber, wrapDirection } from './ops'
+import { clampDimension, clampPenSize, clampPercent, colorToInt, toNumber, wrapDirection } from './ops'
 import { PenBuffer } from './pen'
 import { Random } from './random'
 import { EntityRef } from './ref'
@@ -226,6 +226,9 @@ export class Runtime {
     s.pitch[slot] = data.pitch
     s.roll[slot] = data.roll
     s.size[slot] = data.size
+    s.width[slot] = clampDimension(data.width ?? 100)
+    s.depth[slot] = clampDimension(data.depth ?? 100)
+    s.height[slot] = clampDimension(data.height ?? 100)
     s.snapPose(slot)
     s.color[slot] = colorToInt(data.color)
     s.penHue[slot] = 0

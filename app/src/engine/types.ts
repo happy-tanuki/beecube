@@ -63,6 +63,10 @@ export interface SpriteData {
   roll: number
   /** Percent; 100 = the shape's base size (40 units). */
   size: number
+  /** Percent of the size along the local x (heading), y and z axes; 100 when absent. */
+  width?: number
+  depth?: number
+  height?: number
   /** `#rrggbb` */
   color: string
   shape: ShapeKind

@@ -47,6 +47,22 @@ describe('physics extension', () => {
     expect(rt.getVariable('hits')).toBeGreaterThanOrEqual(1)
   })
 
+  it('rests on a flat cuboid, as does a stretched sphere', async () => {
+    const { rt, sprites: [, ball, egg], ticks } = physicsSetup(
+      makeSprite('floor', [flag(setMode('fixed'))], { z: 50, width: 800, depth: 800, height: 10 }),
+      makeSprite('ball', [flag(setMode('dynamic'))], { shape: 'sphere', z: 150 }),
+      makeSprite('egg', [flag(setMode('dynamic'))], { shape: 'sphere', x: 100, z: 150, height: 200 }),
+    )
+    rt.greenFlag()
+    ticks(1)
+    await settle()
+    ticks(240)
+    // The floor's top is at 50 + 2; the ball's radius is 20.
+    expect(ball.z).toBeCloseTo(72, 0)
+    // The egg, 80 tall, lands upright and nothing tips it over.
+    expect(egg.z).toBeCloseTo(92, 0)
+  })
+
   it('teleports bodies moved by scripts, and stop pauses the simulation', async () => {
     const { rt, sprites: [ball], ticks } = physicsSetup(makeSprite('ball', [flag(setMode('dynamic'))], { shape: 'sphere', z: 20 }))
     rt.greenFlag()

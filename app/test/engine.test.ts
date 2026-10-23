@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { bounced, bounceOffEdge, touchingEdge } from '../src/engine/collision'
+import { bounced, bounceOffEdge, bounds, touchingEdge } from '../src/engine/collision'
+import { STAMP_POSE } from '../src/engine/pen'
 import { loadProject, parseProject, ProjectFormatError, serializeProject } from '../src/engine/project'
 import { Runtime } from '../src/engine/runtime'
 import type { BlockJson } from '../src/engine/types'
@@ -25,6 +26,66 @@ import {
   text,
   wait,
 } from './helpers'
+
+const dimension = (op: string, which: string, n: number) =>
+  blk(op, { fields: { DIMENSION: which }, inputs: { VALUE: num(n) } })
+
+describe('width, depth and height', () => {
+  it('sets and changes each dimension, within 1–2000%', () => {
+    const { rt, sprites: [a], ticks } = setup([
+      makeSprite('a', [
+        flag(
+          dimension('looks_setdimensionto', 'width', 300),
+          dimension('looks_changedimensionby', 'depth', -50),
+          dimension('looks_setdimensionto', 'height', 0),
+          setVar('w', reporter(blk('looks_width'))),
+        ),
+      ]),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    expect([a.width, a.depth, a.height]).toEqual([300, 50, 1])
+    expect(rt.getVariable('w')).toBe(300)
+    a.width = 5000
+    expect(a.width).toBe(2000)
+  })
+
+  it('stretches the shape along its own axes', () => {
+    const { rt, sprites: [a] } = setup([makeSprite('a', [], { width: 300, depth: 50, height: 25 })])
+    // Size 100 is 40 units: 120 along the heading (x at direction 90), 20 across, 10 high.
+    expect(bounds(rt.store, a.slot)).toMatchObject({ maxX: 60, maxY: 10, maxZ: 5 })
+    a.direction = 0
+    const b = bounds(rt.store, a.slot)
+    expect(b.maxX).toBeCloseTo(10)
+    expect(b.maxY).toBeCloseTo(60)
+  })
+
+  it('reaches clones, stamps, the "of" block and the project file', () => {
+    const { rt, ticks } = setup([
+      makeSprite('a', [flag(cloneOf(), blk('pen_stamp'))], { height: 40 }),
+      makeSprite('b', [
+        flag(
+          setVar(
+            'h',
+            reporter(
+              blk('sensing_of', {
+                fields: { PROPERTY: 'height' },
+                inputs: { OBJECT: { shadow: blk('sensing_of_object_menu', { fields: { OBJECT: 'a' } }) } },
+              }),
+            ),
+          ),
+        ),
+      ]),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    expect(rt.clonesOf(rt.getSprite('a')!)[0].height).toBe(40)
+    expect(rt.pen.stampPoses[9]).toBe(40)
+    expect(rt.getVariable('h')).toBe(40)
+    const saved = parseProject(JSON.parse(JSON.stringify(serializeProject(rt))))
+    expect(saved.sprites[0]).toMatchObject({ width: 100, depth: 100, height: 40 })
+  })
+})
 
 describe('motion', () => {
   it('moves in 3D with set/change z and go to x y z', () => {
@@ -348,7 +409,7 @@ describe('pen', () => {
     rt.greenFlag()
     ticks(1)
     expect(rt.pen.stampCount).toBe(2)
-    expect(rt.pen.stampPoses[7 + 2]).toBe(30)
+    expect(rt.pen.stampPoses[STAMP_POSE + 2]).toBe(30)
     expect(rt.pen.stampShapes[0]).toBe(1)
     expect(rt.pen.stampColors[0]).toBe(0x336699)
     rt.stopAll()

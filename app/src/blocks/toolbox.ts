@@ -62,11 +62,16 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
     block('looks_setcolorto', colour('COLOR', '#ff8c1a')),
     block('looks_changesizeby', num('CHANGE', 10)),
     block('looks_setsizeto', num('SIZE', 100)),
+    block('looks_changedimensionby', num('VALUE', 10)),
+    block('looks_setdimensionto', num('VALUE', 100)),
     sep(),
     block('looks_show'),
     block('looks_hide'),
     sep(),
     block('looks_size'),
+    block('looks_width'),
+    block('looks_depth'),
+    block('looks_height'),
   ].join('')
 
   const broadcastMenu = '<value name="BROADCAST_INPUT"><shadow type="event_broadcast_menu"></shadow></value>'

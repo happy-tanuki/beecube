@@ -31,6 +31,18 @@ function axis(m: THREE.Matrix4, x: number, y: number, z: number): number[] {
 }
 
 describe('writeMatrix', () => {
+  it('stretches the local axes by width, depth and height', () => {
+    const { E, i } = pose(0, 0, 0, 200)
+    E.width[i] = 300
+    E.depth[i] = 50
+    E.height[i] = 10
+    const m = matrixOf(E, i)
+    // Direction 0: the heading (width) runs along y.
+    expect(new THREE.Vector3(1, 0, 0).applyMatrix4(m).sub(new THREE.Vector3(1, 2, 3)).toArray().map(Math.round)).toEqual([0, 6, 0])
+    expect(new THREE.Vector3(0, 1, 0).applyMatrix4(m).sub(new THREE.Vector3(1, 2, 3)).toArray().map(Math.round)).toEqual([-1, 0, 0])
+    expect(new THREE.Vector3(0, 0, 10).applyMatrix4(m).z - 3).toBeCloseTo(2)
+  })
+
   it('points the local x axis along direction and pitch, as the engine moves', () => {
     expect(axis(matrixOf(pose(90, 0, 0).E, 0), 1, 0, 0)).toEqual([1, 0, 0])
     expect(axis(matrixOf(pose(0, 0, 0).E, 0), 1, 0, 0)).toEqual([0, 1, 0])

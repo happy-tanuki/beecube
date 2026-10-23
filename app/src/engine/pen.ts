@@ -7,7 +7,7 @@ export interface Vec3 {
 }
 
 /** Values per stamp in `PenBuffer.stampPoses`. */
-export const STAMP_POSE = 7
+export const STAMP_POSE = 10
 
 /**
  * Pen strokes as 3D line segments, and stamps, in growable typed arrays. Both
@@ -23,7 +23,7 @@ export class PenBuffer {
   styles = new Float32Array(2 * 256)
   segmentCount = 0
 
-  /** x, y, z, direction, pitch, roll and size of each stamp. */
+  /** x, y, z, direction, pitch, roll, size, width, depth and height of each stamp. */
   stampPoses = new Float32Array(STAMP_POSE * 64)
   /** Index into SHAPES. */
   stampShapes = new Uint8Array(64)
@@ -84,6 +84,9 @@ export class PenBuffer {
     p[o + 4] = E.pitch[i]
     p[o + 5] = E.roll[i]
     p[o + 6] = E.size[i]
+    p[o + 7] = E.width[i]
+    p[o + 8] = E.depth[i]
+    p[o + 9] = E.height[i]
     this.stampShapes[n] = E.shape[i]
     this.stampColors[n] = E.color[i]
   }

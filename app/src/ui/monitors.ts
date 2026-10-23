@@ -22,6 +22,9 @@ const SPRITE_REPORTERS: Record<string, { msg: string; value: (s: Sprite) => Valu
   motion_pitch: { msg: 'MOTION_PITCH', value: (s) => round(s.pitch) },
   motion_roll: { msg: 'MOTION_ROLL', value: (s) => round(s.roll) },
   looks_size: { msg: 'LOOKS_SIZE', value: (s) => Math.round(s.size) },
+  looks_width: { msg: 'LOOKS_WIDTH', value: (s) => Math.round(s.width) },
+  looks_depth: { msg: 'LOOKS_DEPTH', value: (s) => Math.round(s.depth) },
+  looks_height: { msg: 'LOOKS_HEIGHT', value: (s) => Math.round(s.height) },
 }
 
 /** Reporters about the whole project: monitor key `<opcode>`. */

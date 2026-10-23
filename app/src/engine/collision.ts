@@ -4,8 +4,9 @@
  * and a spatial grid for finding nearby entities of a kind.
  *
  * Shapes match what the stage draws: centered on the entity position,
- * BASE_SIZE across at 100% size, rotated by yaw (direction), pitch, then roll.
- * Cone and cylinder axes are the local z axis; the cone's apex is at +z.
+ * BASE_SIZE across at 100% size, stretched along the local axes by width,
+ * depth and height, rotated by yaw (direction), pitch, then roll. Cone and
+ * cylinder axes are the local z axis; the cone's apex is at +z.
  *
  * Nothing here allocates: vectors live in preallocated scratch arrays.
  */
@@ -29,18 +30,35 @@ export function halfSize(E: EntityStore, slot: number): number {
   return E.size[slot] * HALF_PER_PERCENT
 }
 
+/** The largest of width, depth and height, as a factor. */
+function maxStretch(E: EntityStore, slot: number): number {
+  return Math.max(E.width[slot], E.depth[slot], E.height[slot]) / 100
+}
+
 export function boundingRadius(E: EntityStore, slot: number): number {
-  return halfSize(E, slot) * BOUNDING[E.shape[slot]]
+  return halfSize(E, slot) * BOUNDING[E.shape[slot]] * maxStretch(E, slot)
+}
+
+/** Whether the entity is a sphere with the same width, depth and height. */
+function round(E: EntityStore, slot: number): boolean {
+  return E.shape[slot] === SPHERE && E.width[slot] === E.depth[slot] && E.depth[slot] === E.height[slot]
 }
 
 // ---- shape descriptors ------------------------------------------------------
 
-/** [cx, cy, cz, h, shape, ax(3), ay(3), az(3)]: center, half size, shape and local axes in world space. */
+/**
+ * [cx, cy, cz, h, shape, ax(3), ay(3), az(3), kx, ky, kz, ball]: center, half
+ * size, shape, local axes in world space, the stretch along each local axis,
+ * and 1 for a sphere that isn't stretched (whose axes are left unset).
+ */
 type Shape = Float64Array
-const SHAPE_LEN = 14
+const SHAPE_LEN = 18
 
-/** Pose to build a shape from: [x, y, z, size, shape, direction, pitch, roll]. Numbers are passed in arrays so they are never boxed. */
-const POSE = new Float64Array(8)
+/**
+ * Pose to build a shape from: [x, y, z, size, shape, direction, pitch, roll,
+ * width, depth, height]. Numbers are passed in arrays so they are never boxed.
+ */
+const POSE = new Float64Array(11)
 
 function setShape(s: Shape, pose: Float64Array): void {
   s[0] = pose[0]
@@ -48,7 +66,14 @@ function setShape(s: Shape, pose: Float64Array): void {
   s[2] = pose[2]
   s[3] = pose[3] * HALF_PER_PERCENT
   const shape = (s[4] = pose[4])
-  if (shape === SPHERE) return
+  const kx = (s[14] = pose[8] / 100)
+  const ky = (s[15] = pose[9] / 100)
+  const kz = (s[16] = pose[10] / 100)
+  s[17] = shape === SPHERE && kx === ky && ky === kz ? 1 : 0
+  if (s[17] === 1) {
+    s[3] *= kx
+    return
+  }
   const yaw = (90 - pose[5]) * DEG
   const p = pose[6] * DEG
   const roll = pose[7]
@@ -81,6 +106,9 @@ function loadPose(E: EntityStore, slot: number): void {
   POSE[5] = E.direction[slot]
   POSE[6] = E.pitch[slot]
   POSE[7] = E.roll[slot]
+  POSE[8] = E.width[slot]
+  POSE[9] = E.depth[slot]
+  POSE[10] = E.height[slot]
 }
 
 function loadShape(s: Shape, E: EntityStore, slot: number): void {
@@ -97,18 +125,25 @@ function support(s: Shape, dir: Float64Array, d: number, sign: number, out: Floa
   const dy = sign * dir[d + 1]
   const dz = sign * dir[d + 2]
   const h = s[3]
-  if (s[4] === SPHERE) {
+  if (s[17] === 1) {
     const len = Math.hypot(dx, dy, dz) || 1
     out[o] = s[0] + (dx / len) * h
     out[o + 1] = s[1] + (dy / len) * h
     out[o + 2] = s[2] + (dz / len) * h
     return
   }
-  const l0 = dx * s[5] + dy * s[6] + dz * s[7]
-  const l1 = dx * s[8] + dy * s[9] + dz * s[10]
-  const l2 = dx * s[11] + dy * s[12] + dz * s[13]
+  // A stretched shape S·U has the support S·u, where u is U's support in direction S·d.
+  const kx = s[14], ky = s[15], kz = s[16]
+  const l0 = (dx * s[5] + dy * s[6] + dz * s[7]) * kx
+  const l1 = (dx * s[8] + dy * s[9] + dz * s[10]) * ky
+  const l2 = (dx * s[11] + dy * s[12] + dz * s[13]) * kz
   let p0: number, p1: number, p2: number
-  if (s[4] === CUBE) {
+  if (s[4] === SPHERE) {
+    const len = Math.hypot(l0, l1, l2) || 1
+    p0 = (l0 / len) * h
+    p1 = (l1 / len) * h
+    p2 = (l2 / len) * h
+  } else if (s[4] === CUBE) {
     p0 = Math.sign(l0) * h
     p1 = Math.sign(l1) * h
     p2 = Math.sign(l2) * h
@@ -136,6 +171,9 @@ function support(s: Shape, dir: Float64Array, d: number, sign: number, out: Floa
       }
     }
   }
+  p0 *= kx
+  p1 *= ky
+  p2 *= kz
   out[o] = s[0] + s[5] * p0 + s[8] * p1 + s[11] * p2
   out[o + 1] = s[1] + s[6] * p0 + s[9] * p1 + s[12] * p2
   out[o + 2] = s[2] + s[7] * p0 + s[10] * p1 + s[13] * p2
@@ -288,19 +326,32 @@ function gjk(): boolean {
   return true
 }
 
-/** Whether a cube is aligned with the world axes (yaw a multiple of 90°, no pitch or roll). */
+/** Whether a box is aligned with the world axes (yaw a multiple of 90°, no pitch or roll). */
 function axisAligned(E: EntityStore, slot: number): boolean {
   return E.pitch[slot] === 0 && E.roll[slot] === 0 && E.direction[slot] % 90 === 0
 }
 
+/** Half extents along world x, y and z of an axis-aligned box, at these offsets. */
+const HALF = new Float64Array(6)
+
+function boxHalfExtents(E: EntityStore, slot: number, h: number, o: number): void {
+  // Facing up or down the y axis (direction 0 or 180), the box's width runs along y.
+  const across = E.direction[slot] % 180 === 0
+  const w = (h * E.width[slot]) / 100
+  const d = (h * E.depth[slot]) / 100
+  HALF[o] = across ? d : w
+  HALF[o + 1] = across ? w : d
+  HALF[o + 2] = (h * E.height[slot]) / 100
+}
+
 /**
- * Whether a sphere of radius r touches an axis-aligned cube of half size h,
- * their centers (dx, dy, dz) apart: the cube's closest point is within r.
+ * Whether a sphere of radius r touches the axis-aligned box with half extents
+ * HALF[o..o+2], their centers (dx, dy, dz) apart: the box's closest point is within r.
  */
-function sphereTouchesBox(dx: number, dy: number, dz: number, r: number, h: number): boolean {
-  const ox = Math.max(0, Math.abs(dx) - h)
-  const oy = Math.max(0, Math.abs(dy) - h)
-  const oz = Math.max(0, Math.abs(dz) - h)
+function sphereTouchesBox(dx: number, dy: number, dz: number, r: number, o: number): boolean {
+  const ox = Math.max(0, Math.abs(dx) - HALF[o])
+  const oy = Math.max(0, Math.abs(dy) - HALF[o + 1])
+  const oz = Math.max(0, Math.abs(dz) - HALF[o + 2])
   return ox * ox + oy * oy + oz * oz <= r * r
 }
 
@@ -313,16 +364,28 @@ export function shapesIntersect(E: EntityStore, a: number, b: number): boolean {
   const hb = E.size[b] * HALF_PER_PERCENT
   const sa = E.shape[a]
   const sb = E.shape[b]
-  const reach = ha * BOUNDING[sa] + hb * BOUNDING[sb]
+  const reach = ha * BOUNDING[sa] * maxStretch(E, a) + hb * BOUNDING[sb] * maxStretch(E, b)
   const d2 = dx * dx + dy * dy + dz * dz
   if (d2 > reach * reach) return false
-  if (sa === SPHERE && sb === SPHERE) return d2 <= (ha + hb) * (ha + hb)
-  if (sa === CUBE && sb === CUBE && axisAligned(E, a) && axisAligned(E, b)) {
-    const r = ha + hb
-    return Math.abs(dx) <= r && Math.abs(dy) <= r && Math.abs(dz) <= r
+  const ballA = round(E, a)
+  const ballB = round(E, b)
+  if (ballA && ballB) {
+    const r = (ha * E.width[a] + hb * E.width[b]) / 100
+    return d2 <= r * r
   }
-  if (sa === SPHERE && sb === CUBE && axisAligned(E, b)) return sphereTouchesBox(dx, dy, dz, ha, hb)
-  if (sa === CUBE && sb === SPHERE && axisAligned(E, a)) return sphereTouchesBox(dx, dy, dz, hb, ha)
+  if (sa === CUBE && sb === CUBE && axisAligned(E, a) && axisAligned(E, b)) {
+    boxHalfExtents(E, a, ha, 0)
+    boxHalfExtents(E, b, hb, 3)
+    return Math.abs(dx) <= HALF[0] + HALF[3] && Math.abs(dy) <= HALF[1] + HALF[4] && Math.abs(dz) <= HALF[2] + HALF[5]
+  }
+  if (ballA && sb === CUBE && axisAligned(E, b)) {
+    boxHalfExtents(E, b, hb, 0)
+    return sphereTouchesBox(dx, dy, dz, (ha * E.width[a]) / 100, 0)
+  }
+  if (sa === CUBE && ballB && axisAligned(E, a)) {
+    boxHalfExtents(E, a, ha, 0)
+    return sphereTouchesBox(dx, dy, dz, (hb * E.width[b]) / 100, 0)
+  }
   return gjkIntersect(E, a, b)
 }
 
@@ -607,7 +670,7 @@ export class KindGrid {
     const x = E.x[slot]
     const y = E.y[slot]
     const z = E.z[slot]
-    const r = E.size[slot] * HALF_PER_PERCENT * BOUNDING[E.shape[slot]]
+    const r = boundingRadius(E, slot)
     const margin = tick === this.builtTick ? 2 * this.speed + 1 : 1e-6
     const reach = r + this.maxR + margin
     const c = this.cell

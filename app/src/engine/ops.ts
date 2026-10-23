@@ -80,6 +80,11 @@ export function clampSize(s: number): number {
   return Math.max(5, Math.min(1000, s))
 }
 
+/** Width, depth and height run from 1% to 2000% of the shape's size. */
+export function clampDimension(d: number): number {
+  return Math.max(1, Math.min(2000, d))
+}
+
 export function clampPercent(n: number): number {
   return Math.max(0, Math.min(100, n))
 }

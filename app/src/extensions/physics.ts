@@ -35,6 +35,9 @@ interface BodyState {
   mode: Exclude<PhysicsMode, 'none'>
   shape: number
   size: number
+  width: number
+  depth: number
+  height: number
   /** The pose physics last wrote to the entity; a difference means a script moved it. */
   wx: number
   wy: number
@@ -192,6 +195,9 @@ export class PhysicsWorld {
       mode,
       shape: E.shape[slot],
       size: E.size[slot],
+      width: E.width[slot],
+      depth: E.depth[slot],
+      height: E.height[slot],
       wx: 0, wy: 0, wz: 0, wdirection: 0, wpitch: 0, wroll: 0,
       restitution: settings.restitution,
       friction: settings.friction,
@@ -206,19 +212,48 @@ export class PhysicsWorld {
     const R = this.R
     const E = this.rt.store
     const h = (BASE_SIZE / 2) * (E.size[slot] / 100)
+    const hx = (h * E.width[slot]) / 100
+    const hy = (h * E.depth[slot]) / 100
+    const hz = (h * E.height[slot]) / 100
     const shape = E.shape[slot]
     // Rapier's cylinders and cones run along local y; ours run along local z.
     const yToZ = { x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 }
+    // Rapier has no ellipsoids or oval cylinders and cones: those are convex hulls of points on them.
     const desc =
       shape === CUBE
-        ? R.ColliderDesc.cuboid(h, h, h)
+        ? R.ColliderDesc.cuboid(hx, hy, hz)
         : shape === SPHERE
-          ? R.ColliderDesc.ball(h)
-          : (shape === CYLINDER ? R.ColliderDesc.cylinder(h, h) : R.ColliderDesc.cone(h, h)).setRotation(yToZ)
+          ? hx === hy && hy === hz ? R.ColliderDesc.ball(hx) : this.hull(shape, hx, hy, hz)
+          : hx === hy
+            ? (shape === CYLINDER ? R.ColliderDesc.cylinder(hz, hx) : R.ColliderDesc.cone(hz, hx)).setRotation(yToZ)
+            : this.hull(shape, hx, hy, hz)
     desc.setRestitution(restitution).setFriction(friction).setActiveEvents(R.ActiveEvents.COLLISION_EVENTS)
     const collider = this.world.createCollider(desc, body)
     this.colliderOwner.set(collider.handle, E.handle(slot))
     return collider
+  }
+
+  /** A convex hull approximating a stretched sphere, cylinder or cone with these half extents. */
+  private hull(shape: number, hx: number, hy: number, hz: number): RAPIER_NS.ColliderDesc {
+    const points: number[] = []
+    const around = 24
+    for (let k = 0; k < around; k++) {
+      const a = (2 * Math.PI * k) / around
+      const cx = Math.cos(a) * hx
+      const cy = Math.sin(a) * hy
+      if (shape === SPHERE) {
+        for (let r = 1; r < 8; r++) {
+          const b = (Math.PI * r) / 8
+          points.push(cx * Math.sin(b), cy * Math.sin(b), Math.cos(b) * hz)
+        }
+      } else {
+        points.push(cx, cy, -hz)
+        if (shape === CYLINDER) points.push(cx, cy, hz)
+      }
+    }
+    if (shape === SPHERE) points.push(0, 0, hz, 0, 0, -hz)
+    else if (shape !== CYLINDER) points.push(0, 0, hz)
+    return this.R.ColliderDesc.convexHull(new Float32Array(points)) ?? this.R.ColliderDesc.cuboid(hx, hy, hz)
   }
 
   private removeBody(slot: number): void {
@@ -279,12 +314,18 @@ export class PhysicsWorld {
     this.syncEntities()
     for (const slot of this.slots) {
       const b = this.bodies[slot]!
-      if (b.shape !== E.shape[slot] || b.size !== E.size[slot]) {
+      if (
+        b.shape !== E.shape[slot] || b.size !== E.size[slot] ||
+        b.width !== E.width[slot] || b.depth !== E.depth[slot] || b.height !== E.height[slot]
+      ) {
         this.colliderOwner.delete(b.collider.handle)
         this.world.removeCollider(b.collider, false)
         b.collider = this.createCollider(slot, b.body, b.restitution, b.friction)
         b.shape = E.shape[slot]
         b.size = E.size[slot]
+        b.width = E.width[slot]
+        b.depth = E.depth[slot]
+        b.height = E.height[slot]
         b.body.wakeUp()
       }
       if (movedByScript(b, E, slot)) {

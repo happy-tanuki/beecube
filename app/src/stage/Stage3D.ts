@@ -19,9 +19,10 @@ import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import { APP_ID } from '../brand'
+import { boundingRadius } from '../engine/collision'
 import type { Runtime } from '../engine/runtime'
 import type { EntityView } from '../engine/sprite'
-import { F_ALIVE, F_VISIBLE } from '../engine/store'
+import { F_ALIVE, F_VISIBLE, type EntityStore } from '../engine/store'
 import { BASE_SIZE, STAGE_HEIGHT, STAGE_WIDTH } from '../engine/types'
 import { EntityInstances, writeMatrix } from './instances'
 import { StampInstances } from './stamps'
@@ -36,11 +37,12 @@ export interface StageCallbacks {
 }
 
 const DEG = Math.PI / 180
+
+/** How far the top of an upright shape is above its center. */
+const topOf = (E: EntityStore, slot: number) => (BASE_SIZE / 2) * (E.size[slot] / 100) * (E.height[slot] / 100)
 const DRAG_THRESHOLD_PX = 3
 /** Speech bubbles shown at once; the ones nearest the camera win. */
 const MAX_BUBBLES = 64
-/** Bounding-sphere radius per unit half-size, by shape index (as in collision.ts). */
-const BOUNDING = [Math.sqrt(3), 1, Math.SQRT2, Math.SQRT2]
 /** Pen lines are at least this many CSS pixels wide, however far away, so thin ones don't vanish. */
 const PEN_MIN_PIXELS = 1.5
 
@@ -294,8 +296,9 @@ export class Stage3D {
     const group = new THREE.Group()
     group.matrixAutoUpdate = false
     group.visible = false
+    // Sized to the sprite in syncSelection; the group carries only its pose and size.
     const outline = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(BASE_SIZE + 6, BASE_SIZE + 6, BASE_SIZE + 6)),
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
       new THREE.LineBasicMaterial({ color: '#ff8c1a' }),
     )
     group.add(outline)
@@ -356,11 +359,20 @@ export class Stage3D {
     this.heightHandle.visible = slot >= 0
     if (slot < 0) return
     const E = this.rt.store
-    writeMatrix(E, slot, alpha, this.scratchMatrix, 0)
+    // The outline is stretched to the shape; the nose isn't.
+    writeMatrix(E, slot, alpha, this.scratchMatrix, 0, false)
     this.selection.matrix.fromArray(this.scratchMatrix)
     this.selection.matrixWorldNeedsUpdate = true
+    const [outline, nose] = this.selection.children
+    const margin = 6 / (E.size[slot] / 100)
+    outline.scale.set(
+      (BASE_SIZE * E.width[slot]) / 100 + margin,
+      (BASE_SIZE * E.depth[slot]) / 100 + margin,
+      (BASE_SIZE * E.height[slot]) / 100 + margin,
+    )
+    nose.position.x = (BASE_SIZE / 2) * (E.width[slot] / 100) + 5
     const m = this.scratchMatrix
-    this.heightHandle.position.set(m[12], m[13], m[14] + (BASE_SIZE / 2) * (E.size[slot] / 100) + 18)
+    this.heightHandle.position.set(m[12], m[13], m[14] + topOf(E, slot) + 18)
   }
 
   private syncBubbles(alpha: number): void {
@@ -390,7 +402,7 @@ export class Stage3D {
       const text = E.saying[slot] ?? ''
       const box = bubble.element.firstElementChild!
       if (box.textContent !== text) box.textContent = text
-      const top = (BASE_SIZE / 2) * (E.size[slot] / 100) + 6
+      const top = topOf(E, slot) + 6
       bubble.position.set(E.px[slot] * b + E.x[slot] * alpha, E.py[slot] * b + E.y[slot] * alpha, E.pz[slot] * b + E.z[slot] * alpha + top)
     })
   }
@@ -448,7 +460,7 @@ export class Stage3D {
     const hits: { slot: number; t: number }[] = []
     for (let i = 0; i < E.highWater; i++) {
       if ((E.flags[i] & (F_ALIVE | F_VISIBLE)) !== (F_ALIVE | F_VISIBLE)) continue
-      const r = (BASE_SIZE / 2) * (E.size[i] / 100) * BOUNDING[E.shape[i]]
+      const r = boundingRadius(E, i)
       const ox = E.x[i] - origin.x
       const oy = E.y[i] - origin.y
       const oz = E.z[i] - origin.z

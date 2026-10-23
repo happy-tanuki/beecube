@@ -47,6 +47,11 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   "move steps" follows direction and pitch.
 - **Shapes instead of costumes.** A sprite is a cube, sphere, cone or
   cylinder with a color and a size. Costumes, and sounds, are not done yet.
+- **Width, depth and height** stretch a shape along its own axes, in
+  percent of its size (1–2000%, 100% each by default): width along its
+  heading (x at direction 90), depth across it, height up its local z axis.
+  A stretched cube is a cuboid, for floors, walls and ramps; a stretched
+  sphere is an egg. They turn with the sprite, and "size" scales all three.
 
 ## 4. Blocks
 
@@ -56,7 +61,7 @@ or changed:
 | Category | Blocks |
 |---|---|
 | Motion | go to x/y/z, glide to x/y/z, set z / change z / z position; set pitch / turn up / turn down / pitch; set roll / change roll / roll |
-| Looks | set color to (in place of costumes) |
+| Looks | set color to (in place of costumes); set / change (width, depth, height); width / depth / height |
 | Events | when I touch (a sprite, or my own clones) |
 | Sensing | touched sprite (a sprite reference); "of" for another sprite's properties and sprite-only variables |
 | Pen | lines drawn in space; draw cube, draw sphere (wireframes); stamp leaves a copy of the shape |
@@ -74,7 +79,8 @@ Changed meanings:
   the sprite is hidden (so a hidden sprite can stamp). Stamps are not
   sprites: they don't move, aren't touched, and "erase all" removes them.
 - **"touching"** tests the real shapes in 3D, and **"distance to"** measures
-  between centers in 3D.
+  between centers in 3D. "Touching", the edge and physics all use the shape
+  as stretched by width, depth and height.
 - **Sprite references.** Some reporters return a sprite (or clone) rather
   than its name. As text a reference reads as the sprite's name.
 

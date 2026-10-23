@@ -15,8 +15,8 @@ import { BUILTIN_PROPERTIES, paramKey, type KindFacts, type Layout, type Project
 import type { CommandBlock, ExtensionBlock } from './extension'
 import type { Expr, ProcIR, ScriptIR, Stmt } from './ir'
 import { colorToInt, compare, contains, isColorString, isWholeBound, letterOf, mathop, mod, toBoolean, toNumber, toText, waitTicks } from './ops'
-import { PEN_PARAMS } from './store'
-import { BASE_SIZE, EDGE, MOUSE, MYSELF, STAGE_HEIGHT, STAGE_WIDTH, type Value } from './types'
+import { DIMENSIONS, PEN_PARAMS } from './store'
+import { EDGE, MOUSE, MYSELF, STAGE_HEIGHT, STAGE_WIDTH, type Value } from './types'
 
 export interface CodegenEnv {
   project: ProjectInput
@@ -123,6 +123,7 @@ const num = (v: V) => (v.k !== undefined ? toNumber(v.k) : undefined)
 /** Column names in generated code. */
 const COLUMNS: Record<string, string> = {
   x: 'X', y: 'Y', z: 'Z', direction: 'D', pitch: 'PT', roll: 'RL', size: 'SZ',
+  width: 'WD', depth: 'DP', height: 'HT',
   color: 'CO', penSize: 'PSZ', flags: 'FL',
 }
 
@@ -596,10 +597,8 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
     }
     case 'motion_ifonedgebounce': {
       // Only an entity whose bounding sphere reaches a wall or the floor can bounce.
-      const [X, Y, Z, SZ] = [f.col('x'), f.col('y'), f.col('z'), f.col('size')]
-      const SH = f.hoist('SH', 'E.shape')
-      const BR = f.hoist('BR', 'L.BOUNDING')
-      const r = bind(ctx, `${SZ}[i] * ${BASE_SIZE / 200} * ${BR}[${SH}[i]] + 1e-6`)
+      const [X, Y, Z] = [f.col('x'), f.col('y'), f.col('z')]
+      const r = bind(ctx, 'L.boundingRadius(i) + 1e-6')
       emit(ctx, `if (${X}[i] - ${r} < ${-STAGE_WIDTH / 2} || ${X}[i] + ${r} > ${STAGE_WIDTH / 2} || ${Y}[i] - ${r} < ${-STAGE_HEIGHT / 2} || ${Y}[i] + ${r} > ${STAGE_HEIGHT / 2} || ${Z}[i] - ${r} < 0) L.bounce(i);`)
       break
     }
@@ -626,6 +625,14 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
       emit(ctx, `${SZ}[i] = L.clampSize(${SZ}[i] + ${n('CHANGE')});`)
       break
     }
+    case 'looks_setdimensionto':
+    case 'looks_changedimensionby':
+      if ((DIMENSIONS as readonly string[]).includes(s.f.DIMENSION)) {
+        const col = f.col(s.f.DIMENSION)
+        const v = s.op === 'looks_changedimensionby' ? `${col}[i] + ${n('VALUE')}` : n('VALUE')
+        emit(ctx, `${col}[i] = L.clampDimension(${v});`)
+      }
+      break
     case 'looks_setcolorto': {
       const v = e('COLOR')
       if (v.k !== undefined) {
@@ -1048,6 +1055,10 @@ function expr(e: Expr, ctx: Ctx, m: ModuleGen): V {
       return { c: `L.round6(${f.col('roll')}[i])`, t: 'num' }
     case 'looks_size':
       return { c: `Math.round(${f.col('size')}[i])`, t: 'num' }
+    case 'looks_width':
+    case 'looks_depth':
+    case 'looks_height':
+      return { c: `Math.round(${f.col(e.op.slice('looks_'.length))}[i])`, t: 'num' }
 
     // events
     case 'event_broadcast_menu':

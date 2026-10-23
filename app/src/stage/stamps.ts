@@ -55,7 +55,10 @@ export class StampInstances {
       if (mesh.count === mesh.instanceMatrix.count) mesh = this.grow(shape)
       const o = k * STAMP_POSE
       const index = mesh.count++
-      poseMatrix(p[o], p[o + 1], p[o + 2], p[o + 3], p[o + 4], p[o + 5], p[o + 6], mesh.instanceMatrix.array as Float32Array, index * 16)
+      poseMatrix(
+        p[o], p[o + 1], p[o + 2], p[o + 3], p[o + 4], p[o + 5], p[o + 6], p[o + 7], p[o + 8], p[o + 9],
+        mesh.instanceMatrix.array as Float32Array, index * 16,
+      )
       // setHex converts the sRGB color to the linear values instance colors hold.
       COLOR.setHex(pen.stampColors[k])
       mesh.setColorAt(index, COLOR)

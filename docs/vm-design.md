@@ -66,6 +66,8 @@ class EntityStore {
   x, y, z, direction, pitch, roll, size: Float64Array
   // the pose at the start of the tick, for interpolation
   px, py, pz, pdirection, ppitch, proll, psize: Float64Array
+  // percent of size along the local axes (100 in a new slot); not interpolated
+  width, depth, height: Float64Array
   // looks
   color: Uint32Array       // 0xRRGGBB
   penColor: Uint32Array
@@ -404,9 +406,13 @@ collision, determinism in stage 8), not for the compiler.
   during the tick in which its kind's own script is still moving it allows
   for members moving as far as the fastest one had moved at the build.
 - **Narrow phase**: shortcuts per shape pair (bounding spheres first,
-  sphere–sphere, axis-aligned cubes, a sphere against an axis-aligned cube),
-  GJK for the general case. GJK works on
-  scalars and a preallocated scratch array, without allocation.
+  sphere–sphere, axis-aligned cuboids, a sphere against an axis-aligned
+  cuboid), GJK for the general case. GJK works on
+  scalars and a preallocated scratch array, without allocation. A shape
+  stretched by width, depth and height is the unit shape scaled along its
+  local axes, so its support point is the scaled support of the unit shape
+  in the scaled direction; spheres take the sphere shortcuts only when not
+  stretched.
 - **"Touching (sprite)?"**: the target is a kind (the original and all its
   clones), so only nearby grid cells are checked.
 - **"When I touch (target)" hat**: the target is a sprite (its original and
@@ -426,15 +432,19 @@ collision, determinism in stage 8), not for the compiler.
   them back from the GPU does not scale to many clones. Pen lines do not
   count.
 - **Kinds using physics**: Rapier's broad phase and collision events are
-  used; the mechanism above does not run twice.
+  used; the mechanism above does not run twice. Cuboids, and cylinders and
+  cones with equal width and depth, are Rapier's own shapes; Rapier has no
+  ellipsoids or oval cylinders and cones, so those are convex hulls of
+  points on them.
 
 ## 8. Rendering
 
 - **Instanced rendering**: one `InstancedMesh` per shape. 30,000 entities
   take as many draw calls as there are shapes. Instances do not use matrices
   built on the CPU: each has its pose at the start and end of the last tick
-  (position and size, then direction, pitch and roll; 14 floats) and the
-  vertex shader builds the matrix, interpolating by a uniform. Each mesh keeps a dense list of its instances;
+  (position and size, then direction, pitch and roll; 14 floats) and its
+  width, depth and height (3 floats, not interpolated), and the vertex
+  shader builds the matrix, interpolating by a uniform. Each mesh keeps a dense list of its instances;
   entities are added and removed by swapping with the last instance.
 - **Shadows**: shapes stop casting shadows above 2,000 visible entities.
 - **Only what changed, once per tick**: instances are written only on the

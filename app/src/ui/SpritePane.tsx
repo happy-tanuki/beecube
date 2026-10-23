@@ -74,7 +74,7 @@ function NameField({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
 
 function SpriteInfo({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
   useTicker(100)
-  const set = (patch: Partial<Pick<Sprite, 'x' | 'y' | 'z' | 'direction' | 'pitch' | 'roll' | 'size' | 'shape' | 'color' | 'visible'>>) => {
+  const set = (patch: Partial<Pick<Sprite, 'x' | 'y' | 'z' | 'direction' | 'pitch' | 'roll' | 'size' | 'width' | 'depth' | 'height' | 'shape' | 'color' | 'visible'>>) => {
     Object.assign(sprite, patch)
     store.notify()
   }
@@ -88,6 +88,9 @@ function SpriteInfo({ store, sprite }: { store: ProjectStore; sprite: Sprite }) 
       <NumberField label={t('sprite.pitch')} value={sprite.pitch} onChange={(pitch) => set({ pitch })} />
       <NumberField label={t('sprite.roll')} value={sprite.roll} onChange={(roll) => set({ roll })} />
       <NumberField label={t('sprite.size')} value={sprite.size} onChange={(size) => set({ size })} />
+      <NumberField label={t('sprite.width')} value={sprite.width} onChange={(width) => set({ width })} />
+      <NumberField label={t('sprite.depth')} value={sprite.depth} onChange={(depth) => set({ depth })} />
+      <NumberField label={t('sprite.height')} value={sprite.height} onChange={(height) => set({ height })} />
       <label className="field">
         <span>{t('sprite.shape')}</span>
         <select value={sprite.shape} onChange={(e) => set({ shape: e.target.value as ShapeKind })}>

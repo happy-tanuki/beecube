@@ -319,7 +319,7 @@ export function typeOfExpr(e: Expr, p: ProjectInput, k: number, proc: ProcIR | n
 }
 
 /** Menu values of the "of" block's built-in properties. */
-export const SPRITE_PROPERTIES = ['x position', 'y position', 'z position', 'direction', 'pitch', 'roll', 'size'] as const
+export const SPRITE_PROPERTIES = ['x position', 'y position', 'z position', 'direction', 'pitch', 'roll', 'size', 'width', 'depth', 'height'] as const
 export type SpriteProperty = (typeof SPRITE_PROPERTIES)[number]
 export const BUILTIN_PROPERTIES = new Set<string>(SPRITE_PROPERTIES)
 

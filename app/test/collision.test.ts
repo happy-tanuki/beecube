@@ -16,6 +16,52 @@ function entity(E: EntityStore, shape: string, x: number, y: number, z: number, 
   return i
 }
 
+describe('stretched shapes', () => {
+  it('agree with GJK on axis-aligned cuboids and spheres', () => {
+    const rnd = new Random(11)
+    let touching = 0
+    for (let n = 0; n < 3000; n++) {
+      const E = new EntityStore(2)
+      const a = entity(E, n % 2 ? 'sphere' : 'cube', 0, 0, 0, 20 + rnd.next() * 100, [0, 90, 180, -90][n % 4])
+      const b = entity(E, 'cube', 0, 0, 0, 20 + rnd.next() * 100, [0, 90, 180, -90][(n >> 2) % 4])
+      for (const i of [a, b]) {
+        const k = n % 2 && i === a ? 50 + rnd.next() * 200 : 0
+        E.width[i] = k || 20 + rnd.next() * 300
+        E.depth[i] = k || 20 + rnd.next() * 300
+        E.height[i] = k || 20 + rnd.next() * 300
+      }
+      const at = () => (rnd.next() * 2 - 1) * 90
+      E.x[b] = at()
+      E.y[b] = at()
+      E.z[b] = at()
+      const want = gjkIntersect(E, a, b)
+      expect(shapesIntersect(E, a, b)).toBe(want)
+      expect(shapesIntersect(E, b, a)).toBe(want)
+      if (want) touching++
+    }
+    expect(touching).toBeGreaterThan(400)
+    expect(touching).toBeLessThan(2600)
+  })
+
+  it('touch where the stretched shape reaches', () => {
+    const E = new EntityStore(2)
+    // A sphere 40 across, 3 times as wide along its heading: it reaches x = 60.
+    const egg = entity(E, 'sphere', 0, 0, 0, 100)
+    E.width[egg] = 300
+    const dot = entity(E, 'sphere', 61, 0, 0, 5)
+    expect(shapesIntersect(E, egg, dot)).toBe(true)
+    E.x[dot] = 63
+    expect(shapesIntersect(E, egg, dot)).toBe(false)
+    // Across, it is still 20 from the center.
+    E.x[dot] = 0
+    E.y[dot] = 22
+    expect(shapesIntersect(E, egg, dot)).toBe(false)
+    // Turned to face up the y axis, it reaches there instead.
+    E.direction[egg] = 0
+    expect(shapesIntersect(E, egg, dot)).toBe(true)
+  })
+})
+
 describe('sphere against an axis-aligned cube', () => {
   it('agrees with GJK, away from exact contact', () => {
     const rnd = new Random(7)
