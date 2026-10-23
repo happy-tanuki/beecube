@@ -15,7 +15,6 @@ import type { ExtensionBlock, ReporterBlock, CommandBlock } from './extension'
 import type { Kind } from './instances'
 import {
   clampDimension,
-  clampPitch,
   clampPenSize,
   clampSize,
   colorToInt,
@@ -39,6 +38,7 @@ import {
   waitTicks,
   wrapDirection,
 } from './ops'
+import { turnBody } from './orientation'
 import type { Vec3 } from './pen'
 import type { Runtime, WaitRecord } from './runtime'
 import { EntityRef } from './ref'
@@ -149,7 +149,7 @@ export function makeLib(rt: Runtime) {
     contains,
     round6,
     wrap: wrapDirection,
-    clampPitch,
+    turn: (i: number, axis: number, deg: number): void => turnBody(E(), i, axis, deg),
     clampSize,
     clampDimension,
     listText,
@@ -177,6 +177,7 @@ export function makeLib(rt: Runtime) {
       const d = bounced.direction
       s.direction[i] = d > -180 && d <= 180 ? d : wrapDirection(d)
       s.pitch[i] = bounced.pitch
+      s.roll[i] = wrapDirection(bounced.roll)
       if (s.flags[i] & 4) rt.pen.lineFrom(s, i, bounced.x, bounced.y, bounced.z)
       s.x[i] = bounced.x
       s.y[i] = bounced.y

@@ -10,6 +10,7 @@
 import type RAPIER_NS from '@dimforge/rapier3d-compat'
 import { Euler, Quaternion } from 'three'
 import type { ExtensionSpec } from '../engine/extension'
+import { setRotation } from '../engine/orientation'
 import { wrapDirection, type Runtime } from '../engine/runtime'
 import { F_PEN, F_VISIBLE, type EntityStore } from '../engine/store'
 import { BASE_SIZE, STAGE_HEIGHT, STAGE_WIDTH } from '../engine/types'
@@ -77,8 +78,8 @@ function movedByScript(b: BodyState, E: EntityStore, i: number): boolean {
     Math.abs(E.y[i] - b.wy) > 1e-6 ||
     Math.abs(E.z[i] - b.wz) > 1e-6 ||
     Math.abs(wrapDirection(E.direction[i] - b.wdirection)) > 1e-6 ||
-    Math.abs(E.pitch[i] - b.wpitch) > 1e-6 ||
-    Math.abs(E.roll[i] - b.wroll) > 1e-6
+    Math.abs(wrapDirection(E.pitch[i] - b.wpitch)) > 1e-6 ||
+    Math.abs(wrapDirection(E.roll[i] - b.wroll)) > 1e-6
   )
 }
 
@@ -92,12 +93,9 @@ function rotationOf(E: EntityStore, i: number): RAPIER_NS.Rotation {
   return { x: quat.x, y: quat.y, z: quat.z, w: quat.w }
 }
 
+/** Reads a body's rotation back as the angles nearest the entity's current ones, so pitch can pass 90. */
 function applyRotation(E: EntityStore, i: number, r: RAPIER_NS.Rotation): void {
-  quat.set(r.x, r.y, r.z, r.w)
-  euler.setFromQuaternion(quat, 'ZYX')
-  E.roll[i] = euler.x / DEG
-  E.pitch[i] = -euler.y / DEG
-  E.direction[i] = wrapDirection(90 - euler.z / DEG)
+  setRotation(E, i, r.x, r.y, r.z, r.w)
 }
 
 /** One simulation per runtime. Bodies are found by entity slot. */

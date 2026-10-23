@@ -15,6 +15,7 @@ import { BUILTIN_PROPERTIES, paramKey, type KindFacts, type Layout, type Project
 import type { CommandBlock, ExtensionBlock } from './extension'
 import type { Expr, ProcIR, ScriptIR, Stmt } from './ir'
 import { colorToInt, compare, contains, isColorString, isWholeBound, letterOf, mathop, mod, toBoolean, toNumber, toText, waitTicks } from './ops'
+import { PITCH_AXIS, YAW_AXIS } from './orientation'
 import { DIMENSIONS, PEN_PARAMS } from './store'
 import { EDGE, MOUSE, MYSELF, STAGE_HEIGHT, STAGE_WIDTH, type Value } from './types'
 
@@ -547,8 +548,12 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
     }
     case 'motion_turnright':
     case 'motion_turnleft': {
-      const D = f.col('direction')
-      emit(ctx, `${D}[i] = ${wrap(ctx, `${D}[i] ${s.op === 'motion_turnright' ? '+' : '-'} ${n('DEGREES')}`)};`)
+      // About the entity's own vertical axis; that is the world's while it is level.
+      const [D, PT, RL] = [f.col('direction'), f.col('pitch'), f.col('roll')]
+      const deg = bind(ctx, `${s.op === 'motion_turnright' ? '' : '-'}${n('DEGREES')}`)
+      emit(ctx, `if (${PT}[i] === 0 && ${RL}[i] === 0) {`)
+      emit(ctx, `${D}[i] = ${wrap(ctx, `${D}[i] + ${deg}`)};`)
+      emit(ctx, `} else L.turn(i, ${YAW_AXIS}, -${deg});`)
       break
     }
     case 'motion_pointindirection':
@@ -579,20 +584,27 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
       setPos(ctx, undefined, undefined, bind(ctx, `${f.col('z')}[i] + ${n('DZ')}`))
       break
     case 'motion_setpitch':
-      emit(ctx, `${f.col('pitch')}[i] = L.clampPitch(${n('PITCH')});`)
+      emit(ctx, `${f.col('pitch')}[i] = ${wrap(ctx, n('PITCH'))};`)
       break
     case 'motion_turnup':
     case 'motion_turndown': {
-      const PT = f.col('pitch')
-      emit(ctx, `${PT}[i] = L.clampPitch(${PT}[i] ${s.op === 'motion_turnup' ? '+' : '-'} ${n('DEGREES')});`)
+      // About the entity's own left-right axis; pitch alone changes while there is no roll.
+      const [PT, RL] = [f.col('pitch'), f.col('roll')]
+      const deg = bind(ctx, `${s.op === 'motion_turnup' ? '' : '-'}${n('DEGREES')}`)
+      emit(ctx, `if (${RL}[i] === 0) {`)
+      emit(ctx, `${PT}[i] = ${wrap(ctx, `${PT}[i] + ${deg}`)};`)
+      emit(ctx, `} else L.turn(i, ${PITCH_AXIS}, -${deg});`)
       break
     }
     case 'motion_setroll':
       emit(ctx, `${f.col('roll')}[i] = ${wrap(ctx, n('ROLL'))};`)
       break
+    case 'motion_rollright':
+    case 'motion_rollleft':
     case 'motion_changerollby': {
+      // About the heading: roll alone changes.
       const RL = f.col('roll')
-      emit(ctx, `${RL}[i] = ${wrap(ctx, `${RL}[i] + ${n('DEGREES')}`)};`)
+      emit(ctx, `${RL}[i] = ${wrap(ctx, `${RL}[i] ${s.op === 'motion_rollleft' ? '-' : '+'} ${n('DEGREES')}`)};`)
       break
     }
     case 'motion_ifonedgebounce': {

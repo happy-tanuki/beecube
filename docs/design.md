@@ -43,8 +43,19 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   stage, and z is height (z-up). The workplane's four walls and its floor are
   the "edge".
 - **Orientation.** `direction` follows Scratch (90 = +x). `pitch` is
-  elevation (+90 = straight up), and `roll` turns a sprite about its heading.
-  "move steps" follows direction and pitch.
+  elevation (+90 = straight up), and `roll` turns a sprite about its heading
+  (positive banks right). "move steps" follows direction and pitch.
+  - The relative turns are about the sprite's own axes, as in a flight
+    game: turn right/left about its top, turn up/down about its sideways
+    axis, roll right/left about its heading. While a sprite is level they
+    change only direction, pitch or roll, as in Scratch.
+  - Pitch is not held within ±90: like direction, it wraps to (-180, 180],
+    so turning up keeps going over the top (loops). Past ±90 the sprite
+    flies upside down and against its direction.
+  - "point in direction", "set pitch" and "set roll" set the angles
+    themselves (relative to the world).
+  - Turning about one axis while moving draws a circle (also when pitched or
+    banked); turning about two at once (up and roll) draws a helix.
 - **Shapes instead of costumes.** A sprite is a cube, sphere, cone or
   cylinder with a color and a size. Costumes, and sounds, are not done yet.
 - **Width, depth and height** stretch a shape along its own axes, in
@@ -60,7 +71,7 @@ or changed:
 
 | Category | Blocks |
 |---|---|
-| Motion | go to x/y/z, glide to x/y/z, set z / change z / z position; set pitch / turn up / turn down / pitch; set roll / change roll / roll |
+| Motion | go to x/y/z, glide to x/y/z, set z / change z / z position; turn up / turn down, roll right / roll left (about the own axes; turn right/left too); set pitch / pitch; set roll / roll |
 | Looks | set color to (in place of costumes); set / change (width, depth, height); width / depth / height |
 | Events | when I touch (a sprite, or my own clones) |
 | Sensing | touched sprite (a sprite reference); "of" for another sprite's properties and sprite-only variables |

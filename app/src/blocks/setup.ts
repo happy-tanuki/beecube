@@ -217,6 +217,9 @@ export function defineCustomBlocks(): void {
   defineReporter('motion_zposition', 'MOTION_ZPOSITION', 'motion')
   defineReporter('motion_pitch', 'MOTION_PITCH', 'motion')
   defineStatement('motion_setroll', 'MOTION_SETROLL', [arg('ROLL')], 'motion')
+  defineStatement('motion_rollright', 'MOTION_ROLLRIGHT', [arg('DEGREES')], 'motion')
+  defineStatement('motion_rollleft', 'MOTION_ROLLLEFT', [arg('DEGREES')], 'motion')
+  // Left out of the palette (the roll pair replaces it); kept so older projects still load.
   defineStatement('motion_changerollby', 'MOTION_CHANGEROLLBY', [arg('DEGREES')], 'motion')
   defineReporter('motion_roll', 'MOTION_ROLL', 'motion')
 

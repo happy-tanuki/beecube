@@ -457,7 +457,7 @@ export function touchingEdge(E: EntityStore, slot: number): boolean {
 }
 
 /** The pose bounceOffEdge computed. */
-export const bounced = { x: 0, y: 0, z: 0, direction: 0, pitch: 0 }
+export const bounced = { x: 0, y: 0, z: 0, direction: 0, pitch: 0, roll: 0 }
 
 /**
  * "If on edge, bounce" in 3D: reflects the heading off the nearest wall it
@@ -485,6 +485,14 @@ export function bounceOffEdge(E: EntityStore, slot: number): boolean {
 
   let direction = E.direction[slot]
   let pitch = E.pitch[slot]
+  let roll = E.roll[slot]
+  // Past straight up or down, the heading runs against direction: read the
+  // same orientation with pitch within ±90 first.
+  if (pitch > 90 || pitch < -90) {
+    direction += 180
+    pitch = (pitch > 0 ? 180 : -180) - pitch
+    roll += 180
+  }
   if (hitWall) {
     const rad = direction * DEG
     let dx = Math.sin(rad)
@@ -504,6 +512,7 @@ export function bounceOffEdge(E: EntityStore, slot: number): boolean {
   loadPose(E, slot)
   POSE[5] = direction
   POSE[6] = pitch
+  POSE[7] = roll
   setShape(SA, POSE)
   extents(SA, BOX)
   const shiftX = BOX[0] < -HALF_W ? -HALF_W - BOX[0] : BOX[1] > HALF_W ? HALF_W - BOX[1] : 0
@@ -514,6 +523,7 @@ export function bounceOffEdge(E: EntityStore, slot: number): boolean {
   bounced.z = z + shiftZ
   bounced.direction = direction
   bounced.pitch = pitch
+  bounced.roll = roll
   return true
 }
 

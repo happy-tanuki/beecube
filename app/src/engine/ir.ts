@@ -182,6 +182,8 @@ const STATEMENTS: Record<string, { inputs?: string[]; fields?: string[]; substac
   motion_turndown: { inputs: ['DEGREES'] },
   motion_setroll: { inputs: ['ROLL'] },
   motion_changerollby: { inputs: ['DEGREES'] },
+  motion_rollright: { inputs: ['DEGREES'] },
+  motion_rollleft: { inputs: ['DEGREES'] },
   looks_show: {},
   looks_hide: {},
   looks_say: { inputs: ['MESSAGE'] },

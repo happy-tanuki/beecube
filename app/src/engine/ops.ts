@@ -72,10 +72,6 @@ export function waitTicks(secs: number): number {
   return t >= 1 ? t : 1
 }
 
-export function clampPitch(p: number): number {
-  return Math.max(-90, Math.min(90, p))
-}
-
 export function clampSize(s: number): number {
   return Math.max(5, Math.min(1000, s))
 }

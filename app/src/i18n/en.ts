@@ -171,6 +171,8 @@ export const en = {
     MOTION_TURNDOWN: 'turn down %1 degrees',
     MOTION_PITCH: 'pitch',
     MOTION_SETROLL: 'set roll to %1',
+    MOTION_ROLLRIGHT: 'roll right %1 degrees',
+    MOTION_ROLLLEFT: 'roll left %1 degrees',
     MOTION_CHANGEROLLBY: 'change roll by %1',
     MOTION_ROLL: 'roll',
     LOOKS_SETCOLORTO: 'set color to %1',

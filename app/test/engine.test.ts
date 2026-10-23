@@ -884,6 +884,71 @@ describe('roll', () => {
     expect(s.x).toBeCloseTo(10)
     expect(s.z).toBeCloseTo(0)
   })
+
+  it('roll right / left change roll alone', () => {
+    const { rt, sprites: [s], ticks } = setup([
+      makeSprite('a', [
+        flag(
+          blk('motion_rollright', { inputs: { DEGREES: num(50) } }),
+          blk('motion_rollleft', { inputs: { DEGREES: num(20) } }),
+        ),
+      ]),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    expect([s.direction, s.pitch, s.roll]).toEqual([90, 0, 30])
+  })
+})
+
+describe('turning about the own axes', () => {
+  const turn = (op: string, deg: number) => blk(op, { inputs: { DEGREES: num(deg) } })
+
+  it('turn up carries pitch round, as turn right does direction', () => {
+    const { rt, sprites: [s], ticks } = setup([makeSprite('a', [flag(repeat(14, turn('motion_turnup', 15)))])])
+    rt.greenFlag()
+    ticks(20)
+    expect([s.direction, s.pitch, s.roll]).toEqual([90, -150, 0])
+  })
+
+  it('set pitch is not limited to ±90', () => {
+    const { rt, sprites: [s], ticks } = setup([
+      makeSprite('a', [flag(blk('motion_setpitch', { inputs: { PITCH: num(120) } }), blk('motion_movesteps', { inputs: { STEPS: num(10) } }))]),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    expect(s.pitch).toBe(120)
+    expect(s.x).toBeCloseTo(-5)
+    expect(s.z).toBeCloseTo(10 * Math.sin(Math.PI / 3))
+  })
+
+  it('turn up after a bank turns toward the own top', () => {
+    const { rt, sprites: [s], ticks } = setup([
+      makeSprite('a', [flag(turn('motion_rollright', 90), turn('motion_turnup', 90), blk('motion_movesteps', { inputs: { STEPS: num(10) } }))]),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    // Facing east and banked right, the top faces south.
+    expect(s.direction).toBeCloseTo(180)
+    expect(s.pitch).toBeCloseTo(0)
+    expect([s.x, s.y, s.z].map((v) => Math.round(v * 1e6) / 1e6 + 0)).toEqual([0, -10, 0])
+  })
+
+  it('turning right while pitched up draws a closed circle', () => {
+    const { rt, sprites: [s], ticks } = setup([
+      makeSprite('a', [
+        flag(
+          blk('motion_setpitch', { inputs: { PITCH: num(30) } }),
+          repeat(36, turn('motion_turnright', 10), blk('motion_movesteps', { inputs: { STEPS: num(10) } })),
+        ),
+      ]),
+    ])
+    rt.greenFlag()
+    ticks(60)
+    expect(s.x).toBeCloseTo(0, 6)
+    expect(s.y).toBeCloseTo(0, 6)
+    expect(s.z).toBeCloseTo(0, 6)
+    expect([s.direction, s.pitch, s.roll].map((v) => Math.round(v * 1e6) / 1e6 + 0)).toEqual([90, 30, 0])
+  })
 })
 
 describe('variable reporters as saved by the editor', () => {

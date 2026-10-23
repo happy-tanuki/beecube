@@ -71,7 +71,7 @@ export function writeMatrix(E: RenderColumns, i: number, a: number, out: Float32
     E.py[i] * b + E.y[i] * a,
     E.pz[i] * b + E.z[i] * a,
     E.pdirection[i] + wrapDirection(E.direction[i] - E.pdirection[i]) * a,
-    E.ppitch[i] * b + E.pitch[i] * a,
+    E.ppitch[i] + wrapDirection(E.pitch[i] - E.ppitch[i]) * a,
     E.proll[i] + wrapDirection(E.roll[i] - E.proll[i]) * a,
     E.psize[i] * b + E.size[i] * a,
     stretched ? E.width[i] : 100,
@@ -139,7 +139,7 @@ mat4 entityMatrix() {
   float a = poseAlpha;
   vec4 p = mix(poseFrom, poseTo, a);
   float dir = turnFrom.x + shortestTurn(turnTo.x - turnFrom.x) * a;
-  float pitch = mix(turnFrom.y, turnTo.y, a);
+  float pitch = turnFrom.y + shortestTurn(turnTo.y - turnFrom.y) * a;
   float roll = turnFrom.z + shortestTurn(turnTo.z - turnFrom.z) * a;
   float yaw = radians(90.0 - dir);
   float cy = cos(yaw), sy = sin(yaw);

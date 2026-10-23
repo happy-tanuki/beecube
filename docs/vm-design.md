@@ -94,6 +94,15 @@ class EntityStore {
   handle whose generation no longer matches refers to nobody.
 - The renderer keeps its own dense, per-shape instance lists (see 8), so
   holes in the slot range cost nothing there.
+- Orientation is stored as direction, pitch and roll (R = Rz(90 − direction)
+  · Ry(−pitch) · Rx(roll)). A relative turn is about a local axis: generated
+  code changes one column when that is exact (turn right/left with no pitch
+  or roll, turn up/down with no roll, roll always) and otherwise calls
+  `engine/orientation.ts`, which composes the rotation and reads the angles
+  back. Of the two readings, (d, p, r) and (d + 180, 180 − p, r + 180), it
+  keeps the one nearer the angles before, so pitch runs past ±90 smoothly;
+  straight up or down, roll is kept. Interpolation takes the shortest turn
+  for all three angles.
 
 ### 3.2 Boundary with the editor
 
@@ -478,7 +487,8 @@ collision, determinism in stage 8), not for the compiler.
 - Rapier is used as is. Bodies are found by entity slot (an array), not by
   `Map<string, BodyState>`.
 - Physics steps after scripts every tick, and all bodies' poses are written
-  back to the store columns together.
+  back to the store columns together. A body's rotation is read back as the
+  angles nearest the entity's previous ones (as for relative turns).
 - The target is 3,000 bodies (scenario C). Making all 30,000 entities
   bodies is not a goal.
 - If deterministic execution becomes necessary (synchronous multiplayer),
