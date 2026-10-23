@@ -584,7 +584,9 @@ export class Runtime {
     }
     const input = this.projectInput()
     const layout = inferLayout(input)
-    const relayout = !this.layout || this.layout.signature !== layout.signature
+    // New sprites (another project opened) have no columns yet, even when the signature matches.
+    const sameKinds = this.laidOut.length === this.kinds.length && this.laidOut.every((k, i) => k === this.kinds[i])
+    const relayout = !this.layout || this.layout.signature !== layout.signature || !sameKinds
     if (relayout) {
       this.migrate(layout)
       this.layout = layout

@@ -639,6 +639,21 @@ describe('project files', () => {
     expect(rt2.sprites[0].x).toBe(5)
   })
 
+  it('opens a project whose variables are laid out like the one before', () => {
+    const project = (value: number) => {
+      const { rt } = setup([makeSprite('a', [flag(changeVar('d', 1))], { variables: { d: { name: 'depth', value } } })])
+      return parseProject(JSON.parse(JSON.stringify(serializeProject(rt))))
+    }
+    const rt = new Runtime()
+    loadProject(rt, project(1))
+    expect(rt.sprites[0].variables).toEqual({ d: { name: 'depth', value: 1 } })
+    loadProject(rt, project(5))
+    expect(rt.sprites[0].variables).toEqual({ d: { name: 'depth', value: 5 } })
+    rt.greenFlag()
+    rt.step()
+    expect(rt.sprites[0].variables.d.value).toBe(6)
+  })
+
   it('rejects malformed files with the offending path', () => {
     const { rt } = setup([makeSprite('a', [])])
     const good = serializeProject(rt)
