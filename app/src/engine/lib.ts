@@ -142,6 +142,32 @@ export function makeLib(rt: Runtime) {
     return { rt, slot: i, entity: E().handle(i) }
   }
 
+  /** Where "go to" and "glide to" go, written by `place`. */
+  const dest = new Float64Array(3)
+  /**
+   * Puts in `dest` where (v) is: a random position or the mouse pointer
+   * (keeping z), or a sprite, by name or reference. False if there is no such sprite.
+   */
+  function place(i: number, v: Value): boolean {
+    const s = E()
+    const name = v instanceof EntityRef ? '' : toText(v)
+    dest[2] = s.z[i]
+    if (name === MOUSE) {
+      dest[0] = rt.mouse.x
+      dest[1] = rt.mouse.y
+    } else if (name === RANDOM) {
+      dest[0] = Math.round(rt.random.next() * STAGE_WIDTH - STAGE_WIDTH / 2)
+      dest[1] = Math.round(rt.random.next() * STAGE_HEIGHT - STAGE_HEIGHT / 2)
+    } else {
+      const o = target(v)
+      if (o < 0) return false
+      dest[0] = s.x[o]
+      dest[1] = s.y[o]
+      dest[2] = s.z[o]
+    }
+    return true
+  }
+
   return {
     boundingRadius: (i: number): number => boundingRadius(E(), i),
     num: toNumber,
@@ -246,24 +272,13 @@ export function makeLib(rt: Runtime) {
     },
     cameraZoom: (zoom: number, change: boolean): void => rt.camera.setZoom(change ? rt.camera.zoom + zoom : zoom),
 
-    /** "Go to (v)": a random position or the mouse pointer (keeping z), or a sprite, by name or reference. */
+    dest,
+    place,
+    /** "Go to (v)", drawing with the pen. */
     goTo(i: number, v: Value): void {
+      if (!place(i, v)) return
       const s = E()
-      let x: number, y: number, z = s.z[i]
-      const name = v instanceof EntityRef ? '' : toText(v)
-      if (name === MOUSE) {
-        x = rt.mouse.x
-        y = rt.mouse.y
-      } else if (name === RANDOM) {
-        x = Math.round(rt.random.next() * STAGE_WIDTH - STAGE_WIDTH / 2)
-        y = Math.round(rt.random.next() * STAGE_HEIGHT - STAGE_HEIGHT / 2)
-      } else {
-        const o = target(v)
-        if (o < 0) return
-        x = s.x[o]
-        y = s.y[o]
-        z = s.z[o]
-      }
+      const [x, y, z] = dest
       if (s.flags[i] & F_PEN) rt.pen.lineFrom(s, i, x, y, z)
       s.x[i] = x
       s.y[i] = y

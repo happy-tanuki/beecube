@@ -26,6 +26,7 @@ const WAITING = new Set([
   'control_wait_until',
   'motion_glidesecstoxy',
   'motion_glidesecstoxyz',
+  'motion_glideto',
   'looks_sayforsecs',
   'event_broadcastandwait',
 ])

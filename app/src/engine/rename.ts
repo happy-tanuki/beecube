@@ -12,6 +12,7 @@ export const SPRITE_MENUS: Record<string, string> = {
   sensing_of_object_menu: 'OBJECT',
   control_create_clone_of_menu: 'CLONE_OPTION',
   motion_goto_menu: 'TO',
+  motion_glideto_menu: 'TO',
   motion_pointtowards_menu: 'TOWARDS',
 }
 

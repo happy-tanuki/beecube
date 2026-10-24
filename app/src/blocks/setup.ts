@@ -251,10 +251,14 @@ export function defineCustomBlocks(): void {
   defineStatement('motion_changerollby', 'MOTION_CHANGEROLLBY', [arg('DEGREES')], 'motion')
   defineReporter('motion_roll', 'MOTION_ROLL', 'motion')
 
-  // scratch-blocks defines "go to" and "point towards"; their menus list this project's targets.
+  // scratch-blocks defines "go to", "glide to" and "point towards"; their menus list this project's targets.
   defineObjectMenu('motion_goto_menu', 'TO', 'motion', () => [
     [ScratchBlocks.Msg.MOTION_GOTO_RANDOM, RANDOM],
     [ScratchBlocks.Msg.MOTION_GOTO_POINTER, MOUSE],
+  ])
+  defineObjectMenu('motion_glideto_menu', 'TO', 'motion', () => [
+    [ScratchBlocks.Msg.MOTION_GLIDETO_RANDOM, RANDOM],
+    [ScratchBlocks.Msg.MOTION_GLIDETO_POINTER, MOUSE],
   ])
   defineObjectMenu('motion_pointtowards_menu', 'TOWARDS', 'motion', () => [
     [ScratchBlocks.Msg.MOTION_POINTTOWARDS_POINTER, MOUSE],

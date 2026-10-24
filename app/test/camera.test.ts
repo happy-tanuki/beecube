@@ -85,10 +85,12 @@ describe('camera blocks', () => {
 })
 
 const goTo = (to: string) => blk('motion_goto', { inputs: { TO: { shadow: blk('motion_goto_menu', { fields: { TO: to } }) } } })
+const glideTo = (secs: number, to: string) =>
+  blk('motion_glideto', { inputs: { SECS: num(secs), TO: { shadow: blk('motion_glideto_menu', { fields: { TO: to } }) } } })
 const pointTowards = (to: string) =>
   blk('motion_pointtowards', { inputs: { TOWARDS: { shadow: blk('motion_pointtowards_menu', { fields: { TOWARDS: to } }) } } })
 
-describe('go to and point towards', () => {
+describe('go to, glide to and point towards', () => {
   it('goes to another sprite in 3D, drawing with the pen', () => {
     const { rt, sprites: [a], ticks } = setup([
       makeSprite('a', [flag(blk('pen_penDown'), goTo('b'), goTo('nobody'))]),
@@ -111,6 +113,31 @@ describe('go to and point towards', () => {
     expect(Math.abs(a.x)).toBeLessThanOrEqual(240)
     expect(Math.abs(a.y)).toBeLessThanOrEqual(180)
     expect([Number.isInteger(a.x), Number.isInteger(a.y), a.z]).toEqual([true, true, 25])
+  })
+
+  it('glides to where another sprite was when it started, in 3D', () => {
+    const { rt, sprites: [a, b], ticks } = setup([
+      makeSprite('a', [flag(glideTo(1, 'b'))]),
+      makeSprite('b', [], { x: 60, y: -120, z: 90 }),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    b.x = 0
+    ticks(30)
+    expect([a.x, a.y, a.z].map(Math.round)).toEqual([30, -60, 45])
+    ticks(30)
+    expect([a.x, a.y, a.z]).toEqual([60, -120, 90])
+  })
+
+  it('glides to the mouse pointer keeping its height, and not at all to a sprite that is not there', () => {
+    const { rt, sprites: [a], ticks } = setup([makeSprite('a', [flag(glideTo(0.5, 'nobody'), glideTo(0.5, '_mouse_'))], { z: 25 })])
+    rt.mouse.x = 70
+    rt.mouse.y = 80
+    rt.greenFlag()
+    ticks(16)
+    expect([a.x, a.y, a.z].map(Math.round)).toEqual([35, 40, 25])
+    ticks(20)
+    expect([a.x, a.y, a.z]).toEqual([70, 80, 25])
   })
 
   it('points towards another sprite in 3D: direction and pitch', () => {
@@ -165,10 +192,10 @@ describe('go to and point towards', () => {
   })
 
   it('renames sprites in their menus', () => {
-    const { rt } = setup([makeSprite('a', [flag(goTo('b'), pointTowards('b'))]), makeSprite('b', [])])
+    const { rt } = setup([makeSprite('a', [flag(goTo('b'), glideTo(1, 'b'), pointTowards('b'))]), makeSprite('b', [])])
     rt.renameSprite(rt.getSprite('b')!, 'c')
     const text = JSON.stringify(rt.getSprite('a')!.blocks)
     expect(text).not.toContain('"b"')
-    expect(text.match(/"c"/g)).toHaveLength(2)
+    expect(text.match(/"c"/g)).toHaveLength(3)
   })
 })

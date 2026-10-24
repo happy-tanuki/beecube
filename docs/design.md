@@ -71,7 +71,7 @@ or changed:
 
 | Category | Blocks |
 |---|---|
-| Motion | go to (random position, mouse pointer, a sprite: in 3D); point towards (a sprite: direction and pitch; the mouse pointer or a random direction: direction only); go to x/y/z, glide to x/y/z, set z / change z / z position; turn up / turn down, roll right / roll left (about the own axes; turn right/left too); set pitch / pitch; set roll / roll |
+| Motion | go to (random position, mouse pointer, a sprite: in 3D); point towards (a sprite: direction and pitch; the mouse pointer or a random direction: direction only); go to x/y/z; glide to (the same targets as go to, where the target is when the glide starts) and glide to x/y/z; set z / change z / z position; turn up / turn down, roll right / roll left (about the own axes; turn right/left too); set pitch / pitch; set roll / roll |
 | Looks | set color to (in place of costumes); set / change (width, depth, height); width / depth / height |
 | Camera (new) | make this sprite the camera; set view to (home, top, front, side); set / change camera zoom |
 | Events | when I touch (a sprite, or my own clones) |

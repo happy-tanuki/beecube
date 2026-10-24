@@ -875,14 +875,21 @@ function waitingStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
       return
     }
     case 'motion_glidesecstoxy':
-    case 'motion_glidesecstoxyz': {
+    case 'motion_glidesecstoxyz':
+    case 'motion_glideto': {
       const [x0, y0, z0, x1, y1, z1, t0, dur] = Array.from({ length: 8 }, (_, j) => ctx.numLocal(`${s.id}:glide${j}`))
       const [X, Y, Z] = [f.col('x'), f.col('y'), f.col('z')]
       const step = sm.newState(`${s.id}:glide`)
       const after = sm.newState()
       emit(ctx, '{')
       const d = bind(ctx, `${n('SECS')} * 60`)
-      emit(ctx, `${x1} = ${n('X')}; ${y1} = ${n('Y')}; ${z1} = ${s.op === 'motion_glidesecstoxyz' ? n('Z') : `${Z}[i]`};`)
+      if (s.op === 'motion_glideto') {
+        // Where to is fixed at the start, as for "go to"; no such sprite, no glide.
+        emit(ctx, `if (!L.place(i, ${e('TO').c})) { ${sm.jump(after)} }`)
+        emit(ctx, `${x1} = L.dest[0]; ${y1} = L.dest[1]; ${z1} = L.dest[2];`)
+      } else {
+        emit(ctx, `${x1} = ${n('X')}; ${y1} = ${n('Y')}; ${z1} = ${s.op === 'motion_glidesecstoxyz' ? n('Z') : `${Z}[i]`};`)
+      }
       emit(ctx, `if (${d} <= 0) {`)
       setPos(ctx, x1, y1, z1)
       emit(ctx, sm.jump(after))

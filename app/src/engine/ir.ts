@@ -173,6 +173,7 @@ const STATEMENTS: Record<string, { inputs?: string[]; fields?: string[]; substac
   motion_gotoxyz: { inputs: ['X', 'Y', 'Z'] },
   motion_glidesecstoxy: { inputs: ['SECS', 'X', 'Y'] },
   motion_glidesecstoxyz: { inputs: ['SECS', 'X', 'Y', 'Z'] },
+  motion_glideto: { inputs: ['SECS', 'TO'] },
   motion_setx: { inputs: ['X'] },
   motion_sety: { inputs: ['Y'] },
   motion_setz: { inputs: ['Z'] },
