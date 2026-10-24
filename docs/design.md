@@ -71,8 +71,9 @@ or changed:
 
 | Category | Blocks |
 |---|---|
-| Motion | go to x/y/z, glide to x/y/z, set z / change z / z position; turn up / turn down, roll right / roll left (about the own axes; turn right/left too); set pitch / pitch; set roll / roll |
+| Motion | go to (random position, mouse pointer, a sprite: in 3D); point towards (a sprite: direction and pitch; the mouse pointer or a random direction: direction only); go to x/y/z, glide to x/y/z, set z / change z / z position; turn up / turn down, roll right / roll left (about the own axes; turn right/left too); set pitch / pitch; set roll / roll |
 | Looks | set color to (in place of costumes); set / change (width, depth, height); width / depth / height |
+| Camera (new) | make this sprite the camera; set view to (home, top, front, side); set / change camera zoom |
 | Events | when I touch (a sprite, or my own clones) |
 | Sensing | touched sprite (a sprite reference); "of" for another sprite's properties and sprite-only variables |
 | Pen | lines drawn in space; draw cube, draw sphere (wireframes); stamp leaves a copy of the shape |
@@ -94,6 +95,35 @@ Changed meanings:
   as stretched by width, depth and height.
 - **Sprite references.** Some reporters return a sprite (or clone) rather
   than its name. As text a reference reads as the sprite's name.
+
+The camera is a sprite (`app/src/engine/camera.ts`):
+
+- **"Make this sprite the camera"** shows the view from the sprite's center
+  along its forward axis, rolled with it, and doesn't draw that sprite (it
+  still touches things). Moving and turning the sprite moves and turns the
+  camera, so the motion blocks are the camera blocks, and the camera's
+  position is a sprite's, saved with the project. A first-person view is the
+  player sprite as the camera; a third-person view is a camera sprite that
+  chases the player ("point towards", "move", "go to"). A deleted clone
+  stops being the camera.
+- **"Set view to"** puts the camera at one of the stage's view buttons'
+  views; it and the buttons stop a sprite being the camera.
+- **Zoom** is a field of view: 100% is 45°, 200% shows things twice as big
+  (10–1000%). Setting a view resets it.
+- While a sprite is the camera, the viewer can't orbit. Stopping (and the
+  green flag, which stops first) goes back to the viewer's camera as it was,
+  at zoom 100%. Opening another project does the same.
+- Considered and dropped (2026-10-24): camera blocks with a position and a
+  target of their own, and following a sprite from behind. Making a sprite
+  the camera covers both with blocks children already know.
+- Later: attaching a camera sprite to another sprite (links) for a view that
+  stays behind it.
+
+How blocks are split (motion, looks, camera): frequently used and core
+blocks are separate blocks, so they can be found in the palette and read as
+verbs (position, the turns). Finer variants that are used less go in one
+block with a menu (width, depth and height). Reporters are always separate,
+each with its own monitor checkbox.
 
 Variables and lists can belong to all sprites or to one sprite, as in
 Scratch, and monitors show them on the stage.

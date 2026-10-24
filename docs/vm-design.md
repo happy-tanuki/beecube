@@ -473,6 +473,11 @@ collision, determinism in stage 8), not for the compiler.
   Stamps are instanced shapes, one InstancedMesh per shape.
 - **Interpolation**: each frame draws the pose interpolated between the
   start and end of the last tick (on the GPU, see above).
+- **Camera**: the runtime holds the camera blocks' state: zoom (with its
+  start-of-tick value, interpolated), the entity that is the camera (a
+  handle) and the last view asked for. The stage places the camera each
+  frame at the interpolated pose of that entity, and leaves it out of the
+  instances.
 - **Picking**: a ray against bounding spheres from the store, then an exact
   test against the few candidates.
 - **Tests**: `test/instances.test.ts` checks, without WebGL, which instances
@@ -480,7 +485,8 @@ collision, determinism in stage 8), not for the compiler.
   meshes, shadows). `npm run test:browser` runs `test/browser/` in headless
   Chrome: the vertex shader against `writeMatrix` pixel by pixel, and the
   stage drawing sprites, interpolating, drawing more than one mesh's first
-  capacity of clones, and moving a dragged sprite.
+  capacity of clones, moving a dragged sprite, and the camera (a sprite as the
+  camera, views, zoom).
 
 ## 9. Physics
 

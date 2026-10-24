@@ -97,6 +97,8 @@ export interface VariableDef {
 /** Menu values for the touching / distance blocks that aren't sprite names. */
 export const EDGE = '_edge_'
 export const MOUSE = '_mouse_'
+/** "go to" / "point towards" menu value for a random position or direction. */
+export const RANDOM = '_random_'
 /** "create clone of" menu value for the running sprite itself. */
 export const MYSELF = '_myself_'
 

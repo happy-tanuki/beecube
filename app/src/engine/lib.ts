@@ -42,8 +42,8 @@ import { turnBody } from './orientation'
 import type { Vec3 } from './pen'
 import type { Runtime, WaitRecord } from './runtime'
 import { EntityRef } from './ref'
-import { F_ALIVE, F_DYING, F_VISIBLE, type PenParam } from './store'
-import { MOUSE, MYSELF, type Value } from './types'
+import { F_ALIVE, F_DYING, F_PEN, F_VISIBLE, type PenParam } from './store'
+import { MOUSE, MYSELF, RANDOM, STAGE_HEIGHT, STAGE_WIDTH, type Value } from './types'
 
 const DEG = Math.PI / 180
 const TOUCHABLE_MASK = F_ALIVE | F_VISIBLE | F_DYING
@@ -97,6 +97,13 @@ export function makeLib(rt: Runtime) {
       }
     }
     return false
+  }
+
+  /** The entity a menu names, a sprite by name or reference; -1 if none. */
+  function target(v: Value): number {
+    if (v instanceof EntityRef) return E().slotOf(v.handle)
+    const k = rt.kindByName(toText(v))
+    return k >= 0 ? rt.kinds[k].slot : -1
   }
 
   function distanceToKind(i: number, kind: Kind): number {
@@ -232,6 +239,62 @@ export function makeLib(rt: Runtime) {
         }
         rt.pen.addLoop(pts, E(), i)
       }
+    },
+
+    cameraSprite(i: number): void {
+      rt.camera.sprite = E().handle(i)
+    },
+    cameraZoom: (zoom: number, change: boolean): void => rt.camera.setZoom(change ? rt.camera.zoom + zoom : zoom),
+
+    /** "Go to (v)": a random position or the mouse pointer (keeping z), or a sprite, by name or reference. */
+    goTo(i: number, v: Value): void {
+      const s = E()
+      let x: number, y: number, z = s.z[i]
+      const name = v instanceof EntityRef ? '' : toText(v)
+      if (name === MOUSE) {
+        x = rt.mouse.x
+        y = rt.mouse.y
+      } else if (name === RANDOM) {
+        x = Math.round(rt.random.next() * STAGE_WIDTH - STAGE_WIDTH / 2)
+        y = Math.round(rt.random.next() * STAGE_HEIGHT - STAGE_HEIGHT / 2)
+      } else {
+        const o = target(v)
+        if (o < 0) return
+        x = s.x[o]
+        y = s.y[o]
+        z = s.z[o]
+      }
+      if (s.flags[i] & F_PEN) rt.pen.lineFrom(s, i, x, y, z)
+      s.x[i] = x
+      s.y[i] = y
+      s.z[i] = z
+    },
+    /**
+     * "Point towards (v)": a sprite in 3D (direction and pitch), or on the
+     * workplane, the mouse pointer or a random direction (direction only).
+     */
+    pointTowards(i: number, v: Value): void {
+      const s = E()
+      const name = v instanceof EntityRef ? '' : toText(v)
+      if (name === RANDOM) {
+        s.direction[i] = wrapDirection(Math.round(rt.random.next() * 360 - 180))
+        return
+      }
+      let dz = 0
+      let dx: number, dy: number
+      if (name === MOUSE) {
+        dx = rt.mouse.x - s.x[i]
+        dy = rt.mouse.y - s.y[i]
+      } else {
+        const o = target(v)
+        if (o < 0) return
+        dx = s.x[o] - s.x[i]
+        dy = s.y[o] - s.y[i]
+        dz = s.z[o] - s.z[i]
+      }
+      const h = Math.hypot(dx, dy)
+      if (h > 0) s.direction[i] = wrapDirection(Math.atan2(dx, dy) / DEG)
+      if (name !== MOUSE && (h > 0 || dz !== 0)) s.pitch[i] = Math.atan2(dz, h) / DEG
     },
 
     touchingEdge: (i: number): boolean => touchable(E(), i) && touchingEdge(E(), i),

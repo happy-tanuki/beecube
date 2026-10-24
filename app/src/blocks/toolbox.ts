@@ -1,5 +1,5 @@
 import * as ScratchBlocks from 'scratch-blocks'
-import { EDGE, MOUSE, MYSELF } from '../engine/types'
+import { EDGE, MOUSE, MYSELF, RANDOM } from '../engine/types'
 import type { ExtensionSpec } from '../engine/extension'
 import { extensionCategoryXml } from './extensions'
 import { CATEGORY_COLOURS } from './colours'
@@ -35,7 +35,9 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
     block('motion_pointindirection', num('DIRECTION', 90, 'math_angle')),
     block('motion_setpitch', num('PITCH', 0, 'math_angle')),
     block('motion_setroll', num('ROLL', 0, 'math_angle')),
+    block('motion_pointtowards', `<value name="TOWARDS"><shadow type="motion_pointtowards_menu"><field name="TOWARDS">${MOUSE}</field></shadow></value>`),
     sep(),
+    block('motion_goto', `<value name="TO"><shadow type="motion_goto_menu"><field name="TO">${RANDOM}</field></shadow></value>`),
     block('motion_gotoxyz', num('X', 0) + num('Y', 0) + num('Z', 20)),
     block('motion_gotoxy', num('X', 0) + num('Y', 0)),
     block('motion_glidesecstoxyz', num('SECS', 1) + num('X', 0) + num('Y', 0) + num('Z', 20)),
@@ -74,6 +76,15 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
     block('looks_width'),
     block('looks_depth'),
     block('looks_height'),
+  ].join('')
+
+  const camera = [
+    block('camera_setsprite'),
+    sep(),
+    block('camera_setview'),
+    sep(),
+    block('camera_setzoomto', num('ZOOM', 100)),
+    block('camera_changezoomby', num('ZOOM', 10)),
   ].join('')
 
   const broadcastMenu = '<value name="BROADCAST_INPUT"><shadow type="event_broadcast_menu"></shadow></value>'
@@ -195,6 +206,7 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
     '<xml style="display: none">' +
     category('motion', 'CATEGORY_MOTION', 'motion', motion) +
     category('looks', 'CATEGORY_LOOKS', 'looks', looks) +
+    category('camera', 'CATEGORY_CAMERA', 'camera', camera) +
     category('events', 'CATEGORY_EVENTS', 'event', events) +
     category('control', 'CATEGORY_CONTROL', 'control', control) +
     category('sensing', 'CATEGORY_SENSING', 'sensing', sensing) +

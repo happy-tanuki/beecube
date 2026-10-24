@@ -2,7 +2,7 @@
  * Renaming sprites. Blocks refer to other sprites by name (in their menus),
  * so a rename rewrites those references in every sprite's workspace.
  */
-import { EDGE, MOUSE, MYSELF, type BlockJson, type WorkspaceJson } from './types'
+import { EDGE, MOUSE, MYSELF, RANDOM, type BlockJson, type WorkspaceJson } from './types'
 
 /** Menu blocks whose field holds a sprite name, by block type → field name. */
 export const SPRITE_MENUS: Record<string, string> = {
@@ -11,10 +11,12 @@ export const SPRITE_MENUS: Record<string, string> = {
   sensing_distancetomenu: 'DISTANCETOMENU',
   sensing_of_object_menu: 'OBJECT',
   control_create_clone_of_menu: 'CLONE_OPTION',
+  motion_goto_menu: 'TO',
+  motion_pointtowards_menu: 'TOWARDS',
 }
 
 /** Menu values that are not sprite names, so no sprite may take them. */
-const RESERVED = new Set([EDGE, MOUSE, MYSELF])
+const RESERVED = new Set([EDGE, MOUSE, MYSELF, RANDOM])
 
 /**
  * The name a sprite gets when the user asks for `wanted`: null if it can't

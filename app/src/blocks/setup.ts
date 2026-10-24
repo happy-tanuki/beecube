@@ -1,12 +1,12 @@
 /**
  * scratch-blocks configuration: locale, theme (Scratch 3 category colours),
- * and the blocks this project adds (z axis, pitch, colour, 3D pen).
+ * and the blocks this project adds (z axis, pitch, colour, 3D pen, camera).
  */
 import * as ScratchBlocks from 'scratch-blocks'
 import { APP_ID } from '../brand'
 import { CATEGORY_COLOURS } from './colours'
 import type { SpriteProperty } from '../engine/analyze'
-import { EDGE, MOUSE, MYSELF } from '../engine/types'
+import { EDGE, MOUSE, MYSELF, RANDOM } from '../engine/types'
 import { blockMessages, getLocale } from '../i18n'
 
 /** Sets scratch-blocks' language and adds the messages for this project's blocks. Call before creating blocks. */
@@ -201,12 +201,40 @@ function defineDimension(type: string, msgKey: string): void {
   }
 }
 
+/** "set view to (home)": the menu of the preset views (VIEWS), as the stage's view buttons. */
+function defineCameraView(): void {
+  ScratchBlocks.Blocks.camera_setview = {
+    init(this: ScratchBlocks.Block) {
+      this.jsonInit({
+        message0: ScratchBlocks.Msg.CAMERA_SETVIEW,
+        args0: [
+          {
+            type: 'field_dropdown',
+            name: 'VIEW',
+            options: (): MenuOption[] => [
+              [ScratchBlocks.Msg.CAMERA_VIEW_HOME, 'home'],
+              [ScratchBlocks.Msg.CAMERA_VIEW_TOP, 'top'],
+              [ScratchBlocks.Msg.CAMERA_VIEW_FRONT, 'front'],
+              [ScratchBlocks.Msg.CAMERA_VIEW_SIDE, 'side'],
+            ],
+          },
+        ],
+        extensions: ['colours_camera', 'shape_statement'],
+      })
+    },
+  }
+}
+
 let defined = false
 
 /** Registers this project's blocks. Messages are read at block creation, so locale changes apply. */
 export function defineCustomBlocks(): void {
   if (defined) return
   defined = true
+  // scratch-blocks registers colours_<category> for its own categories only.
+  ScratchBlocks.Extensions.register('colours_camera', function (this: ScratchBlocks.Block) {
+    this.setStyle('camera')
+  })
   defineStatement('motion_gotoxyz', 'MOTION_GOTOXYZ', [arg('X'), arg('Y'), arg('Z')], 'motion')
   defineStatement('motion_glidesecstoxyz', 'MOTION_GLIDESECSTOXYZ', [arg('SECS'), arg('X'), arg('Y'), arg('Z')], 'motion')
   defineStatement('motion_setz', 'MOTION_SETZ', [arg('Z')], 'motion')
@@ -222,6 +250,16 @@ export function defineCustomBlocks(): void {
   // Left out of the palette (the roll pair replaces it); kept so older projects still load.
   defineStatement('motion_changerollby', 'MOTION_CHANGEROLLBY', [arg('DEGREES')], 'motion')
   defineReporter('motion_roll', 'MOTION_ROLL', 'motion')
+
+  // scratch-blocks defines "go to" and "point towards"; their menus list this project's targets.
+  defineObjectMenu('motion_goto_menu', 'TO', 'motion', () => [
+    [ScratchBlocks.Msg.MOTION_GOTO_RANDOM, RANDOM],
+    [ScratchBlocks.Msg.MOTION_GOTO_POINTER, MOUSE],
+  ])
+  defineObjectMenu('motion_pointtowards_menu', 'TOWARDS', 'motion', () => [
+    [ScratchBlocks.Msg.MOTION_POINTTOWARDS_POINTER, MOUSE],
+    [ScratchBlocks.Msg.MOTION_POINTTOWARDS_RANDOM, RANDOM],
+  ])
 
   // scratch-blocks defines the hat; its menu lists this project's targets.
   defineObjectMenu('event_touchingobjectmenu', 'TOUCHINGOBJECTMENU', 'event', () => [
@@ -263,4 +301,9 @@ export function defineCustomBlocks(): void {
   defineStatement('pen_stamp', 'PEN_STAMP', [], 'pen')
   defineStatement('pen_drawCube', 'PEN_DRAWCUBE', [arg('SIZE')], 'pen')
   defineStatement('pen_drawSphere', 'PEN_DRAWSPHERE', [arg('RADIUS')], 'pen')
+
+  defineStatement('camera_setsprite', 'CAMERA_SETSPRITE', [], 'camera')
+  defineCameraView()
+  defineStatement('camera_setzoomto', 'CAMERA_SETZOOMTO', [arg('ZOOM')], 'camera')
+  defineStatement('camera_changezoomby', 'CAMERA_CHANGEZOOMBY', [arg('ZOOM')], 'camera')
 }

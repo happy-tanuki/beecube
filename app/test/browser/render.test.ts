@@ -207,4 +207,54 @@ describe('Stage3D', () => {
     expect(reddish(colorAt(s.x, s.y, 25))).toBe(true)
     expect(reddish(colorAt(0, 0, 25))).toBe(false)
   })
+
+  const viewCamera = () => (stage as unknown as { camera: THREE.PerspectiveCamera }).camera
+  const selectionShown = () => (stage as unknown as { selection: THREE.Group }).selection.visible
+
+  it('sees from the sprite that is the camera without drawing it, and goes back to the viewer\'s camera', () => {
+    const rt = new Runtime({ randomSeed: 1 })
+    const red = rt.addSprite(makeSprite('red', [], { x: -100, z: 30, color: '#e02020' }))
+    rt.addSprite(makeSprite('blue', [], { x: 100, z: 30, color: '#2040e0', size: 200 }))
+    const { colorAt } = open(rt)
+    stage!.setView('front')
+    stage!.setSelected(red.id)
+    const before = viewCamera().position.clone()
+    rt.camera.sprite = rt.store.handle(red.slot)
+    rt.camera.setZoom(200)
+    rt.step()
+    // Nor is its selection drawn.
+    expect(selectionShown()).toBe(false)
+    // Facing +x (direction 90), the blue sprite fills the middle of the view.
+    expect(bluish(colorAt(100, 0, 30))).toBe(true)
+    expect(viewCamera().position.toArray()).toEqual([-100, 0, 30])
+    expect(viewCamera().fov).toBeCloseTo(2 * Math.atan(Math.tan((22.5 * Math.PI) / 180) / 2) * (180 / Math.PI))
+    // Turning the sprite turns the camera.
+    red.direction = 0
+    rt.store.snapPose(red.slot)
+    rt.step()
+    expect(bluish(colorAt(100, 0, 30))).toBe(false)
+    rt.stopAll()
+    rt.step()
+    expect(reddish(colorAt(-100, 0, 30))).toBe(true)
+    expect(viewCamera().position.distanceTo(before)).toBeLessThan(1e-6)
+    expect(viewCamera().fov).toBeCloseTo(45)
+    expect(selectionShown()).toBe(true)
+  })
+
+  it('goes to a view a script asks for, and the view buttons stop a sprite being the camera', () => {
+    const rt = new Runtime({ randomSeed: 1 })
+    const red = rt.addSprite(makeSprite('red', [], { z: 30, color: '#e02020' }))
+    const { colorAt } = open(rt)
+    rt.camera.setView('top')
+    colorAt(0, 0, 0)
+    expect(viewCamera().position.toArray().map(Math.round)).toEqual([0, -1, 520])
+    rt.camera.sprite = rt.store.handle(red.slot)
+    rt.step()
+    colorAt(0, 0, 0)
+    stage!.setView('side')
+    colorAt(0, 0, 0)
+    expect(rt.camera.sprite).toBeNull()
+    expect(viewCamera().position.toArray().map((v) => Math.round(v) + 0)).toEqual([500, 0, 70])
+    expect(reddish(colorAt(0, 0, 30))).toBe(true)
+  })
 })

@@ -12,6 +12,7 @@
  * See docs/vm-design.md.
  */
 import { inferLayout, KindFacts, join, typeOfValue, type KindLayout, type Layout, type ProjectInput, type Ty } from './analyze'
+import { Camera } from './camera'
 import { generateKind, type ModulePlan } from './codegen'
 import type { ExtensionSpec } from './extension'
 import { FramePool, Kind, ScriptRun, type SystemFn } from './instances'
@@ -89,6 +90,7 @@ export class Runtime {
   readonly settings: RuntimeSettings = { cloneLimit: DEFAULT_CLONE_LIMIT, randomSeed: null }
 
   readonly pen = new PenBuffer()
+  readonly camera = new Camera()
   readonly keysDown = new Set<string>()
   /** Mouse position projected onto the workplane (z = 0). */
   readonly mouse = { x: 0, y: 0, down: false }
@@ -978,6 +980,7 @@ export class Runtime {
     this.inTick = true
     try {
       this.store.savePose()
+      this.camera.savePose()
       this.processEvents()
       this.runScripts()
       if (this.halted) this.stopAll()
@@ -1098,6 +1101,7 @@ export class Runtime {
     s.compact()
     for (const slot of [...s.sayers]) s.say(slot, null)
     this.posesChanged()
+    this.camera.release()
     for (const ext of this.extensions.values()) ext.stopAll?.(this)
     if (!this.inTick) this.emitScriptChanges()
   }

@@ -167,6 +167,8 @@ const STATEMENTS: Record<string, { inputs?: string[]; fields?: string[]; substac
   motion_turnright: { inputs: ['DEGREES'] },
   motion_turnleft: { inputs: ['DEGREES'] },
   motion_pointindirection: { inputs: ['DIRECTION'] },
+  motion_pointtowards: { inputs: ['TOWARDS'] },
+  motion_goto: { inputs: ['TO'] },
   motion_gotoxy: { inputs: ['X', 'Y'] },
   motion_gotoxyz: { inputs: ['X', 'Y', 'Z'] },
   motion_glidesecstoxy: { inputs: ['SECS', 'X', 'Y'] },
@@ -216,6 +218,10 @@ const STATEMENTS: Record<string, { inputs?: string[]; fields?: string[]; substac
   pen_stamp: {},
   pen_drawCube: { inputs: ['SIZE'] },
   pen_drawSphere: { inputs: ['RADIUS'] },
+  camera_setsprite: {},
+  camera_setview: { fields: ['VIEW'] },
+  camera_setzoomto: { inputs: ['ZOOM'] },
+  camera_changezoomby: { inputs: ['ZOOM'] },
 }
 
 /** Reporter blocks: input and field names. */

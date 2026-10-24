@@ -9,6 +9,8 @@ export const CATEGORY_COLOURS: Record<string, [string, string, string]> = {
   event: ['#FFBF00', '#E6AC00', '#CC9900'],
   sensing: ['#5CB1D6', '#47A8D1', '#2E8EB8'],
   pen: ['#0FBD8C', '#0DA57A', '#0B8E69'],
+  // BeeCube's own category.
+  camera: ['#5B7290', '#4F6580', '#435770'],
   operators: ['#59C059', '#46B946', '#389438'],
   data: ['#FF8C1A', '#FF8000', '#DB6E00'],
   data_lists: ['#FF661A', '#FF5500', '#E64D00'],

@@ -10,6 +10,11 @@
  * When not editable (full screen, the player), sprites can only be clicked:
  * nothing is selected or moved, but the camera still orbits.
  *
+ * The camera blocks act through the runtime's Camera (engine/camera.ts).
+ * While a sprite is the camera, the view is from it and the viewer can't
+ * orbit; when it stops being the camera, the view goes back to where the
+ * viewer had it.
+ *
  * Coordinates are Z-up and match the engine's (see engine/types.ts).
  */
 import * as THREE from 'three'
@@ -19,6 +24,7 @@ import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import { APP_ID } from '../brand'
+import { fovOf, type ViewName } from '../engine/camera'
 import { boundingRadius } from '../engine/collision'
 import type { Runtime } from '../engine/runtime'
 import type { EntityView } from '../engine/sprite'
@@ -27,7 +33,7 @@ import { BASE_SIZE, STAGE_HEIGHT, STAGE_WIDTH } from '../engine/types'
 import { EntityInstances, writeMatrix } from './instances'
 import { StampInstances } from './stamps'
 
-export type ViewName = 'home' | 'top' | 'front' | 'side'
+export type { ViewName }
 
 export interface StageCallbacks {
   /** An entity was clicked (pressed and released without dragging). */
@@ -37,6 +43,13 @@ export interface StageCallbacks {
 }
 
 const DEG = Math.PI / 180
+/** Camera positions of the preset views; each looks at the origin. */
+const VIEW_POSITIONS: Record<ViewName, [number, number, number]> = {
+  home: [-190, -360, 290],
+  top: [0, -1, 520],
+  front: [0, -500, 70],
+  side: [500, 0, 70],
+}
 
 /** How far the top of an upright shape is above its center. */
 const topOf = (E: EntityStore, slot: number) => (BASE_SIZE / 2) * (E.size[slot] / 100) * (E.height[slot] / 100)
@@ -148,6 +161,10 @@ export class Stage3D {
   /** Frames per second actually shown, smoothed. */
   fps = 0
   private lastFrameAt = 0
+  /** The viewer's camera (position, target) while a sprite is the camera, to go back to; null otherwise. */
+  private viewerCamera: [THREE.Vector3, THREE.Vector3] | null = null
+  /** The runtime's view requests already applied. */
+  private viewRequests = 0
 
   private drag: {
     mode: 'move' | 'height'
@@ -196,7 +213,8 @@ export class Stage3D {
     this.controls.zoomToCursor = true
     this.controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE }
     this.controls.maxPolarAngle = Math.PI * 0.495
-    this.setView('home')
+    this.viewRequests = rt.camera.viewRequests
+    this.placeView('home')
 
     addEnvironment(this.scene)
 
@@ -279,14 +297,16 @@ export class Stage3D {
     this.editable = editable
   }
 
+  /** Puts the camera at a preset view at zoom 100% (no sprite is the camera then). */
   setView(view: ViewName): void {
-    const positions: Record<ViewName, [number, number, number]> = {
-      home: [-190, -360, 290],
-      top: [0, -1, 520],
-      front: [0, -500, 70],
-      side: [500, 0, 70],
-    }
-    this.camera.position.set(...positions[view])
+    this.rt.camera.release()
+    this.viewerCamera = null
+    this.placeView(view)
+  }
+
+  private placeView(view: ViewName): void {
+    this.camera.up.set(0, 0, 1)
+    this.camera.position.set(...VIEW_POSITIONS[view])
     this.controls.target.set(0, 0, 0)
     this.controls.update()
   }
@@ -326,18 +346,16 @@ export class Stage3D {
 
   private render(): void {
     const start = performance.now()
-    if (this.lastFrameAt > 0) {
-      const dt = start - this.lastFrameAt
-      if (dt > 0) this.fps = this.fps === 0 ? 1000 / dt : this.fps * 0.9 + (1000 / dt) * 0.1
-    }
+    const dt = this.lastFrameAt > 0 ? start - this.lastFrameAt : 0
+    if (dt > 0) this.fps = this.fps === 0 ? 1000 / dt : this.fps * 0.9 + (1000 / dt) * 0.1
     this.lastFrameAt = start
     const alpha = this.rt.alpha(start)
-    this.instances.sync(this.rt, alpha)
+    const eyes = this.syncCamera(alpha)
+    this.instances.sync(this.rt, alpha, eyes)
     this.syncSelection(alpha)
-    this.syncBubbles(alpha)
+    this.syncBubbles(alpha, eyes)
     this.syncPen()
     this.stamps.sync(this.rt.pen)
-    this.controls.update()
     const prepared = performance.now()
     this.renderer.render(this.scene, this.camera)
     this.labels.render(this.scene, this.camera)
@@ -347,10 +365,56 @@ export class Stage3D {
     this.submitMs = this.submitMs * 0.9 + (end - prepared) * 0.1
   }
 
+  /**
+   * Sets the zoom and places the camera: at a view a script asked for, at
+   * the sprite that is the camera, or where the viewer orbits it. Returns
+   * the slot of the sprite that is the camera (not drawn), or -1.
+   */
+  private syncCamera(alpha: number): number {
+    const cam = this.rt.camera
+    const fov = fovOf(cam.prevZoom + (cam.zoom - cam.prevZoom) * alpha)
+    if (fov !== this.camera.fov) {
+      this.camera.fov = fov
+      this.camera.updateProjectionMatrix()
+    }
+    const E = this.rt.store
+    const slot = cam.sprite === null ? -1 : E.slotOf(cam.sprite)
+    // A deleted clone stops being the camera.
+    if (slot < 0) cam.sprite = null
+    if (slot < 0 && this.viewerCamera) {
+      const [position, target] = this.viewerCamera
+      this.viewerCamera = null
+      this.camera.up.set(0, 0, 1)
+      this.camera.position.copy(position)
+      this.controls.target.copy(target)
+    }
+    if (cam.viewRequests !== this.viewRequests) {
+      this.viewRequests = cam.viewRequests
+      this.placeView(cam.view)
+    }
+    this.controls.enabled = slot < 0 && this.drag === null
+    if (slot < 0) {
+      this.controls.update()
+      return -1
+    }
+    this.viewerCamera ??= [this.camera.position.clone(), this.controls.target.clone()]
+    // From the sprite's center along its forward axis, rolled with it.
+    writeMatrix(E, slot, alpha, this.scratchMatrix, 0, false)
+    const m = this.scratchMatrix
+    const s = Math.hypot(m[0], m[1], m[2]) || 1
+    this.camera.position.set(m[12], m[13], m[14])
+    this.camera.up.set(m[8], m[9], m[10]).normalize()
+    this.camera.lookAt(m[12] + m[0] / s, m[13] + m[1] / s, m[14] + m[2] / s)
+    return slot
+  }
+
   private selectedSlot(): number {
     if (!this.editable || this.selectedId === null) return -1
     const s = this.rt.getSprite(this.selectedId)
-    return s && s.visible ? s.slot : -1
+    if (!s || !s.visible) return -1
+    // The camera sprite isn't drawn, so neither is its selection.
+    const cam = this.rt.camera.sprite
+    return cam !== null && this.rt.store.slotOf(cam) === s.slot ? -1 : s.slot
   }
 
   private syncSelection(alpha: number): void {
@@ -375,10 +439,10 @@ export class Stage3D {
     this.heightHandle.position.set(m[12], m[13], m[14] + topOf(E, slot) + 18)
   }
 
-  private syncBubbles(alpha: number): void {
+  private syncBubbles(alpha: number, hidden: number): void {
     const E = this.rt.store
     const shown: number[] = []
-    for (const slot of E.sayers) if (E.flags[slot] & F_VISIBLE) shown.push(slot)
+    for (const slot of E.sayers) if (E.flags[slot] & F_VISIBLE && slot !== hidden) shown.push(slot)
     if (shown.length > MAX_BUBBLES) {
       const cam = this.camera.position
       const d = (i: number) => (E.x[i] - cam.x) ** 2 + (E.y[i] - cam.y) ** 2 + (E.z[i] - cam.z) ** 2

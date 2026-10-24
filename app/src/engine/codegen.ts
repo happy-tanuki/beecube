@@ -12,6 +12,7 @@
  * embedded with JSON.stringify; objects are passed in the constants array C.
  */
 import { BUILTIN_PROPERTIES, paramKey, type KindFacts, type Layout, type ProjectInput, type Ty, typeOfValue } from './analyze'
+import { VIEWS } from './camera'
 import type { CommandBlock, ExtensionBlock } from './extension'
 import type { Expr, ProcIR, ScriptIR, Stmt } from './ir'
 import { colorToInt, compare, contains, isColorString, isWholeBound, letterOf, mathop, mod, toBoolean, toNumber, toText, waitTicks } from './ops'
@@ -559,6 +560,12 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
     case 'motion_pointindirection':
       emit(ctx, `${f.col('direction')}[i] = ${wrap(ctx, n('DIRECTION'))};`)
       break
+    case 'motion_goto':
+      emit(ctx, `L.goTo(i, ${e('TO').c});`)
+      break
+    case 'motion_pointtowards':
+      emit(ctx, `L.pointTowards(i, ${e('TOWARDS').c});`)
+      break
     case 'motion_gotoxy':
       setPos(ctx, bind(ctx, n('X')), bind(ctx, n('Y')))
       break
@@ -743,6 +750,18 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
       break
     case 'pen_drawSphere':
       emit(ctx, `L.drawSphere(i, ${n('RADIUS')});`)
+      break
+
+    // camera
+    case 'camera_setsprite':
+      emit(ctx, 'L.cameraSprite(i);')
+      break
+    case 'camera_setview':
+      if ((VIEWS as readonly string[]).includes(s.f.VIEW)) emit(ctx, `rt.camera.setView(${lit(s.f.VIEW)});`)
+      break
+    case 'camera_setzoomto':
+    case 'camera_changezoomby':
+      emit(ctx, `L.cameraZoom(${n('ZOOM')}, ${s.op === 'camera_changezoomby'});`)
       break
 
     // control

@@ -343,8 +343,9 @@ export class EntityInstances {
   private drawnColor = new Uint32Array(0)
   /** Slots below this may have instances. */
   private drawnHighWater = 0
-  /** The tick the instances were last written for. */
+  /** The tick the instances were last written for, and the slot left out then. */
   private syncedTick = -1
+  private syncedHidden = -1
   private visibleCount = 0
 
   constructor(scene: THREE.Scene) {
@@ -386,15 +387,20 @@ export class EntityInstances {
     this.instanceOf[slot] = -1
   }
 
-  /** Called every frame: sets the interpolation and, on the first frame after a tick, writes the instances. */
-  sync(source: PoseSource, alpha: number): void {
+  /**
+   * Called every frame: sets the interpolation and, on the first frame after a
+   * tick, writes the instances. `hidden` is a slot not to draw (the one the
+   * camera sees from), or -1.
+   */
+  sync(source: PoseSource, alpha: number, hidden = -1): void {
     this.poseAlpha.value = alpha
     // Poses only change in ticks; edits between ticks (dragging, the sprite pane) show at the next one.
-    if (source.tick === this.syncedTick) {
+    if (source.tick === this.syncedTick && hidden === this.syncedHidden) {
       for (const b of this.batches) b.upload(this.visibleCount <= SHADOW_LIMIT)
       return
     }
     this.syncedTick = source.tick
+    this.syncedHidden = hidden
     const E = source.store
     this.ensureSlots(E.capacity)
     const end = Math.max(E.highWater, this.drawnHighWater)
@@ -402,7 +408,7 @@ export class EntityInstances {
     const inst = this.instanceOf
     let visible = 0
     for (let i = 0; i < end; i++) {
-      const shown = i < E.highWater && (flags[i] & (F_ALIVE | F_VISIBLE)) === (F_ALIVE | F_VISIBLE)
+      const shown = i < E.highWater && (flags[i] & (F_ALIVE | F_VISIBLE)) === (F_ALIVE | F_VISIBLE) && i !== hidden
       if (!shown) {
         if (inst[i] >= 0) this.removeInstance(i)
         continue

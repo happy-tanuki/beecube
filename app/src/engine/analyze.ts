@@ -41,7 +41,7 @@ function isExternalReporter(e: Expr): boolean {
 }
 
 const isVisible = (s: Stmt) =>
-  s.ext !== undefined || s.op.startsWith('motion_') || s.op.startsWith('looks_') || s.op.startsWith('pen_')
+  s.ext !== undefined || s.op.startsWith('motion_') || s.op.startsWith('looks_') || s.op.startsWith('pen_') || s.op.startsWith('camera_')
 
 const VAR_WRITES = new Set(['data_setvariableto', 'data_changevariableby'])
 const LIST_WRITES = new Set(['data_addtolist', 'data_deleteoflist', 'data_deletealloflist', 'data_insertatlist', 'data_replaceitemoflist'])
