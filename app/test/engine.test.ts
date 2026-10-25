@@ -654,6 +654,16 @@ describe('project files', () => {
     expect(rt.sprites[0].variables.d.value).toBe(6)
   })
 
+  it('gives variable and list reporters the XML fields the editor loads', () => {
+    const listOf = (id: string) => blk('data_listcontents', { fields: { LIST: { id } } })
+    const setXTo = (b: BlockJson) => blk('motion_setx', { inputs: { X: reporter(b) } })
+    const { rt } = setup([makeSprite('a', [flag(setXTo(getVar('a&"b')), setXTo(listOf('l')))])])
+    const file = parseProject(JSON.parse(JSON.stringify(serializeProject(rt))))
+    const script = file.sprites[0].blocks!.blocks!.blocks[0].next!.block!
+    expect(script.inputs!.X.block!.fields!.VARIABLE).toBe('<field name="VARIABLE" id="a&amp;&quot;b" variabletype=""></field>')
+    expect(script.next!.block!.inputs!.X.block!.fields!.LIST).toBe('<field name="LIST" id="l" variabletype="list"></field>')
+  })
+
   it('rejects malformed files with the offending path', () => {
     const { rt } = setup([makeSprite('a', [])])
     const good = serializeProject(rt)

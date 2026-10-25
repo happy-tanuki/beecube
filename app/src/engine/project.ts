@@ -6,7 +6,7 @@
 import { APP_ID, APP_NAME } from '../brand'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
-import { DEFAULT_CLONE_LIMIT, type ShapeKind, type SpriteData, type Value, type VariableDef, type WorkspaceJson } from './types'
+import { DEFAULT_CLONE_LIMIT, type BlockJson, type ShapeKind, type SpriteData, type Value, type VariableDef, type WorkspaceJson } from './types'
 
 export const PROJECT_FORMAT = `${APP_ID}-project`
 export const PROJECT_VERSION = 1
@@ -93,12 +93,42 @@ function parseRecord<T>(v: unknown, where: string, parse: (x: Record<string, unk
   )
 }
 
+/**
+ * The round variable and list reporters' fields only load from XML text (see
+ * `field` in ir.ts). Files written by hand or by other tools may give them
+ * Blockly's `{ id }` shape instead, which the editor cannot load: convert it.
+ */
+const GETTER_FIELDS: Record<string, { name: string; type: string }> = {
+  data_variable: { name: 'VARIABLE', type: '' },
+  data_listcontents: { name: 'LIST', type: 'list' },
+}
+
+const escapeXml = (s: string) => s.replace(/[&<>"]/g, (c) => `&${({ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' })[c]};`)
+
+function normalizeBlock(b: BlockJson | undefined): void {
+  if (!isObj(b)) return
+  const getter = GETTER_FIELDS[b.type]
+  const f = getter && b.fields?.[getter.name]
+  if (isObj(f) && typeof f.id === 'string') {
+    const name = typeof f.name === 'string' ? f.name : ''
+    b.fields![getter.name] =
+      `<field name="${getter.name}" id="${escapeXml(f.id)}" variabletype="${getter.type}">${escapeXml(name)}</field>`
+  }
+  for (const input of Object.values(b.inputs ?? {})) {
+    normalizeBlock(input?.block)
+    normalizeBlock(input?.shadow)
+  }
+  normalizeBlock(b.next?.block)
+}
+
 function parseSprite(v: unknown, where: string): SavedSprite {
   if (!isObj(v)) fail(`${where} must be an object`)
   const shape = str(v, 'shape', where) as ShapeKind
   if (!SHAPES.includes(shape)) fail(`${where}.shape "${shape}" is not one of ${SHAPES.join(', ')}`)
   const pen = isObj(v.pen) ? v.pen : fail(`${where}.pen must be an object`)
   if (v.blocks !== null && !isObj(v.blocks)) fail(`${where}.blocks must be an object or null`)
+  const tops = (v.blocks as WorkspaceJson | null)?.blocks?.blocks
+  if (Array.isArray(tops)) for (const b of tops) normalizeBlock(b)
   return {
     id: str(v, 'id', where),
     name: str(v, 'name', where),
