@@ -14,7 +14,8 @@ describe('Snapshot', () => {
     ticks(8)
     const snap = new Snapshot(new SharedArrayBuffer(snapshotBytes(rt.store.capacity)), rt.store.capacity)
     snap.write(rt.store, rt.tick, 1234, 0.5)
-    expect([snap.tick, snap.time, snap.highWater, snap.count, snap.logicMs]).toEqual([rt.tick, 1234, rt.store.highWater, 7, 0.5])
+    // Two sprites, five clones and the stage's entity.
+    expect([snap.tick, snap.time, snap.highWater, snap.count, snap.logicMs]).toEqual([rt.tick, 1234, rt.store.highWater, 8, 0.5])
 
     const fromStore = new EntityInstances(new THREE.Scene())
     const fromSnapshot = new EntityInstances(new THREE.Scene())

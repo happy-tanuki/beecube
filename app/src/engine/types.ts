@@ -102,6 +102,9 @@ export const RANDOM = '_random_'
 /** "create clone of" menu value for the running sprite itself. */
 export const MYSELF = '_myself_'
 
+/** The stage's id where the editor names what is being edited; the stage runs scripts like a sprite that is never drawn. */
+export const STAGE_ID = '_stage_'
+
 /** Clones allowed at once unless the project's settings say otherwise. */
 export const DEFAULT_CLONE_LIMIT = 30000
 

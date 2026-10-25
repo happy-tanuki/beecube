@@ -1,9 +1,11 @@
 /**
- * Project files: the sprites (with their block workspaces), variables with
- * their current values, lists with their items, broadcast messages and
- * settings, as plain JSON.
+ * Project files: the stage (its block workspace and backdrops), the sprites
+ * (with their block workspaces), variables with their current values, lists with their items, broadcast
+ * messages and settings, as plain JSON.
  */
 import { APP_ID, APP_NAME } from '../brand'
+import { FACES, type BackdropData, type Face, type FaceName } from './backdrop'
+import { isColorString } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
 import { DEFAULT_CLONE_LIMIT, type BlockJson, type ShapeKind, type SpriteData, type Value, type VariableDef, type WorkspaceJson } from './types'
@@ -23,7 +25,13 @@ export interface ProjectSettings {
 export interface ProjectFile {
   format: typeof PROJECT_FORMAT
   version: number
+  /** The stage's scripts. */
+  stage: { blocks: WorkspaceJson | null }
   sprites: SavedSprite[]
+  /** Empty in older files: the runtime then has one plain backdrop. */
+  backdrops: BackdropData[]
+  /** Index of the current backdrop. */
+  backdrop: number
   variables: (VariableDef & { value: Value })[]
   lists: (VariableDef & { items: Value[] })[]
   broadcasts: VariableDef[]
@@ -38,7 +46,10 @@ export function serializeProject(rt: Runtime): ProjectFile {
   return {
     format: PROJECT_FORMAT,
     version: PROJECT_VERSION,
+    stage: { blocks: structuredClone(rt.stage.blocks) },
     sprites: rt.sprites.map((s) => s.toData()),
+    backdrops: rt.backdrops.list.map((b) => structuredClone(b)),
+    backdrop: rt.backdrops.current,
     variables: rt.variableDefs.map((v) => ({ ...v, value: savable(rt.getVariable(v.id)) })),
     lists: rt.listDefs.map((l) => ({ ...l, items: rt.getList(l.id).map(savable) })),
     broadcasts: rt.broadcastDefs.map((b) => ({ ...b })),
@@ -53,7 +64,10 @@ export function emptyProject(): ProjectFile {
   return {
     format: PROJECT_FORMAT,
     version: PROJECT_VERSION,
+    stage: { blocks: null },
     sprites: [],
+    backdrops: [],
+    backdrop: 0,
     variables: [],
     lists: [],
     broadcasts: [],
@@ -160,6 +174,35 @@ function parseSprite(v: unknown, where: string): SavedSprite {
   }
 }
 
+const color = (o: Record<string, unknown>, k: string, where: string): string => {
+  const c = str(o, k, where)
+  return isColorString(c) ? c : fail(`${where}.${k} must be a color like #rrggbb`)
+}
+
+function parseBackdrop(v: unknown, where: string): BackdropData {
+  if (!isObj(v)) fail(`${where} must be an object`)
+  const faces = isObj(v.faces) ? v.faces : fail(`${where}.faces must be an object`)
+  const face = (name: FaceName): Face => {
+    const f = isObj(faces[name]) ? faces[name] : fail(`${where}.faces.${name} must be an object`)
+    return { color: f.color === null ? null : color(f, 'color', `${where}.faces.${name}`) }
+  }
+  return {
+    id: str(v, 'id', where),
+    name: str(v, 'name', where),
+    scenery: color(v, 'scenery', where),
+    faces: Object.fromEntries(FACES.map((f) => [f, face(f)])) as Record<FaceName, Face>,
+    grid: v.grid !== false,
+  }
+}
+
+/** The stage is optional (older files have none). */
+function parseStage(v: unknown): ProjectFile['stage'] {
+  if (v === undefined) return { blocks: null }
+  if (!isObj(v)) fail('stage must be an object')
+  if (v.blocks !== null && v.blocks !== undefined && !isObj(v.blocks)) fail('stage.blocks must be an object or null')
+  return { blocks: (v.blocks as WorkspaceJson | undefined) ?? null }
+}
+
 /** Validates a parsed project file. Throws ProjectFormatError with the offending path. */
 export function parseProject(data: unknown): ProjectFile {
   if (!isObj(data) || data.format !== PROJECT_FORMAT) fail(`not a ${APP_NAME} project file`)
@@ -179,10 +222,13 @@ export function parseProject(data: unknown): ProjectFile {
     if (!Array.isArray(items)) fail(`lists[${i}].items must be an array`)
     return { ...def, items: items.map((v) => (isValue(v) ? v : '')) }
   })
+  const backdrops = (data.backdrops === undefined ? [] : list('backdrops')).map((b, i) => parseBackdrop(b, `backdrops[${i}]`))
+  const backdrop = data.backdrop === undefined ? 0 : num(data, 'backdrop', 'project')
+  if (backdrops.length > 0 && !(Number.isInteger(backdrop) && backdrop >= 0 && backdrop < backdrops.length)) fail('project.backdrop must be the index of a backdrop')
   const broadcasts = list('broadcasts').map((b, i) => parseDef(b, `broadcasts[${i}]`))
   const extensions = data.extensions === undefined ? [] : list('extensions').map((e, i) => (typeof e === 'string' ? e : fail(`extensions[${i}] must be a string`)))
   const monitors = data.monitors === undefined ? [] : list('monitors').map((m, i) => (typeof m === 'string' ? m : fail(`monitors[${i}] must be a string`)))
-  return { format: PROJECT_FORMAT, version, sprites, variables, lists, broadcasts, extensions, monitors, settings: parseSettings(data.settings) }
+  return { format: PROJECT_FORMAT, version, stage: parseStage(data.stage), sprites, backdrops, backdrop, variables, lists, broadcasts, extensions, monitors, settings: parseSettings(data.settings) }
 }
 
 /** Settings are optional (older files have none). */
@@ -206,6 +252,8 @@ export function loadProject(rt: Runtime, project: ProjectFile): void {
   rt.settings.randomSeed = project.settings.randomSeed
   rt.setCloneLimit(project.settings.cloneLimit)
   rt.setSprites(project.sprites)
+  rt.stage.blocks = structuredClone(project.stage.blocks)
+  rt.backdrops.set(project.backdrops.map((b) => structuredClone(b)), project.backdrop)
   rt.variableDefs = project.variables.map(({ id, name }) => ({ id, name }))
   for (const v of project.variables) rt.setVariable(v.id, v.value)
   rt.listDefs = project.lists.map(({ id, name }) => ({ id, name }))

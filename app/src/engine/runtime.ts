@@ -12,6 +12,7 @@
  * See docs/vm-design.md.
  */
 import { inferLayout, KindFacts, join, typeOfValue, type KindLayout, type Layout, type ProjectInput, type Ty } from './analyze'
+import { availableBackdropName, Backdrops } from './backdrop'
 import { Camera } from './camera'
 import { generateKind, type ModulePlan } from './codegen'
 import type { ExtensionSpec } from './extension'
@@ -22,11 +23,11 @@ import { clampDimension, clampPenSize, clampPercent, colorToInt, toNumber, wrapD
 import { PenBuffer } from './pen'
 import { Random } from './random'
 import { EntityRef } from './ref'
-import { availableSpriteName, renameSpriteReferences } from './rename'
+import { availableSpriteName, BACKDROP_MENUS, renameSpriteReferences } from './rename'
 import { EntityView, Sprite } from './sprite'
 import { EntityStore, F_ALIVE, F_CLONE, F_DYING, F_PEN, F_VISIBLE } from './store'
 import { TouchWatcher } from './touch'
-import { DEFAULT_CLONE_LIMIT, EDGE, MYSELF, SHAPES, TICKS_PER_SECOND, type BlockJson, type LocalList, type LocalVariable, type SpriteData, type Value, type VariableDef } from './types'
+import { DEFAULT_CLONE_LIMIT, EDGE, MYSELF, SHAPES, STAGE_ID, TICKS_PER_SECOND, type BlockJson, type LocalList, type LocalVariable, type SpriteData, type Value, type VariableDef } from './types'
 
 export { DEFAULT_CLONE_LIMIT, EDGE, MOUSE, MYSELF } from './types'
 export { wrapDirection }
@@ -61,7 +62,10 @@ type ScriptListener = (spriteId: string, topBlockId: string, running: boolean) =
 
 export class Runtime {
   readonly store = new EntityStore(0)
+  /** The sprites' kinds, then the stage's, always last. */
   kinds: Kind[] = []
+  /** The stage: scripts run on one entity that is never drawn and never touches anything. */
+  private stageKind!: Kind
   /** Each slot's position in its kind's member list. */
   private memberPos = new Int32Array(0)
 
@@ -91,6 +95,7 @@ export class Runtime {
 
   readonly pen = new PenBuffer()
   readonly camera = new Camera()
+  readonly backdrops = new Backdrops()
   readonly keysDown = new Set<string>()
   /** Mouse position projected onto the workplane (z = 0). */
   readonly mouse = { x: 0, y: 0, down: false }
@@ -137,7 +142,8 @@ export class Runtime {
   constructor(settings: Partial<RuntimeSettings> = {}) {
     Object.assign(this.settings, settings)
     this.lib = makeLib(this)
-    this.reserve(0)
+    this.reserve(1)
+    this.addStage()
   }
 
   // ---- lifecycle -------------------------------------------------------
@@ -203,20 +209,43 @@ export class Runtime {
 
   // ---- sprites ----------------------------------------------------------
 
-  /** The original sprites, in order. */
+  /** The original sprites, in order (not the stage). */
   get sprites(): Sprite[] {
-    return this.kinds.map((k) => k.sprite)
+    return this.kinds.slice(0, -1).map((k) => k.sprite)
+  }
+
+  get stage(): Sprite {
+    return this.stageKind.sprite
+  }
+
+  isStage(kind: Kind): boolean {
+    return kind === this.stageKind
   }
 
   getSprite(id: string): Sprite | undefined {
-    return this.kinds.find((k) => k.sprite.id === id)?.sprite
+    return this.sprites.find((s) => s.id === id)
   }
 
+  /** A sprite's kind index by name; -1 for none (the stage has no name). */
   kindByName(name: string): number {
-    return this.kinds.findIndex((k) => k.sprite.name === name)
+    return this.kinds.findIndex((k) => k !== this.stageKind && k.sprite.name === name)
   }
 
-  /** Adds an original sprite. Between ticks only (from the editor). */
+  private addStage(): void {
+    const s = this.store
+    const slot = s.alloc()
+    s.size[slot] = s.width[slot] = s.depth[slot] = s.height[slot] = 100
+    s.snapPose(slot)
+    s.flags[slot] = F_ALIVE
+    const kind = new Kind(this.kinds.length, new Sprite(this, slot, STAGE_ID, '', null))
+    s.kind[slot] = kind.index
+    kind.addMember(slot, this.memberPos)
+    this.kinds.push(kind)
+    this.localDefs.set(kind, { vars: new Map(), lists: new Map() })
+    this.stageKind = kind
+  }
+
+  /** Adds an original sprite (before the stage's kind). Between ticks only (from the editor). */
   addSprite(data: SpriteData): Sprite {
     this.reserve(this.kinds.length + 1)
     const s = this.store
@@ -240,10 +269,11 @@ export class Runtime {
     s.shape[slot] = Math.max(0, SHAPES.indexOf(data.shape))
     s.flags[slot] = F_ALIVE | (data.visible ? F_VISIBLE : 0) | (data.pen.down ? F_PEN : 0)
     const sprite = new Sprite(this, slot, data.id, data.name, structuredClone(data.blocks))
-    const kind = new Kind(this.kinds.length, sprite)
+    const kind = new Kind(this.kinds.length - 1, sprite)
     s.kind[slot] = kind.index
     kind.addMember(slot, this.memberPos)
-    this.kinds.push(kind)
+    this.kinds.splice(kind.index, 0, kind)
+    this.reindexKinds()
     this.localDefs.set(kind, {
       vars: new Map(Object.entries(data.variables).map(([id, v]) => [id, { name: v.name, value: v.value }])),
       lists: new Map(Object.entries(data.lists).map(([id, l]) => [id, { name: l.name, items: [...l.items] }])),
@@ -255,7 +285,7 @@ export class Runtime {
 
   /** Removes an original sprite with its clones and scripts. */
   removeSprite(id: string): void {
-    const index = this.kinds.findIndex((k) => k.sprite.id === id)
+    const index = this.kinds.findIndex((k) => k !== this.stageKind && k.sprite.id === id)
     if (index < 0) return
     const kind = this.kinds[index]
     for (const run of kind.runs) run.stopAll()
@@ -267,17 +297,22 @@ export class Runtime {
     }
     this.kinds.splice(index, 1)
     this.localDefs.delete(kind)
-    this.kinds.forEach((k, i) => {
-      k.index = i
-      for (let m = 0; m < k.count; m++) s.kind[k.members[m]] = i
-    })
+    this.reindexKinds()
     s.compact()
     this.everythingChanged()
     this.emitScriptChanges()
     this.notifyExtensions()
   }
 
-  /** Replaces every sprite (loading a project). Stops everything first. */
+  private reindexKinds(): void {
+    const s = this.store
+    this.kinds.forEach((k, i) => {
+      k.index = i
+      for (let m = 0; m < k.count; m++) s.kind[k.members[m]] = i
+    })
+  }
+
+  /** Replaces every sprite and empties the stage's scripts (loading a project). Stops everything first. */
   setSprites(sprites: SpriteData[]): void {
     this.stopAll()
     this.kinds = []
@@ -287,6 +322,7 @@ export class Runtime {
     for (let slot = 0; slot < s.highWater; slot++) s.release(slot)
     s.compact()
     this.cloneCount = 0
+    this.addStage()
     for (const d of sprites) this.addSprite(d)
     this.everythingChanged()
   }
@@ -307,20 +343,39 @@ export class Runtime {
     const name = availableSpriteName(wanted, this.sprites.filter((s) => s !== sprite).map((s) => s.name))
     if (name === null || name === from) return null
     sprite.name = name
-    for (const s of this.sprites) {
+    for (const s of [...this.sprites, this.stage]) {
       if (renameSpriteReferences(s.blocks, from, name)) s.blocks = s.blocks
     }
     this.everythingChanged()
     return name
   }
 
-  /** Every live entity (originals and clones), in slot order. Allocates; for tools and tests. */
+  /**
+   * Renames a backdrop and updates the blocks that refer to it. Returns the
+   * name it got (see availableBackdropName), or null if nothing changed.
+   */
+  renameBackdrop(index: number, wanted: string): string | null {
+    const backdrop = this.backdrops.list[index]
+    const from = backdrop.name
+    const name = availableBackdropName(wanted, this.backdrops.list.filter((b) => b !== backdrop).map((b) => b.name))
+    if (name === null || name === from) return null
+    backdrop.name = name
+    for (const s of [...this.sprites, this.stage]) {
+      if (renameSpriteReferences(s.blocks, from, name, BACKDROP_MENUS)) s.blocks = s.blocks
+    }
+    this.backdrops.changed()
+    this.everythingChanged()
+    return name
+  }
+
+  /** Every live entity (originals and clones, not the stage), in slot order. Allocates; for tools and tests. */
   entities(): EntityView[] {
     const out: EntityView[] = []
     const s = this.store
     for (let slot = 0; slot < s.highWater; slot++) {
       if (!(s.flags[slot] & F_ALIVE)) continue
       const kind = this.kinds[s.kind[slot]]
+      if (kind === this.stageKind) continue
       out.push(kind && kind.slot === slot ? kind.sprite : new EntityView(this, slot))
     }
     return out
@@ -576,7 +631,7 @@ export class Runtime {
     const changed = new Set<Kind>()
     for (const kind of this.kinds) {
       if (kind.ir) continue
-      kind.ir = parseWorkspace(kind.sprite.blocks)
+      kind.ir = parseWorkspace(kind.sprite.blocks, kind === this.stageKind)
       kind.facts = new KindFacts(kind.ir)
       changed.add(kind)
     }
@@ -800,6 +855,8 @@ export class Runtime {
           case 'click': add('click', run); break
           case 'message': add(`msg:${this.broadcastName(hat.id).toLowerCase()}`, run); break
           case 'clone': add('clone', run); break
+          case 'backdrop': add('backdrop', run, { BACKDROP: hat.name }); break
+          case 'stageclick': add('stageclick', run); break
           case 'extension': add(`ext:${hat.opcode}`, run, hat.fields); break
         }
       }
@@ -849,6 +906,33 @@ export class Runtime {
       if (run.isRunning(slot) && run.runId[slot] === w.ids[k]) return false
     }
     return true
+  }
+
+  /**
+   * "Switch backdrop to (v)" (see Backdrops.resolve). Starts the "when
+   * backdrop switches to" scripts next tick, even if it was already the
+   * current one, as in Scratch.
+   */
+  switchBackdrop(v: Value, wait?: WaitRecord): void {
+    const index = this.backdrops.resolve(v, this.random)
+    if (index < 0) {
+      if (wait) wait.started = true
+      return
+    }
+    this.backdrops.select(index)
+    this.queue.push({ t: 'hats', key: 'backdrop', restart: false, slot: -1, fields: { BACKDROP: this.backdrops.backdrop.name }, wait })
+  }
+
+  /** "Switch backdrop to (v) and wait": until the scripts it starts have finished. */
+  switchBackdropAndWait(v: Value): WaitRecord {
+    const wait: WaitRecord = { started: false, runs: [], slots: [], ids: [] }
+    this.switchBackdrop(v, wait)
+    return wait
+  }
+
+  /** The stage was clicked where there is no sprite. */
+  stageClicked(): void {
+    this.queue.push({ t: 'hats', key: 'stageclick', restart: true, slot: -1 })
   }
 
   /** The entity at `slot` was clicked on the stage. */
@@ -914,7 +998,7 @@ export class Runtime {
 
   private runClicked(kind: Kind, top: BlockJson): void {
     if (!this.kinds.includes(kind)) return
-    const ir = parseClicked(top)
+    const ir = parseClicked(top, kind === this.stageKind)
     if (!ir) return
     const existing = kind.scripts.find((r) => r.topId === ir.topId && r.plan.ir.source === ir.source)
     let run = existing ?? null
@@ -1034,7 +1118,7 @@ export class Runtime {
     if (this.cloneCount >= this.settings.cloneLimit) return
     const s = this.store
     const kind = kindIndex < 0 ? this.kinds[s.kind[source]] : this.kinds[kindIndex]
-    if (!kind) return
+    if (!kind || kind === this.stageKind) return
     const from = kindIndex < 0 ? source : kind.slot
     const slot = s.alloc()
     if (slot < 0) return

@@ -8,8 +8,10 @@ import { fetchShared, projectApiUrl } from '../share/client'
 import type { Stage3D } from '../stage/Stage3D'
 import { DialogHost, showAlert, showConfirm } from './dialogs'
 import { listenKeys } from './keys'
+import { BackdropsTab } from './BackdropsTab'
 import { BlocksEditor } from './BlocksEditor'
 import { SpritePane } from './SpritePane'
+import { StagePane } from './StagePane'
 import { StagePanel } from './StagePanel'
 import { ShareDialog } from './ShareDialog'
 import { ProjectStore } from './store'
@@ -137,6 +139,9 @@ async function openSharedFromUrl(): Promise<void> {
 export function App() {
   useSyncExternalStore(store.subscribe, store.getVersion)
   const [sharing, setSharing] = useState(false)
+  // Only the stage has a second tab (its backdrops).
+  const [tab, setTab] = useState<'code' | 'backdrops'>('code')
+  const showBackdrops = tab === 'backdrops' && store.editingStage
   const stageRef = useRef<Stage3D | null>(null)
 
   useEffect(() => listenKeys(store.rt), [])
@@ -161,17 +166,35 @@ export function App() {
       </header>
       <main className="workspace-area">
         <section className="code-area">
-          <BlocksEditor
-            key={store.projectId}
-            store={store}
-            editingId={store.editingId}
-            blocksRevision={store.blocksRevision}
-            extensionKey={store.extensionIds.join(',')}
-          />
+          <div className="code-tabs" role="tablist">
+            <button role="tab" aria-selected={!showBackdrops} className={showBackdrops ? '' : 'selected'} onClick={() => setTab('code')}>
+              {t('tab.code')}
+            </button>
+            {store.editingStage && (
+              <button role="tab" aria-selected={showBackdrops} className={showBackdrops ? 'selected' : ''} onClick={() => setTab('backdrops')}>
+                {t('tab.backdrops')}
+              </button>
+            )}
+          </div>
+          <div className={`code-content${showBackdrops ? ' backdrops' : ''}`}>
+            <BlocksEditor
+              key={store.projectId}
+              store={store}
+              editingId={store.editingId}
+              blocksRevision={store.blocksRevision}
+              extensionKey={store.extensionIds.join(',')}
+              backdropKey={store.rt.backdrops.list.map((b) => b.name).join('\n')}
+              stage={store.editingStage}
+            />
+            {showBackdrops && <BackdropsTab store={store} />}
+          </div>
         </section>
         <aside className="right-column">
           <StagePanel store={store} editingId={store.editingId} onStage={(stage) => (stageRef.current = stage)} />
-          <SpritePane store={store} editingId={store.editingId} />
+          <div className="sprite-area">
+            <SpritePane store={store} editingId={store.editingId} />
+            <StagePane store={store} />
+          </div>
         </aside>
       </main>
       {sharing && (

@@ -12,6 +12,7 @@
  * embedded with JSON.stringify; objects are passed in the constants array C.
  */
 import { BUILTIN_PROPERTIES, paramKey, type KindFacts, type Layout, type ProjectInput, type Ty, typeOfValue } from './analyze'
+import { NEXT_BACKDROP } from './backdrop'
 import { VIEWS } from './camera'
 import type { CommandBlock, ExtensionBlock } from './extension'
 import type { Expr, ProcIR, ScriptIR, Stmt } from './ir'
@@ -652,6 +653,12 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
         emit(ctx, `${col}[i] = L.clampDimension(${v});`)
       }
       break
+    case 'looks_switchbackdropto':
+      emit(ctx, `rt.switchBackdrop(${e('BACKDROP').c});`)
+      break
+    case 'looks_nextbackdrop':
+      emit(ctx, `rt.switchBackdrop(${lit(NEXT_BACKDROP)});`)
+      break
     case 'looks_setcolorto': {
       const v = e('COLOR')
       if (v.k !== undefined) {
@@ -919,6 +926,16 @@ function waitingStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
       emit(ctx, 'L.say(i, null);')
       return
     }
+    case 'looks_switchbackdroptoandwait': {
+      const o = ctx.objLocal(`${s.id}:wait`)
+      emit(ctx, `${o} = rt.switchBackdropAndWait(${e('BACKDROP').c});`)
+      const next = sm.newState(`${s.id}:backdrop`)
+      emit(ctx, sm.yieldTo(next, next1))
+      sm.place(next)
+      emit(ctx, `if (!L.waitDone(${o})) { ${sm.yieldTo(next, next1)} }`)
+      emit(ctx, `${o} = null;`)
+      return
+    }
     case 'event_broadcastandwait': {
       const o = ctx.objLocal(`${s.id}:wait`)
       emit(ctx, `${o} = L.broadcastWait(${asStr(e('BROADCAST_INPUT'))});`)
@@ -1097,6 +1114,8 @@ function expr(e: Expr, ctx: Ctx, m: ModuleGen): V {
     case 'looks_depth':
     case 'looks_height':
       return { c: `Math.round(${f.col(e.op.slice('looks_'.length))}[i])`, t: 'num' }
+    case 'looks_backdropnumbername':
+      return e.f.NUMBER_NAME === 'name' ? { c: 'rt.backdrops.backdrop.name', t: 'str' } : { c: '(rt.backdrops.current + 1)', t: 'num' }
 
     // events
     case 'event_broadcast_menu':

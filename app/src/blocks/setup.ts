@@ -1,11 +1,13 @@
 /**
  * scratch-blocks configuration: locale, theme (Scratch 3 category colours),
- * and the blocks this project adds (z axis, pitch, colour, 3D pen, camera).
+ * and the blocks this project adds (z axis, pitch, colour, 3D pen, camera),
+ * with the menus that list the project's sprites and backdrops.
  */
 import * as ScratchBlocks from 'scratch-blocks'
 import { APP_ID } from '../brand'
 import { CATEGORY_COLOURS } from './colours'
 import type { SpriteProperty } from '../engine/analyze'
+import { NEXT_BACKDROP, PREVIOUS_BACKDROP, RANDOM_BACKDROP } from '../engine/backdrop'
 import { EDGE, MOUSE, MYSELF, RANDOM } from '../engine/types'
 import { blockMessages, getLocale } from '../i18n'
 
@@ -70,6 +72,20 @@ export function setSpriteVariableSource(fn: (spriteName: string) => string[]): v
   spriteVariableNames = fn
 }
 
+/** Whether the stage is being edited (its menus leave out "myself"). Set by the editor. */
+let editingStage: () => boolean = () => false
+
+export function setStageSource(fn: () => boolean): void {
+  editingStage = fn
+}
+
+/** The project's backdrop names, for the backdrop menus. Set by the editor. */
+let backdropNames: () => string[] = () => []
+
+export function setBackdropNameSource(fn: () => string[]): void {
+  backdropNames = fn
+}
+
 type MenuOption = [string, string]
 
 /** Shown when a sprite menu has nothing to offer (a dropdown can't be empty). */
@@ -94,6 +110,49 @@ function defineObjectMenu(type: string, fieldName: string, style: string, fixed:
           },
         ],
         extensions: [`colours_${style}`, 'output_string'],
+      })
+    },
+  }
+}
+
+/**
+ * The backdrop menus: "switch backdrop to"'s (names, then next / previous /
+ * random) and the "when backdrop switches to" hat's (names only).
+ */
+function defineBackdropMenus(): void {
+  const names = (block: ScratchBlocks.Block, extra: MenuOption[]): MenuOption[] => {
+    const options = [...backdropNames().map((n): MenuOption => [n, n]), ...extra]
+    // Keep a backdrop that is gone, as the sprite menus do.
+    const current = block.getFieldValue('BACKDROP') as string | null
+    if (current && !options.some((o) => o[1] === current)) options.push([current, current])
+    return options.length > 0 ? options : [NO_SPRITE]
+  }
+  ScratchBlocks.Blocks.looks_backdrops = {
+    init(this: ScratchBlocks.Block) {
+      this.jsonInit({
+        message0: '%1',
+        args0: [
+          {
+            type: 'field_dropdown',
+            name: 'BACKDROP',
+            options: (): MenuOption[] =>
+              names(this, [
+                [ScratchBlocks.Msg.LOOKS_NEXTBACKDROP, NEXT_BACKDROP],
+                [ScratchBlocks.Msg.LOOKS_PREVIOUSBACKDROP, PREVIOUS_BACKDROP],
+                [ScratchBlocks.Msg.LOOKS_RANDOMBACKDROP, RANDOM_BACKDROP],
+              ]),
+          },
+        ],
+        extensions: ['colours_looks', 'output_string'],
+      })
+    },
+  }
+  ScratchBlocks.Blocks.event_whenbackdropswitchesto = {
+    init(this: ScratchBlocks.Block) {
+      this.jsonInit({
+        message0: ScratchBlocks.Msg.EVENT_WHENBACKDROPSWITCHESTO,
+        args0: [{ type: 'field_dropdown', name: 'BACKDROP', options: (): MenuOption[] => names(this, []) }],
+        extensions: ['colours_event', 'shape_hat'],
       })
     },
   }
@@ -283,9 +342,9 @@ export function defineCustomBlocks(): void {
   ])
   defineObjectMenu('sensing_of_object_menu', 'OBJECT', 'sensing', () => [])
   defineSensingOf()
-  defineObjectMenu('control_create_clone_of_menu', 'CLONE_OPTION', 'control', () => [
-    [ScratchBlocks.Msg.CONTROL_CREATECLONEOF_MYSELF, MYSELF],
-  ])
+  defineObjectMenu('control_create_clone_of_menu', 'CLONE_OPTION', 'control', () =>
+    editingStage() ? [] : [[ScratchBlocks.Msg.CONTROL_CREATECLONEOF_MYSELF, MYSELF]],
+  )
 
   defineStatement('looks_setcolorto', 'LOOKS_SETCOLORTO', [arg('COLOR')], 'looks')
   defineDimension('looks_changedimensionby', 'LOOKS_CHANGEDIMENSIONBY')
@@ -293,6 +352,8 @@ export function defineCustomBlocks(): void {
   defineReporter('looks_width', 'LOOKS_WIDTH', 'looks')
   defineReporter('looks_depth', 'LOOKS_DEPTH', 'looks')
   defineReporter('looks_height', 'LOOKS_HEIGHT', 'looks')
+  // scratch-blocks defines the backdrop blocks but leaves their menus to the editor.
+  defineBackdropMenus()
 
   defineStatement('pen_clear', 'PEN_CLEAR', [], 'pen')
   defineStatement('pen_penDown', 'PEN_PENDOWN', [], 'pen')

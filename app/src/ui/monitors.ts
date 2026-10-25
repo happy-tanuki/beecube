@@ -27,11 +27,16 @@ const SPRITE_REPORTERS: Record<string, { msg: string; value: (s: Sprite) => Valu
   looks_height: { msg: 'LOOKS_HEIGHT', value: (s) => Math.round(s.height) },
 }
 
-/** Reporters about the whole project: monitor key `<opcode>`. */
+/**
+ * Reporters about the whole project: monitor key `<opcode>`, or
+ * `<opcode>:<menu value>` for one with a menu (the backdrop's number or name).
+ */
 const GLOBAL_REPORTERS: Record<string, { msg: string; value: (rt: Runtime) => Value }> = {
   sensing_timer: { msg: 'SENSING_TIMER', value: (rt) => round(rt.timer) },
   sensing_mousex: { msg: 'SENSING_MOUSEX', value: (rt) => round(rt.mouse.x) },
   sensing_mousey: { msg: 'SENSING_MOUSEY', value: (rt) => round(rt.mouse.y) },
+  'looks_backdropnumbername:number': { msg: 'SENSING_OF_BACKDROPNUMBER', value: (rt) => rt.backdrops.current + 1 },
+  'looks_backdropnumbername:name': { msg: 'SENSING_OF_BACKDROPNAME', value: (rt) => rt.backdrops.backdrop.name },
 }
 
 /** The monitor key for a checkbox block in the palette, while editing `spriteId`. */
@@ -45,6 +50,7 @@ export function monitorKeyOf(block: ScratchBlocks.Block, spriteId: string): stri
     return id ? `list:${id}` : null
   }
   if (SPRITE_REPORTERS[block.type]) return `${block.type}:${spriteId}`
+  if (block.type === 'looks_backdropnumbername') return `${block.type}:${block.getFieldValue('NUMBER_NAME') as string}`
   if (GLOBAL_REPORTERS[block.type]) return block.type
   return null
 }
@@ -89,7 +95,7 @@ export function monitorView(rt: Runtime, key: string): MonitorView | null {
     return null
   }
   const global = GLOBAL_REPORTERS[key]
-  if (global) return { key, label: label(global.msg, key), value: global.value(rt), category: 'sensing' }
+  if (global) return { key, label: label(global.msg, key), value: global.value(rt), category: categoryOf(key) }
   const sep = key.indexOf(':')
   const opcode = key.slice(0, sep)
   const reporter = SPRITE_REPORTERS[opcode]

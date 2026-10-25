@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as ScratchBlocks from 'scratch-blocks'
 import { defineExtensionBlocks, extensionStyle } from '../blocks/extensions'
-import { createTheme, defineCustomBlocks, setSpriteNameSource, setSpriteVariableSource } from '../blocks/setup'
+import { createTheme, defineCustomBlocks, setBackdropNameSource, setSpriteNameSource, setSpriteVariableSource, setStageSource } from '../blocks/setup'
 import { makeToolboxXml } from '../blocks/toolbox'
 import { BUILTIN_EXTENSIONS } from '../extensions'
 import type { BlockJson, WorkspaceJson } from '../engine/types'
@@ -18,6 +18,10 @@ interface Props {
   blocksRevision: number
   /** Installed extension ids, joined; the toolbox is rebuilt when it changes. */
   extensionKey: string
+  /** The backdrops' names, joined; the palette's backdrop menus are redrawn when it changes. */
+  backdropKey: string
+  /** Whether the stage is being edited: its palette differs. */
+  stage: boolean
 }
 
 const installedExtensions = (store: ProjectStore) => [...store.rt.extensions.values()]
@@ -115,7 +119,7 @@ function glow(blockId: string, on: boolean): void {
   }
 }
 
-export function BlocksEditor({ store, editingId, blocksRevision, extensionKey }: Props) {
+export function BlocksEditor({ store, editingId, blocksRevision, extensionKey, backdropKey, stage }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<ScratchBlocks.WorkspaceSvg | null>(null)
   const [procedureRequest, setProcedureRequest] = useState<ProcedureRequest | null>(null)
@@ -124,6 +128,8 @@ export function BlocksEditor({ store, editingId, blocksRevision, extensionKey }:
     const container = containerRef.current!
     defineCustomBlocks()
     setSpriteNameSource(() => store.rt.sprites.filter((s) => s.id !== store.editingId).map((s) => s.name))
+    setBackdropNameSource(() => store.rt.backdrops.list.map((b) => b.name))
+    setStageSource(() => store.editingStage)
     setSpriteVariableSource((name) => {
       const sprite = store.rt.sprites.find((s) => s.name === name)
       return sprite ? Object.values(sprite.variables).map((v) => v.name) : []
@@ -142,7 +148,8 @@ export function BlocksEditor({ store, editingId, blocksRevision, extensionKey }:
         .flatMap((s) => Object.values(varType === LIST_TYPE ? s.lists : s.variables).map((v) => v.name))
       // An empty name means "cancelled" to scratch-blocks.
       const creating = title === ScratchBlocks.Msg.VARIABLE_MODAL_TITLE || title === ScratchBlocks.Msg.LIST_MODAL_TITLE
-      if (creating) {
+      // The stage's variables are for all sprites, so it doesn't ask.
+      if (creating && !store.editingStage) {
         void showVariablePrompt(title, message).then((r) =>
           callback(r?.name ?? '', otherLocalNames, { scope: r?.local ? 'local' : 'global' }),
         )
@@ -153,7 +160,7 @@ export function BlocksEditor({ store, editingId, blocksRevision, extensionKey }:
 
     for (const ext of installedExtensions(store)) defineExtensionBlocks(ext)
     const ws = ScratchBlocks.inject(container, {
-      toolbox: makeToolboxXml(installedExtensions(store)),
+      toolbox: makeToolboxXml(installedExtensions(store), store.editingStage),
       media: `${import.meta.env.BASE_URL}blocks-media/`,
       theme: createTheme(Object.fromEntries(BUILTIN_EXTENSIONS.map((e) => [extensionStyle(e), e.colours]))),
       zoom: { controls: true, wheel: true, startScale: 0.675 },
@@ -283,17 +290,26 @@ export function BlocksEditor({ store, editingId, blocksRevision, extensionKey }:
     if (ws) loadSprite(ws, store)
   }, [store, editingId, blocksRevision])
 
-  // Adding an extension adds its category; the first render already has the initial set.
-  const shownExtensions = useRef(extensionKey)
+  // Adding an extension adds its category, and the stage has its own palette; the first render already has the initial set.
+  const shownToolbox = useRef(`${extensionKey}|${stage}`)
   useEffect(() => {
     const ws = wsRef.current
-    if (!ws || shownExtensions.current === extensionKey) return
-    shownExtensions.current = extensionKey
+    const key = `${extensionKey}|${stage}`
+    if (!ws || shownToolbox.current === key) return
+    shownToolbox.current = key
     for (const ext of installedExtensions(store)) defineExtensionBlocks(ext)
-    ws.updateToolbox(makeToolboxXml(installedExtensions(store)))
+    ws.updateToolbox(makeToolboxXml(installedExtensions(store), stage))
     // updateToolbox refreshes the category list but not the continuous flyout.
     rerenderToolbox(ws, store)
-  }, [store, extensionKey])
+  }, [store, extensionKey, stage])
+
+  const shownBackdrops = useRef(backdropKey)
+  useEffect(() => {
+    const ws = wsRef.current
+    if (!ws || shownBackdrops.current === backdropKey) return
+    shownBackdrops.current = backdropKey
+    rerenderToolbox(ws, store)
+  }, [store, backdropKey])
 
   return (
     <>

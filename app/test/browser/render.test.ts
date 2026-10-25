@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { plainBackdrop } from '../../src/engine/backdrop'
 import { Runtime } from '../../src/engine/runtime'
 import { EntityStore, F_ALIVE, F_VISIBLE } from '../../src/engine/store'
 import { SHAPES } from '../../src/engine/types'
@@ -256,5 +257,35 @@ describe('Stage3D', () => {
     expect(rt.camera.sprite).toBeNull()
     expect(viewCamera().position.toArray().map((v) => Math.round(v) + 0)).toEqual([500, 0, 70])
     expect(reddish(colorAt(0, 0, 30))).toBe(true)
+  })
+
+  it('draws the backdrop: the scenery, the box\'s faces seen from inside only, and the grid', () => {
+    const rt = new Runtime({ randomSeed: 1 })
+    const eye = rt.addSprite(makeSprite('eye', [], { z: 30, direction: -90, visible: false }))
+    const b = plainBackdrop('test')
+    b.scenery = '#2040e0'
+    b.faces.floor.color = '#20c040'
+    b.faces.back.color = '#e02020'
+    b.faces.front.color = '#e02020'
+    b.grid = false
+    rt.backdrops.set([b], 0)
+    const { colorAt } = open(rt)
+    expect(greenish(colorAt(100, 50, 0))).toBe(true)
+    // From the home view (in front of the box, above it): the back wall, but not the front one.
+    expect(reddish(colorAt(0, 180, 20))).toBe(true)
+    expect(reddish(colorAt(0, -180, 20))).toBe(false)
+    // The left wall is transparent: the scenery shows through.
+    expect(bluish(colorAt(-240, 100, 20))).toBe(true)
+    // From inside, looking at the front wall.
+    rt.camera.sprite = rt.store.handle(eye.slot)
+    eye.direction = 180
+    rt.store.snapPose(eye.slot)
+    rt.step()
+    expect(reddish(colorAt(0, -180, 30))).toBe(true)
+    rt.camera.release()
+    // A change shows on the next frame.
+    b.faces.back.color = null
+    rt.backdrops.changed()
+    expect(reddish(colorAt(0, 180, 20))).toBe(false)
   })
 })

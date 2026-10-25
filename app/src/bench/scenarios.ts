@@ -73,7 +73,10 @@ function project(sprites: SpriteData[], extensions: string[] = [], cloneLimit = 
   return {
     format: PROJECT_FORMAT,
     version: 1,
+    stage: { blocks: null },
     sprites,
+    backdrops: [],
+    backdrop: 0,
     variables: [],
     lists: [],
     broadcasts: [],

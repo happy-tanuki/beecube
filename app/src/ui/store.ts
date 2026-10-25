@@ -1,10 +1,11 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
+import { availableBackdropName, plainBackdrop, type BackdropData } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, serializeProject, type ProjectFile } from '../engine/project'
 import { findExtension } from '../extensions'
 import { Runtime } from '../engine/runtime'
 import type { Sprite } from '../engine/sprite'
-import type { ShapeKind, SpriteData } from '../engine/types'
+import { STAGE_ID, type ShapeKind, type SpriteData } from '../engine/types'
 import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
 import { sampleScript } from './sample'
@@ -58,7 +59,7 @@ export class ProjectStore {
   newProject(): void {
     const first = this.makeSprite('cube', [])
     first.blocks = sampleScript()
-    this.replace({ ...emptyProject(), sprites: [first] })
+    this.replace({ ...emptyProject(), sprites: [first], backdrops: [plainBackdrop(t('backdrop.defaultName'))] })
   }
 
   /** Parses and opens project JSON. Throws ProjectFormatError (with the reason) if it isn't valid. */
@@ -94,6 +95,8 @@ export class ProjectStore {
     for (const id of this.extensionIds) if (!project.extensions.includes(id)) this.rt.removeExtension(id)
     for (const id of project.extensions) this.installExtension(id)
     loadProject(this.rt, project)
+    // Files from before backdrops have none: the runtime's plain one gets a name in the user's language.
+    if (project.backdrops.length === 0) this.rt.backdrops.list[0].name = t('backdrop.defaultName')
     this.editingId = this.rt.sprites[0].id
     this.projectId++
     this.notify()
@@ -140,7 +143,9 @@ export class ProjectStore {
     for (const l of this.listeners) l()
   }
 
+  /** The sprite being edited, or the stage (STAGE_ID). */
   get editing(): Sprite {
+    if (this.editingId === STAGE_ID) return this.rt.stage
     const s = this.rt.getSprite(this.editingId)
     if (!s) throw new Error(`ProjectStore: editing sprite ${this.editingId} not found`)
     return s
@@ -182,6 +187,52 @@ export class ProjectStore {
     if (idx < 0) return
     this.rt.removeSprite(id)
     if (this.editingId === id) this.editingId = this.rt.sprites[Math.max(0, idx - 1)].id
+    this.notify()
+  }
+
+  // ---- backdrops --------------------------------------------------------
+
+  get editingStage(): boolean {
+    return this.editingId === STAGE_ID
+  }
+
+  /** Adds a plain backdrop and makes it the current one, as Scratch's "paint" does. */
+  addBackdrop(): void {
+    const backdrops = this.rt.backdrops
+    const b = plainBackdrop(t('backdrop.defaultName'))
+    b.name = availableBackdropName(b.name, backdrops.list.map((o) => o.name)) ?? b.name
+    backdrops.list.push(b)
+    backdrops.select(backdrops.list.length - 1)
+    this.notify()
+  }
+
+  selectBackdrop(index: number): void {
+    this.rt.backdrops.select(index)
+    this.notify()
+  }
+
+  /** Changes a backdrop's look (not its name: see renameBackdrop). */
+  updateBackdrop(index: number, change: (b: BackdropData) => void): void {
+    change(this.rt.backdrops.list[index])
+    this.rt.backdrops.changed()
+    this.notify()
+  }
+
+  /** Renames a backdrop; blocks that refer to it follow. Returns its name. */
+  renameBackdrop(index: number, wanted: string): string {
+    const before = JSON.stringify(this.editing.blocks)
+    this.rt.renameBackdrop(index, wanted)
+    if (JSON.stringify(this.editing.blocks) !== before) this.blocksRevision++
+    this.notify()
+    return this.rt.backdrops.list[index].name
+  }
+
+  /** Removes a backdrop; there is always at least one. Blocks keep its name, as in Scratch. */
+  removeBackdrop(index: number): void {
+    const backdrops = this.rt.backdrops
+    if (backdrops.list.length <= 1) return
+    backdrops.list.splice(index, 1)
+    backdrops.select(Math.min(backdrops.current > index ? backdrops.current - 1 : backdrops.current, backdrops.list.length - 1))
     this.notify()
   }
 

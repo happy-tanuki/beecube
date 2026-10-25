@@ -38,6 +38,8 @@ export type Hat =
   | { kind: 'click' }
   | { kind: 'message'; id: string }
   | { kind: 'clone' }
+  | { kind: 'backdrop'; name: string }
+  | { kind: 'stageclick' }
   /** Starts when the entity begins touching an entity of `target` (a sprite name, MYSELF for its own kind, or EDGE). */
   | { kind: 'touch'; target: string }
   /** A hat from an extension; `fields` holds its menu values. */
@@ -196,6 +198,9 @@ const STATEMENTS: Record<string, { inputs?: string[]; fields?: string[]; substac
   looks_setdimensionto: { inputs: ['VALUE'], fields: ['DIMENSION'] },
   looks_changedimensionby: { inputs: ['VALUE'], fields: ['DIMENSION'] },
   looks_setcolorto: { inputs: ['COLOR'] },
+  looks_switchbackdropto: { inputs: ['BACKDROP'] },
+  looks_switchbackdroptoandwait: { inputs: ['BACKDROP'] },
+  looks_nextbackdrop: {},
   sensing_resettimer: {},
   data_setvariableto: { inputs: ['VALUE'], fields: ['VARIABLE'] },
   data_changevariableby: { inputs: ['VALUE'], fields: ['VARIABLE'] },
@@ -237,6 +242,7 @@ const REPORTERS: Record<string, { inputs?: string[]; fields?: string[] }> = {
   looks_width: {},
   looks_depth: {},
   looks_height: {},
+  looks_backdropnumbername: { fields: ['NUMBER_NAME'] },
   event_broadcast_menu: { fields: ['BROADCAST_OPTION'] },
   sensing_touchingobject: { inputs: ['TOUCHINGOBJECTMENU'] },
   sensing_distanceto: { inputs: ['DISTANCETOMENU'] },
@@ -283,7 +289,21 @@ const HAT_TYPES = new Set([
   'event_whenbroadcastreceived',
   'control_start_as_clone',
   'event_whentouchingobject',
+  'event_whenbackdropswitchesto',
+  'event_whenstageclicked',
 ])
+
+/**
+ * What the stage leaves out, as it has no palette for them: moving, its own
+ * looks, saying, the pen (but erasing all), being the camera, and clones of
+ * itself. "Create clone of (myself)" does nothing on the stage at run time.
+ */
+const SPRITE_ONLY_HATS = new Set(['event_whenthisspriteclicked', 'control_start_as_clone', 'event_whentouchingobject'])
+const STAGE_STATEMENTS = new Set(['pen_clear', 'looks_switchbackdropto', 'looks_switchbackdroptoandwait', 'looks_nextbackdrop'])
+function spriteOnly(type: string): boolean {
+  if (STAGE_STATEMENTS.has(type)) return false
+  return /^(motion_|looks_|pen_)/.test(type) || type === 'camera_setsprite' || type === 'control_delete_this_clone'
+}
 
 export function isHatType(type: string): boolean {
   return HAT_TYPES.has(type) || extensionHat(type) !== null || type === 'procedures_definition'
@@ -377,9 +397,23 @@ function parseStatement(b: BlockJson): Stmt | null {
   return null
 }
 
+/** Set while parsing the stage's blocks, which leaves out what only sprites do. */
+let forStage = false
+
+/** Parses with `forStage` set as given. */
+function parsing<T>(stage: boolean, parse: () => T): T {
+  forStage = stage
+  try {
+    return parse()
+  } finally {
+    forStage = false
+  }
+}
+
 export function parseStack(first: BlockJson | undefined): Stmt[] {
   const out: Stmt[] = []
   for (let b = first; b; b = b.next?.block) {
+    if (forStage && spriteOnly(b.type)) continue
     const s = parseStatement(b)
     if (s) out.push(s)
   }
@@ -404,6 +438,10 @@ function hatOf(b: BlockJson): Hat | null {
       return { kind: 'message', id: field(b, 'BROADCAST_OPTION') }
     case 'control_start_as_clone':
       return { kind: 'clone' }
+    case 'event_whenbackdropswitchesto':
+      return { kind: 'backdrop', name: field(b, 'BACKDROP') }
+    case 'event_whenstageclicked':
+      return { kind: 'stageclick' }
     case 'event_whentouchingobject': {
       // The menu's value; a reporter dropped on the input is ignored (hats can't evaluate one).
       const menu = b.inputs?.TOUCHINGOBJECTMENU?.shadow
@@ -421,15 +459,22 @@ export function sourceOf(top: BlockJson): string {
 }
 
 /** Parses a stack run by clicking it: a hat's body, a definition's body or a loose stack. Null if nothing to run. */
-export function parseClicked(top: BlockJson): ScriptIR | null {
-  if (isHatType(top.type)) {
-    return top.next?.block ? { topId: top.id, hat: null, body: parseStack(top.next.block), source: sourceOf(top) } : null
-  }
-  if (!isStatementType(top.type)) return null
-  return { topId: top.id, hat: null, body: parseStack(top), source: sourceOf(top) }
+export function parseClicked(top: BlockJson, stage = false): ScriptIR | null {
+  return parsing(stage, () => {
+    if (isHatType(top.type)) {
+      return top.next?.block ? { topId: top.id, hat: null, body: parseStack(top.next.block), source: sourceOf(top) } : null
+    }
+    if (!isStatementType(top.type)) return null
+    return { topId: top.id, hat: null, body: parseStack(top), source: sourceOf(top) }
+  })
 }
 
-export function parseWorkspace(ws: WorkspaceJson | null): KindIR {
+/** Parses a sprite's workspace, or with `stage`, the stage's. */
+export function parseWorkspace(ws: WorkspaceJson | null, stage = false): KindIR {
+  return parsing(stage, () => parseScripts(ws))
+}
+
+function parseScripts(ws: WorkspaceJson | null): KindIR {
   const scripts: ScriptIR[] = []
   const procs = new Map<string, ProcIR>()
   for (const top of ws?.blocks?.blocks ?? []) {
@@ -440,7 +485,7 @@ export function parseWorkspace(ws: WorkspaceJson | null): KindIR {
       }
       continue
     }
-    const hat = hatOf(top)
+    const hat = forStage && SPRITE_ONLY_HATS.has(top.type) ? null : hatOf(top)
     if (hat) scripts.push({ topId: top.id, hat, body: parseStack(top.next?.block), source: sourceOf(top) })
   }
   return { scripts, procs }

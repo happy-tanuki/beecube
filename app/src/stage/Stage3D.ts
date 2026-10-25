@@ -29,7 +29,8 @@ import { boundingRadius } from '../engine/collision'
 import type { Runtime } from '../engine/runtime'
 import type { EntityView } from '../engine/sprite'
 import { F_ALIVE, F_VISIBLE, type EntityStore } from '../engine/store'
-import { BASE_SIZE, STAGE_HEIGHT, STAGE_WIDTH } from '../engine/types'
+import { BASE_SIZE } from '../engine/types'
+import { Environment } from './environment'
 import { EntityInstances, writeMatrix } from './instances'
 import { StampInstances } from './stamps'
 
@@ -88,52 +89,13 @@ function usePenStyles(material: LineMaterial): void {
   material.customProgramCacheKey = () => `${APP_ID}-pen`
 }
 
-/** Lights (with shadows) and the workplane: floor, grid, axes and border. */
-export function addEnvironment(scene: THREE.Scene): void {
-  scene.add(new THREE.HemisphereLight('#ffffff', '#b8c4d6', 1.6))
-  const sun = new THREE.DirectionalLight('#ffffff', 1.8)
-  sun.position.set(-200, -300, 600)
-  sun.castShadow = true
-  sun.shadow.mapSize.set(2048, 2048)
-  const sc = sun.shadow.camera
-  sc.left = -400
-  sc.right = 400
-  sc.top = 400
-  sc.bottom = -400
-  sc.near = 10
-  sc.far = 1500
-  scene.add(sun)
-
-  const w = STAGE_WIDTH / 2
-  const h = STAGE_HEIGHT / 2
-  const plane = new THREE.Mesh(
-    new THREE.PlaneGeometry(STAGE_WIDTH, STAGE_HEIGHT),
-    new THREE.MeshStandardMaterial({ color: '#dbe7f7', roughness: 1 }),
-  )
-  plane.position.z = -0.05
-  plane.receiveShadow = true
-  scene.add(plane)
-
-  const minor: number[] = []
-  const major: number[] = []
-  for (let x = -w; x <= w; x += 10) (x % 50 === 0 ? major : minor).push(x, -h, 0, x, h, 0)
-  for (let y = -h; y <= h; y += 10) (y % 50 === 0 ? major : minor).push(-w, y, 0, w, y, 0)
-  const lines = (pts: number[], color: string) => {
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
-    return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color }))
-  }
-  scene.add(lines(minor, '#bfd1ec'))
-  scene.add(lines(major, '#8fb0de'))
-  scene.add(lines([-w, 0, 0.02, w, 0, 0.02], '#e0607a'))
-  scene.add(lines([0, -h, 0.02, 0, h, 0.02], '#3fae6a'))
-  scene.add(lines([-w, -h, 0, w, -h, 0, w, -h, 0, w, h, 0, w, h, 0, -w, h, 0, -w, h, 0, -w, -h, 0], '#5b84c4'))
-}
-
 export class Stage3D {
   private readonly renderer: THREE.WebGLRenderer
   private readonly labels: CSS2DRenderer
   private readonly scene = new THREE.Scene()
+  private readonly environment: Environment
+  /** The runtime's backdrop revision drawn. */
+  private backdropRevision = -1
   private readonly camera: THREE.PerspectiveCamera
   private readonly controls: OrbitControls
   private readonly instances: EntityInstances
@@ -166,6 +128,9 @@ export class Stage3D {
   /** The runtime's view requests already applied. */
   private viewRequests = 0
 
+  /** A press on empty space, which is a click on the stage unless it moves (orbiting). */
+  private emptyPress: { pointerId: number; x: number; y: number } | null = null
+
   private drag: {
     mode: 'move' | 'height'
     entity: EntityView
@@ -196,8 +161,6 @@ export class Stage3D {
     this.labels.domElement.className = 'stage-labels'
     container.appendChild(this.labels.domElement)
 
-    this.scene.background = new THREE.Color('#f4f7fb')
-
     this.camera = new THREE.PerspectiveCamera(45, 1, 1, 5000)
     this.camera.up.set(0, 0, 1)
 
@@ -216,7 +179,7 @@ export class Stage3D {
     this.viewRequests = rt.camera.viewRequests
     this.placeView('home')
 
-    addEnvironment(this.scene)
+    this.environment = new Environment(this.scene)
 
     this.instances = new EntityInstances(this.scene)
     this.pickMesh = new THREE.Mesh(this.instances.geometries[0], this.instances.material)
@@ -350,6 +313,10 @@ export class Stage3D {
     if (dt > 0) this.fps = this.fps === 0 ? 1000 / dt : this.fps * 0.9 + (1000 / dt) * 0.1
     this.lastFrameAt = start
     const alpha = this.rt.alpha(start)
+    if (this.rt.backdrops.revision !== this.backdropRevision) {
+      this.backdropRevision = this.rt.backdrops.revision
+      this.environment.apply(this.rt.backdrops.backdrop)
+    }
     const eyes = this.syncCamera(alpha)
     this.instances.sync(this.rt, alpha, eyes)
     this.syncSelection(alpha)
@@ -562,7 +529,10 @@ export class Stage3D {
     }
 
     const entity = this.pickEntity()
-    if (!entity) return
+    if (!entity) {
+      this.emptyPress = { pointerId: e.pointerId, x: e.clientX, y: e.clientY }
+      return
+    }
     const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -entity.z)
     const hit = this.rayOnPlane(plane)
     const offset = hit ? new THREE.Vector2(entity.x - hit.x, entity.y - hit.y) : new THREE.Vector2()
@@ -634,6 +604,12 @@ export class Stage3D {
 
   private onPointerUp = (e: PointerEvent): void => {
     if (e.button === 0) this.rt.mouse.down = false
+    // A click where there is no sprite (not an orbit) clicks the stage.
+    const press = this.emptyPress
+    this.emptyPress = null
+    if (press && press.pointerId === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_THRESHOLD_PX) {
+      this.rt.stageClicked()
+    }
     const drag = this.drag
     if (!drag || drag.pointerId !== e.pointerId) return
     this.drag = null

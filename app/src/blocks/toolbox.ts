@@ -20,9 +20,15 @@ function category(id: string, msgKey: string, styleName: string, contents: strin
   return `<category name="${name}" id="${id}" colour="${primary}" secondaryColour="${secondary}">${contents}</category>`
 }
 
-/** Builds the toolbox XML. Call after setting the locale so category names are translated. */
-export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
-  const motion = [
+/**
+ * Builds the toolbox XML: a sprite's palette, or with `stage`, the stage's,
+ * which has only the blocks that make sense without a body (as in Scratch).
+ * Call after setting the locale so category names are translated.
+ */
+export function makeToolboxXml(extensions: ExtensionSpec[] = [], stage = false): string {
+  /** Blocks only sprites have. */
+  const sprite = (...blocks: string[]) => (stage ? [] : blocks)
+  const motion = stage ? [`<label text="${t('toolbox.stageHasNoMotion')}"></label>`].join('') : [
     block('motion_movesteps', num('STEPS', 10)),
     sep(),
     block('motion_turnright', num('DEGREES', 15)),
@@ -60,28 +66,34 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
     block('motion_roll'),
   ].join('')
 
+  const backdropMenu = '<value name="BACKDROP"><shadow type="looks_backdrops"></shadow></value>'
   const looks = [
-    block('looks_sayforsecs', txt('MESSAGE', t('default.hello')) + num('SECS', 2)),
-    block('looks_say', txt('MESSAGE', t('default.hello'))),
+    ...sprite(
+      block('looks_sayforsecs', txt('MESSAGE', t('default.hello')) + num('SECS', 2)),
+      block('looks_say', txt('MESSAGE', t('default.hello'))),
+      sep(),
+      block('looks_setcolorto', colour('COLOR', '#ff8c1a')),
+    ),
+    block('looks_switchbackdropto', backdropMenu),
+    ...(stage ? [block('looks_switchbackdroptoandwait', backdropMenu)] : []),
+    block('looks_nextbackdrop'),
     sep(),
-    block('looks_setcolorto', colour('COLOR', '#ff8c1a')),
-    block('looks_changesizeby', num('CHANGE', 10)),
-    block('looks_setsizeto', num('SIZE', 100)),
-    block('looks_changedimensionby', num('VALUE', 10)),
-    block('looks_setdimensionto', num('VALUE', 100)),
-    sep(),
-    block('looks_show'),
-    block('looks_hide'),
-    sep(),
-    block('looks_size'),
-    block('looks_width'),
-    block('looks_depth'),
-    block('looks_height'),
+    ...sprite(
+      block('looks_changesizeby', num('CHANGE', 10)),
+      block('looks_setsizeto', num('SIZE', 100)),
+      block('looks_changedimensionby', num('VALUE', 10)),
+      block('looks_setdimensionto', num('VALUE', 100)),
+      sep(),
+      block('looks_show'),
+      block('looks_hide'),
+      sep(),
+    ),
+    block('looks_backdropnumbername'),
+    ...sprite(block('looks_size'), block('looks_width'), block('looks_depth'), block('looks_height')),
   ].join('')
 
   const camera = [
-    block('camera_setsprite'),
-    sep(),
+    ...sprite(block('camera_setsprite'), sep()),
     block('camera_setview'),
     sep(),
     block('camera_setzoomto', num('ZOOM', 100)),
@@ -92,10 +104,13 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
   const events = [
     block('event_whenflagclicked'),
     block('event_whenkeypressed'),
-    block('event_whenthisspriteclicked'),
-    block(
-      'event_whentouchingobject',
-      `<value name="TOUCHINGOBJECTMENU"><shadow type="event_touchingobjectmenu"><field name="TOUCHINGOBJECTMENU">${EDGE}</field></shadow></value>`,
+    block(stage ? 'event_whenstageclicked' : 'event_whenthisspriteclicked'),
+    block('event_whenbackdropswitchesto'),
+    ...sprite(
+      block(
+        'event_whentouchingobject',
+        `<value name="TOUCHINGOBJECTMENU"><shadow type="event_touchingobjectmenu"><field name="TOUCHINGOBJECTMENU">${EDGE}</field></shadow></value>`,
+      ),
     ),
     sep(),
     block('event_whenbroadcastreceived'),
@@ -116,26 +131,29 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
     sep(),
     block('control_stop'),
     sep(),
-    block('control_start_as_clone'),
+    ...sprite(block('control_start_as_clone')),
+    // On the stage the menu starts on its first option: the first sprite.
     block(
       'control_create_clone_of',
-      `<value name="CLONE_OPTION"><shadow type="control_create_clone_of_menu"><field name="CLONE_OPTION">${MYSELF}</field></shadow></value>`,
+      `<value name="CLONE_OPTION"><shadow type="control_create_clone_of_menu">${stage ? '' : `<field name="CLONE_OPTION">${MYSELF}</field>`}</shadow></value>`,
     ),
-    block('control_delete_this_clone'),
+    ...sprite(block('control_delete_this_clone')),
   ].join('')
 
   const sensing = [
-    block(
-      'sensing_touchingobject',
-      `<value name="TOUCHINGOBJECTMENU"><shadow type="sensing_touchingobjectmenu"><field name="TOUCHINGOBJECTMENU">${EDGE}</field></shadow></value>`,
+    ...sprite(
+      block(
+        'sensing_touchingobject',
+        `<value name="TOUCHINGOBJECTMENU"><shadow type="sensing_touchingobjectmenu"><field name="TOUCHINGOBJECTMENU">${EDGE}</field></shadow></value>`,
+      ),
+      block('sensing_touchingcolor', colour('COLOR', '#ff8c1a')),
+      block('sensing_touchedsprite'),
+      block(
+        'sensing_distanceto',
+        `<value name="DISTANCETOMENU"><shadow type="sensing_distancetomenu"><field name="DISTANCETOMENU">${MOUSE}</field></shadow></value>`,
+      ),
+      sep(),
     ),
-    block('sensing_touchingcolor', colour('COLOR', '#ff8c1a')),
-    block('sensing_touchedsprite'),
-    block(
-      'sensing_distanceto',
-      `<value name="DISTANCETOMENU"><shadow type="sensing_distancetomenu"><field name="DISTANCETOMENU">${MOUSE}</field></shadow></value>`,
-    ),
-    sep(),
     block(
       'sensing_keypressed',
       '<value name="KEY_OPTION"><shadow type="sensing_keyoptions"><field name="KEY_OPTION">space</field></shadow></value>',
@@ -178,7 +196,7 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
     block('operator_mathop', num('NUM', '')),
   ].join('')
 
-  const pen = [
+  const pen = stage ? block('pen_clear') : [
     block('pen_clear'),
     sep(),
     block('pen_stamp'),
@@ -215,7 +233,8 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = []): string {
     variables +
     myBlocks +
     category('pen', 'CATEGORY_PEN', 'pen', pen) +
-    extensions.map(extensionCategoryXml).join('') +
+    // Extension blocks act on sprites (physics bodies).
+    (stage ? '' : extensions.map(extensionCategoryXml).join('')) +
     '</xml>'
   )
 }

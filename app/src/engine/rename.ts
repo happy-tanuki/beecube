@@ -1,6 +1,6 @@
 /**
- * Renaming sprites. Blocks refer to other sprites by name (in their menus),
- * so a rename rewrites those references in every sprite's workspace.
+ * Renaming sprites and backdrops. Blocks refer to them by name (in their
+ * menus), so a rename rewrites those references in every sprite's workspace.
  */
 import { EDGE, MOUSE, MYSELF, RANDOM, type BlockJson, type WorkspaceJson } from './types'
 
@@ -14,6 +14,12 @@ export const SPRITE_MENUS: Record<string, string> = {
   motion_goto_menu: 'TO',
   motion_glideto_menu: 'TO',
   motion_pointtowards_menu: 'TOWARDS',
+}
+
+/** Blocks whose field holds a backdrop name, by block type → field name. */
+export const BACKDROP_MENUS: Record<string, string> = {
+  looks_backdrops: 'BACKDROP',
+  event_whenbackdropswitchesto: 'BACKDROP',
 }
 
 /** Menu values that are not sprite names, so no sprite may take them. */
@@ -34,12 +40,12 @@ export function availableSpriteName(wanted: string, others: string[]): string | 
   return `${base}${n}`
 }
 
-/** Rewrites menu references from `from` to `to`. Returns whether anything changed. */
-export function renameSpriteReferences(ws: WorkspaceJson | null, from: string, to: string): boolean {
+/** Rewrites references in `menus` (SPRITE_MENUS by default) from `from` to `to`. Returns whether anything changed. */
+export function renameSpriteReferences(ws: WorkspaceJson | null, from: string, to: string, menus = SPRITE_MENUS): boolean {
   let changed = false
   const visit = (b: BlockJson | undefined): void => {
     if (!b) return
-    const field = SPRITE_MENUS[b.type]
+    const field = menus[b.type]
     if (field && b.fields?.[field] === from) {
       b.fields[field] = to
       changed = true

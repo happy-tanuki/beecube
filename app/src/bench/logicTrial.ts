@@ -6,13 +6,14 @@
  * `logic=post` (snapshots transferred by postMessage).
  */
 import * as THREE from 'three'
+import { plainBackdrop } from '../engine/backdrop'
 import { loadProject } from '../engine/project'
 import { Runtime, TICK_MS } from '../engine/runtime'
 import { findExtension } from '../extensions'
 import { loadRapier } from '../extensions/physics'
 import { t } from '../i18n'
+import { Environment } from '../stage/environment'
 import { EntityInstances, type PoseSource } from '../stage/instances'
-import { addEnvironment } from '../stage/Stage3D'
 import type { FromWorker, ToWorker } from '../worker/logic.worker'
 import { Snapshot, TripleBuffer } from '../worker/snapshot'
 import { scenarioProject, type ScenarioName } from './scenarios'
@@ -114,8 +115,7 @@ export async function runLogicTrial(root: HTMLElement, scenario: ScenarioName, p
   root.appendChild(overlay)
 
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color('#f4f7fb')
-  addEnvironment(scene)
+  new Environment(scene).apply(plainBackdrop(''))
   const instances = new EntityInstances(scene)
   const camera = new THREE.PerspectiveCamera(45, 1, 1, 5000)
   camera.up.set(0, 0, 1)

@@ -17,7 +17,7 @@ npm run build
 | Path | Role |
 |---|---|
 | `src/engine/` | Runtime, independent of the DOM; see [docs/vm-design.md](../docs/vm-design.md). `store.ts` keeps every entity (sprite or clone) in typed-array columns; `ir.ts` → `analyze.ts` → `codegen.ts` compile Blockly JSON to JavaScript source; `runtime.ts` runs fixed 60 Hz ticks. |
-| `src/stage/` | Three.js view of the entity store. `instances.ts` draws entities (one `InstancedMesh` per shape, matrices built in the vertex shader) and only reads the store's columns; `Stage3D.ts` adds the scene, pen, bubbles and Tinkercad-style manipulation. Blocks never call into it. |
+| `src/stage/` | Three.js view of the entity store. `instances.ts` draws entities (one `InstancedMesh` per shape, matrices built in the vertex shader) and only reads the store's columns; `environment.ts` draws the current backdrop (the scenery, the stage's box and the grid) and the lights; `Stage3D.ts` adds the scene, pen, bubbles and Tinkercad-style manipulation. Blocks never call into it. |
 | `src/bench/` | Benchmark projects for the performance scenarios A–E, and trials: `?bench=A&logic=main\|worker\|post` draws a scenario with its logic on the main thread or in a Web Worker (`src/worker/`); `touchingTrial.ts` compares "touching" in JS and wasm. |
 | `wasm/collision/` | Trial: "touching" in Rust compiled to wasm. `collision.wasm` is committed; `build.sh` rebuilds it (Rust with the `wasm32-unknown-unknown` target). |
 | `src/blocks/` | scratch-blocks setup: theme, locale, the added 3D blocks, toolbox. |

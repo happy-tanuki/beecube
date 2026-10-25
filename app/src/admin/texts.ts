@@ -1,7 +1,8 @@
 /**
- * Every piece of text a person typed into a project: sprite, variable, list
- * and message names, values, and text in blocks (say, ask, custom block
- * names, comments). Moderators read these to review a reported project.
+ * Every piece of text a person typed into a project: sprite, backdrop,
+ * variable, list and message names, values, and text in blocks (say, ask,
+ * custom block names, comments). Moderators read these to review a reported
+ * project.
  */
 
 /** Keys whose strings are machine data, not typed text. */
@@ -25,6 +26,6 @@ export function projectTexts(project: unknown): string[] {
   const p = project as Record<string, unknown> | null
   if (!p) return []
   // Settings and extension ids are not typed by people; monitors are keys.
-  for (const key of ['sprites', 'variables', 'lists', 'broadcasts']) walk(p[key], key)
+  for (const key of ['stage', 'sprites', 'backdrops', 'variables', 'lists', 'broadcasts']) walk(p[key], key)
   return [...found]
 }

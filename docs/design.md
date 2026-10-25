@@ -63,6 +63,30 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   heading (x at direction 90), depth across it, height up its local z axis.
   A stretched cube is a cuboid, for floors, walls and ramps; a stretched
   sphere is an egg. They turn with the sprite, and "size" scales all three.
+- **The stage's box.** The workplane's walls stop sprites at any height,
+  as before. What the stage shows is a box from the floor up to 360 (the
+  height of Scratch's stage, so the back wall is 480 × 360): floor, ceiling
+  and four walls. Each face is drawn on its inside only, so from the usual
+  view above the stage the near walls and the ceiling disappear and the
+  floor and far walls show; from inside the box all six show. The ceiling
+  is only a picture: a sprite above 360 shows above it.
+- **Backdrops** (`app/src/engine/backdrop.ts`) dress the box, as Scratch's
+  backdrops dress its stage (decided on 2026-10-25). A backdrop has the
+  scenery (the color outside the box), each face's color or transparent,
+  and whether the grid shows (with the axes and the border). The walls and
+  the ceiling show their color as it is, like a picture; the floor is lit
+  and takes shadows (a transparent floor has none). A new project's
+  backdrop looks as the stage did before backdrops: transparent walls, a
+  pale floor and the grid. A project has one or more backdrops, one is
+  current, and it is saved with the project; stopping doesn't change it.
+  - Next: pictures on the faces. A Scratch-sized picture goes on the back
+    wall, and a 360° picture is projected from the box's center onto the
+    six faces when it is added (a cube panorama), so from the center it
+    looks as the original. Pictures need the assets that saving and sharing
+    can carry.
+  - Considered and dropped (2026-10-24): a sky with a gradient and stars,
+    and a brightness, made by blending colors. They didn't match Scratch's
+    backdrops, and a sky at infinity left the floor floating.
 
 ## 4. Blocks
 
@@ -72,9 +96,9 @@ or changed:
 | Category | Blocks |
 |---|---|
 | Motion | go to (random position, mouse pointer, a sprite: in 3D); point towards (a sprite: direction and pitch; the mouse pointer or a random direction: direction only); go to x/y/z; glide to (the same targets as go to, where the target is when the glide starts) and glide to x/y/z; set z / change z / z position; turn up / turn down, roll right / roll left (about the own axes; turn right/left too); set pitch / pitch; set roll / roll |
-| Looks | set color to (in place of costumes); set / change (width, depth, height); width / depth / height |
+| Looks | set color to (in place of costumes); set / change (width, depth, height); width / depth / height; switch backdrop to, next backdrop, backdrop (number / name), and on the stage switch backdrop to and wait, as in Scratch |
 | Camera (new) | make this sprite the camera; set view to (home, top, front, side); set / change camera zoom |
-| Events | when I touch (a sprite, or my own clones) |
+| Events | when I touch (a sprite, or my own clones); when backdrop switches to, and on the stage when stage clicked (a click where there is no sprite), as in Scratch |
 | Sensing | touched sprite (a sprite reference); "of" for another sprite's properties and sprite-only variables |
 | Pen | lines drawn in space; draw cube, draw sphere (wireframes); stamp leaves a copy of the shape |
 
@@ -128,11 +152,20 @@ each with its own monitor checkbox.
 Variables and lists can belong to all sprites or to one sprite, as in
 Scratch, and monitors show them on the stage.
 
+The stage has scripts of its own, as in Scratch, and its palette has only
+what makes sense without a body: no motion; in looks, only the backdrop
+blocks; "erase all" of the pen; the camera's views and zoom; "create clone
+of" a sprite; no "touching" or "distance"; its variables are for all
+sprites. Extension blocks are left out, as they act on sprites.
+
 ## 5. The editor
 
 - **Layout.** Scratch's layout: block palette and code area on the left, and
-  the stage and sprite list on the right. The editor is designed for
-  computers with a mouse and keyboard.
+  the stage and sprite list on the right, with the stage beside the sprite
+  list. Selecting the stage shows its scripts and a Backdrops tab, where
+  backdrops are chosen (the chosen one becomes current, as in Scratch),
+  added, renamed, deleted and changed. The editor is designed for computers
+  with a mouse and keyboard.
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
   plane. Drag the cone above the selected sprite to change its height.
   Dragging empty space orbits the camera, Shift+drag pans and the wheel zooms.

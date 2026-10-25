@@ -172,13 +172,12 @@ body,
   padding: 8px;
 }
 
+/* The tabs sit on the page above the bordered content, as in Scratch. */
 .code-area {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--panel);
+  display: flex;
+  flex-direction: column;
 }
 
 .blocks-editor {
@@ -196,6 +195,14 @@ body,
 }
 
 /* ---- sprite pane ---- */
+
+.sprite-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+}
 
 .sprite-pane {
   position: relative;
@@ -365,6 +372,176 @@ body,
 
 .add-sprite-menu button:hover {
   background: var(--flag-hover);
+}
+
+/* ---- stage and backdrops ---- */
+
+.stage-pane {
+  width: 88px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.stage-pane:hover,
+.stage-pane.selected {
+  border-color: var(--menu-bar);
+}
+
+.stage-pane.selected {
+  box-shadow: 0 0 0 3px rgba(76, 151, 255, 0.3);
+}
+
+.stage-pane-title {
+  font-weight: 600;
+}
+
+.stage-pane-count {
+  font-size: 11px;
+}
+
+.backdrop-thumb {
+  display: block;
+  flex: none;
+  width: 56px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* As tall as the stage's header and the gap under it, so the content's top lines up with the stage. */
+.code-tabs {
+  display: flex;
+  flex: none;
+  height: 40px;
+}
+
+.code-tabs button {
+  position: relative;
+  margin-right: -1px;
+  padding: 0 20px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  background: #d9e3f2;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Over the content's top border, so the chosen tab joins the content. */
+.code-tabs button.selected {
+  z-index: 1;
+  margin-bottom: -1px;
+  background: var(--panel);
+  color: var(--menu-bar);
+  font-weight: 600;
+}
+
+.code-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 0 8px 8px 8px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+/* Hidden but kept at its size, so Blockly needn't lay out again; its toolbox would otherwise show above the tab. */
+.code-content.backdrops .blocks-editor {
+  visibility: hidden;
+}
+
+.backdrops-tab {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  background: var(--panel);
+}
+
+.backdrop-list {
+  width: 120px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: #f9fbfe;
+}
+
+.backdrop-tile {
+  position: relative;
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.backdrop-tile.selected {
+  border-color: var(--menu-bar);
+  box-shadow: 0 0 0 3px rgba(76, 151, 255, 0.3);
+}
+
+.backdrop-number {
+  position: absolute;
+  top: 2px;
+  left: 6px;
+}
+
+.backdrop-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backdrop-add {
+  flex: none;
+}
+
+.backdrop-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  font-size: 13px;
+}
+
+.backdrop-faces th {
+  padding-right: 12px;
+  font-weight: normal;
+  text-align: left;
+}
+
+.backdrop-faces td {
+  padding: 3px 8px 3px 0;
+}
+
+.field input[type='color'].transparent {
+  opacity: 0.35;
 }
 
 /* ---- scratch-blocks pieces whose styling normally comes from the host app ---- */

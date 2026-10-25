@@ -81,6 +81,11 @@ class EntityStore {
 }
 ```
 
+- **The stage** runs scripts like a sprite: it is the last kind, with one
+  entity that is never visible, so it is never drawn and never touches
+  anything. Its blocks are parsed without what only sprites do (motion,
+  their own looks, the pen but "erase all", clones of itself), and "create
+  clone of" never clones it. It has no name, so no menu finds it.
 - A slot never moves while its entity lives. Deleted slots go on a free list
   and are reused. Iteration (scripts, collision, rendering) is in slot order
   or in per-kind member lists, so it is deterministic.
