@@ -42,6 +42,7 @@ export const en = {
     'sprite.show': 'Show',
     'sprite.delete': 'Delete',
     'sprite.add': 'Add a sprite',
+    'sprite.blocksUnloadable': 'The blocks of "{name}" could not be shown. They are kept and still run, but changes made here will not be saved.',
 
     'shape.cube': 'Cube',
     'shape.sphere': 'Sphere',

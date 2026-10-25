@@ -42,6 +42,7 @@ export const ja: Messages = {
     'sprite.show': '表示',
     'sprite.delete': '削除',
     'sprite.add': 'スプライトを追加',
+    'sprite.blocksUnloadable': '「{name}」のブロックを表示できませんでした。ブロックはそのまま残り動きますが、ここでの変更は保存されません。',
 
     'shape.cube': '立方体',
     'shape.sphere': '球',

@@ -5,8 +5,9 @@ import { createTheme, defineCustomBlocks, setSpriteNameSource, setSpriteVariable
 import { makeToolboxXml } from '../blocks/toolbox'
 import { BUILTIN_EXTENSIONS } from '../extensions'
 import type { BlockJson, WorkspaceJson } from '../engine/types'
+import { t } from '../i18n'
 import { monitorKeyOf } from './monitors'
-import { installBlocklyDialogs, showPrompt, showVariablePrompt } from './dialogs'
+import { installBlocklyDialogs, showAlert, showPrompt, showVariablePrompt } from './dialogs'
 import { ProcedureEditor, type ProcedureRequest } from './ProcedureEditor'
 import type { ProjectStore } from './store'
 
@@ -26,6 +27,11 @@ const LIST_TYPE = 'list'
 
 /** Whether to ignore workspace events while we load a sprite's blocks programmatically. */
 let loading = false
+/**
+ * Whether the shown sprite's blocks failed to load. Its workspace then holds
+ * no blocks and is not saved back, so the sprite keeps its scripts.
+ */
+let unloadable = false
 
 /** scratch-blocks' variable model; `isLocal` marks "for this sprite only". It is not serialized. */
 type ScratchVariable = ScratchBlocks.IVariableModel<ScratchBlocks.IVariableState> & { isLocal?: boolean }
@@ -47,8 +53,16 @@ function loadSprite(ws: ScratchBlocks.WorkspaceSvg, store: ProjectStore): void {
     ],
   }
   loading = true
+  unloadable = false
   try {
-    ScratchBlocks.serialization.workspaces.load(json, ws)
+    try {
+      ScratchBlocks.serialization.workspaces.load(json, ws)
+    } catch (e) {
+      // e.g. a hand-written project file with fields in a shape Blockly cannot read.
+      console.error(e)
+      unloadable = true
+      ScratchBlocks.serialization.workspaces.load({ variables: json.variables }, ws)
+    }
     for (const { id } of locals) {
       const variable = ws.getVariableMap().getVariableById(id) as ScratchVariable | null
       if (variable) variable.isLocal = true
@@ -56,6 +70,7 @@ function loadSprite(ws: ScratchBlocks.WorkspaceSvg, store: ProjectStore): void {
   } finally {
     loading = false
   }
+  if (unloadable) void showAlert(t('sprite.blocksUnloadable', { name: sprite.name }))
   ws.scrollCenter()
   // Sprite reporters' checkboxes refer to the sprite being edited.
   syncCheckboxes(ws, store)
@@ -213,7 +228,7 @@ export function BlocksEditor({ store, editingId, blocksRevision, extensionKey }:
         return
       }
       if (e.isUiEvent) return
-      store.editing.blocks = ScratchBlocks.serialization.workspaces.save(ws) as WorkspaceJson
+      if (!unloadable) store.editing.blocks = ScratchBlocks.serialization.workspaces.save(ws) as WorkspaceJson
       if (isVarEvent(e)) syncVariables()
       // The "My Blocks" palette lists the custom blocks defined in the workspace.
       const procs = procedureSignature(ws)
