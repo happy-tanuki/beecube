@@ -1,6 +1,6 @@
 /**
  * The moderation page (admin.html): reported and hidden shared projects,
- * the text in each, and buttons to hide, show again or delete them. It needs
+ * the text and pictures in each, and buttons to hide, show again or delete them. It needs
  * the ADMIN_TOKEN secret, kept for the browser tab only.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -61,29 +61,38 @@ function SignIn({ onToken, rejected }: { onToken(token: string): void; rejected:
 function Detail({ api, id, onChanged }: { api: AdminApi; id: string; onChanged(): void }) {
   const [detail, setDetail] = useState<ReviewDetail | null>(null)
   const [picture, setPicture] = useState<string | null>(null)
+  const [assets, setAssets] = useState<string[]>([])
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    let url: string | null = null
+    const urls: string[] = []
+    const fetched = async (get: () => Promise<string>) => {
+      const url = await get().catch(() => null)
+      if (url) urls.push(url)
+      return url
+    }
     setDetail(null)
     setPicture(null)
+    setAssets([])
     setConfirmDelete(false)
     api.get(id).then(
       async (d) => {
         if (cancelled) return
         setDetail(d)
         if (d.hasThumbnail) {
-          url = await api.thumbnailUrl(id).catch(() => null)
+          const url = await fetched(() => api.thumbnailUrl(id))
           if (!cancelled) setPicture(url)
         }
+        const found = await Promise.all(d.assets.map((file) => fetched(() => api.assetUrl(id, file))))
+        if (!cancelled) setAssets(found.filter((url) => url !== null))
       },
       (err: unknown) => !cancelled && setError(failure(err)),
     )
     return () => {
       cancelled = true
-      if (url) URL.revokeObjectURL(url)
+      for (const url of urls) URL.revokeObjectURL(url)
     }
   }, [api, id])
 
@@ -116,6 +125,20 @@ function Detail({ api, id, onChanged }: { api: AdminApi; id: string; onChanged()
         <ul className="admin-texts">
           {texts.map((text, i) => (
             <li key={i}>{text}</li>
+          ))}
+        </ul>
+      )}
+      <h3>{t('admin.pictures')}</h3>
+      {detail.assets.length === 0 ? (
+        <p>{t('admin.noPictures')}</p>
+      ) : (
+        <ul className="admin-assets">
+          {assets.map((url) => (
+            <li key={url}>
+              <a href={url} target="_blank" rel="noopener">
+                <img src={url} alt="" />
+              </a>
+            </li>
           ))}
         </ul>
       )}

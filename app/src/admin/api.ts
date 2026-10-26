@@ -20,6 +20,8 @@ export interface ReviewDetail {
   reports: number
   hasThumbnail: boolean
   project: unknown
+  /** The project's own pictures (file names), as uploaded. */
+  assets: string[]
 }
 
 const BASE = `${import.meta.env.BASE_URL}api/admin/projects`
@@ -47,6 +49,11 @@ export class AdminApi {
   /** An object URL for the project's picture; revoke it when done. */
   async thumbnailUrl(id: string): Promise<string> {
     return URL.createObjectURL(await (await this.call('GET', `/${id}/thumbnail`)).blob())
+  }
+
+  /** An object URL for one of the project's pictures; revoke it when done. */
+  async assetUrl(id: string, file: string): Promise<string> {
+    return URL.createObjectURL(await (await this.call('GET', `/${id}/assets/${file}`)).blob())
   }
 
   async hide(id: string): Promise<void> {

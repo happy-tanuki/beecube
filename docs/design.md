@@ -224,9 +224,9 @@ sprites. Extension blocks are left out, as they act on sprites.
   opened from a `.beecube` file, a zip as Scratch's: `project.json` (format
   in `app/src/engine/project.ts`) and each asset it uses, named
   `<sha-256>.<format>` (`app/src/ui/projectFile.ts`). Older files, the JSON
-  alone, still open. Shared projects don't carry their own pictures yet:
-  only the library's show; whether shared assets are kept per project or
-  for everyone, as Scratch's asset server does, is still to decide.
+  alone, still open. Shared projects keep their pictures per project (see
+  [sharing.md](sharing.md)), unlike Scratch's asset server, which keeps
+  them for everyone.
 
 ## 6. Extensions
 

@@ -137,6 +137,25 @@ body {
   font-size: 14px;
 }
 
+.admin-assets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Pictures may be partly transparent (windows): a checkerboard shows where. */
+.admin-assets img {
+  display: block;
+  max-width: 240px;
+  max-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 16px 16px;
+}
+
 .admin-picture {
   display: block;
   max-width: 320px;

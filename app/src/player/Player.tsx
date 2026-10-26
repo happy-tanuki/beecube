@@ -13,21 +13,22 @@ import { loadLibraryAsset } from '../ui/library'
 import { listenKeys } from '../ui/keys'
 import { StageView } from '../ui/StageView'
 import { isTouchDevice, TouchKeys, usedKeys } from '../ui/TouchKeys'
-import { fetchShared, NotFoundError, reportShare, type ReportReason } from '../share/client'
+import { fetchShared, fetchSharedAsset, NotFoundError, reportShare, type ReportReason } from '../share/client'
 import { useTurnstile } from '../share/turnstile'
-import { sourceFromLocation } from './source'
+import { sourceFromLocation, type Source } from './source'
 
 type State =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; rt: Runtime; title: string; notes: string; keys: string[]; sharedId: string | null }
 
-async function open(url: string): Promise<{ rt: Runtime; title: string; notes: string; keys: string[] }> {
-  const shared = await fetchShared(url)
+async function open(source: Source): Promise<{ rt: Runtime; title: string; notes: string; keys: string[] }> {
+  const shared = await fetchShared(source.url)
   const project = parseProject(shared.project)
   const rt = new Runtime()
-  // Shared projects don't carry pictures yet: only the library's show.
-  rt.assets.loader = loadLibraryAsset
+  // Library pictures ship with the app; a shared project's own are on the API.
+  const { sharedId } = source
+  rt.assets.loader = async (ref) => (await loadLibraryAsset(ref)) ?? (sharedId ? fetchSharedAsset(sharedId, ref) : null)
   for (const id of project.extensions) {
     const ext = findExtension(id)
     if (ext) rt.addExtension(ext)
@@ -112,7 +113,7 @@ export function Player() {
     }
     let cancelled = false
     let opened: Runtime | null = null
-    open(source.url).then(
+    open(source).then(
       (loaded) => {
         if (cancelled) return loaded.rt.dispose()
         opened = loaded.rt

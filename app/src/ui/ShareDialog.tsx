@@ -4,9 +4,11 @@
  * current project, or stop sharing them).
  */
 import { useRef, useState } from 'react'
+import type { AssetRef } from '../engine/assets'
 import { t, type MessageKey } from '../i18n'
 import {
   ApiError,
+  AssetUploadError,
   createShare,
   deleteShare,
   loadShares,
@@ -35,6 +37,10 @@ const ERROR_MESSAGES: Record<string, MessageKey> = {
 }
 
 function errorText(err: unknown): string {
+  if (err instanceof AssetUploadError) {
+    const tooLarge = err.reason instanceof ApiError && err.reason.code === 'too_large'
+    return tooLarge ? t('share.errorPicturesTooLarge') : t('share.errorPictures')
+  }
   if (err instanceof ApiError && ERROR_MESSAGES[err.code]) return t(ERROR_MESSAGES[err.code])
   return t('share.errorFailed', { reason: err instanceof ApiError ? err.code : String(err) })
 }
@@ -105,6 +111,8 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
   const checkRef = useRef<HTMLDivElement>(null)
   const check = useTurnstile(checkRef, !justShared && !editing)
 
+  const load = (ref: AssetRef) => store.rt.assets.load(ref)
+
   const content = async (title: string, notes: string): Promise<ShareContent> => {
     const picture = await snapshot(THUMBNAIL_WIDTH).catch(() => null)
     return {
@@ -134,7 +142,11 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
       if (!title.trim()) throw new ApiError(400, 'title_required')
       if (!check.token) throw new ApiError(403, 'verification_failed')
       try {
-        setJustShared(await createShare(await content(title, notes), check.token))
+        setJustShared(await createShare(await content(title, notes), check.token, load))
+      } catch (err) {
+        // Shared, but without some pictures: show the link anyway.
+        if (err instanceof AssetUploadError) setJustShared(err.record)
+        throw err
       } finally {
         // A token works once.
         check.reset()
@@ -145,7 +157,7 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
     if (!(await showConfirm(t('share.confirmUpdate', { title: record.title })))) return
     // Replaces the project only; the title and notes stay as shared.
     await run(async () => {
-      await updateShare(record, await content(record.title, record.notes ?? ''))
+      await updateShare(record, await content(record.title, record.notes ?? ''), load)
       setUpdated(record.id)
     })
   }

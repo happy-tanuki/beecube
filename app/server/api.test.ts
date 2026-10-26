@@ -3,7 +3,9 @@ import { getPlatformProxy } from 'wrangler'
 import schema1 from '../migrations/0001_projects.sql?raw'
 import schema2 from '../migrations/0002_thumbnails.sql?raw'
 import sample from '../public/samples/pen-cube.json'
+import { hashAsset } from '../src/engine/assets'
 import { PROJECT_FORMAT } from '../src/engine/project'
+import rooms from '../src/ui/roomLibrary.json'
 import { handleApi, type Deps, type Env } from './api'
 
 /** A valid project: the bundled sample's. */
@@ -40,7 +42,7 @@ const call = (method: string, path: string, body?: unknown, token?: string) =>
     new Request(`http://localhost/api/${path}`, {
       method,
       headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : body instanceof Uint8Array ? (body as Uint8Array<ArrayBuffer>) : JSON.stringify(body),
     }),
     env,
     deps,
@@ -150,6 +152,56 @@ describe('sharing API', () => {
     expect((await call('GET', `projects/${id}/thumbnail`)).status).toBe(200)
     expect((await call('DELETE', `projects/${id}`, undefined, editKey)).status).toBe(204)
     expect((await call('GET', `projects/${id}/thumbnail`)).status).toBe(404)
+  })
+
+  it('keeps the pictures a project uses, per project', async () => {
+    // The smallest bytes that pass the check: a PNG's signature, then anything.
+    const png = (n: number) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, n])
+    const a = png(1)
+    const b = png(2)
+    const fileOf = async (data: Uint8Array) => `${await hashAsset(data)}.png`
+    const [fileA, fileB] = [await fileOf(a), await fileOf(b)]
+    const ref = (file: string) => ({ assetId: file.slice(0, 64), dataFormat: 'png' })
+    const library = rooms[0].faces.floor.picture
+    const withPictures = (...files: string[]) => {
+      const face = (picture: unknown) => ({ color: '#ffffff', picture })
+      const faces = { floor: face(library), ceiling: face(null), back: face(null), front: face(null), left: face(null), right: face(null) }
+      return {
+        ...project,
+        backdrops: files.map((file, i) => ({ id: `b${i}`, name: `b${i}`, scenery: '#000000', sceneryPicture: ref(file), faces, grid: true })),
+      }
+    }
+    const res = await share({ project: withPictures(fileA) })
+    const { id, editKey, missingAssets } = (await res.json()) as { id: string; editKey: string; missingAssets: string[] }
+    // The library's floor is not asked for.
+    expect(missingAssets).toEqual([fileA])
+    expect((await call('PUT', `projects/${id}/assets/${fileA}`, a)).status).toBe(404)
+    expect((await call('PUT', `projects/${id}/assets/${fileB}`, b, editKey)).status).toBe(404)
+    expect((await call('PUT', `projects/${id}/assets/${fileA}`, b, editKey)).status).toBe(400)
+    expect((await call('PUT', `projects/${id}/assets/${fileA}`, new TextEncoder().encode('text'), editKey)).status).toBe(400)
+    expect((await call('PUT', `projects/${id}/assets/${fileA}`, a, editKey)).status).toBe(204)
+    const got = await call('GET', `projects/${id}/assets/${fileA}`)
+    expect(got.headers.get('content-type')).toBe('image/png')
+    expect(new Uint8Array(await got.arrayBuffer())).toEqual(a)
+
+    // Another project doesn't see it.
+    const other = (await (await share({ project: withPictures(fileA) })).json()) as { id: string }
+    expect((await call('GET', `projects/${other.id}/assets/${fileA}`)).status).toBe(404)
+
+    // Updating asks for new pictures and removes unused ones.
+    const updated = await call('PUT', `projects/${id}`, { title: 'x', project: withPictures(fileB) }, editKey)
+    expect(((await updated.json()) as { missingAssets: string[] }).missingAssets).toEqual([fileB])
+    expect((await call('GET', `projects/${id}/assets/${fileA}`)).status).toBe(404)
+    expect((await call('PUT', `projects/${id}/assets/${fileB}`, b, editKey)).status).toBe(204)
+    const review = (await (await call('GET', `admin/projects/${id}`, undefined, 'admin-secret')).json()) as { assets: string[] }
+    expect(review.assets).toEqual([fileB])
+
+    // Hidden projects' pictures aren't served, except to moderators.
+    expect((await call('POST', `admin/projects/${id}/hide`, undefined, 'admin-secret')).status).toBe(204)
+    expect((await call('GET', `projects/${id}/assets/${fileB}`)).status).toBe(404)
+    expect((await call('GET', `admin/projects/${id}/assets/${fileB}`, undefined, 'admin-secret')).status).toBe(200)
+    expect((await call('DELETE', `admin/projects/${id}`, undefined, 'admin-secret')).status).toBe(204)
+    expect((await env.PROJECTS.list({ prefix: `assets/${id}/` })).objects).toEqual([])
   })
 
   it('needs a Turnstile token to share or report', async () => {

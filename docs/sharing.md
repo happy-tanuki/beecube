@@ -12,7 +12,22 @@ open, including on a phone. The audience is children (see
   functions only call it. The routes are listed at the top of that file.
 - **Storage.** D1 keeps each shared project's metadata: title, notes, the
   hash of its edit key, its status and its report count
-  (`app/migrations/`). R2 keeps the project JSON at `projects/<id>.json`.
+  (`app/migrations/`). R2 keeps the project JSON at `projects/<id>.json`
+  and its pictures at `assets/<id>/<sha-256>.<png|jpg>`.
+- **Pictures** are assets, as in the editor: the project JSON refers to
+  them by hash. Settled on 2026-10-26:
+  - They are kept **per project**, not for everyone as Scratch's asset
+    server does. Stopping sharing or a moderator's delete removes them
+    with the project, and a picture can't be seen through another
+    project's link.
+  - Sharing or updating answers with the pictures the project uses but
+    the share lacks; the editor then uploads each one (with the edit
+    key). Only those are accepted, and pictures an update stops using are
+    removed. Library pictures ship with the app and are never uploaded.
+  - Until the uploads finish the project shows without them; if one
+    fails, the editor says so, and updating the share sends it again.
+  - "See inside" copies the pictures into the editor's own storage, so
+    the remix doesn't depend on the share.
 - **Pages.**
   - `/p/<id>` is the player page. A function adds the project's title and
     link-preview tags (Open Graph) to it; the player then fetches the project
@@ -55,7 +70,8 @@ project. A request with a wrong key gets
   keeps no IP addresses. A report records only its reason.
 - **A warning when sharing**, in words for children: anyone with the link can
   see the project, so don't write your real name, where you live, your
-  school, or anything else about yourself.
+  school, or anything else about yourself, and don't use photos of yourself
+  or your friends.
 - **Links only.** There is no gallery, search or list of shared projects.
 - **A person, not a script.** Sharing and reporting need a
   [Turnstile](https://developers.cloudflare.com/turnstile/) token, which the
@@ -74,15 +90,20 @@ project. A request with a wrong key gets
   (which clears the reports) and delete. Without the secret the admin routes
   are closed. The moderation page, `/admin` (not linked from the app, not
   indexed), does this from a browser. For each project it shows the title,
-  notes, picture and every text typed into the project (names, values, text
-  in blocks), since text is what usually needs checking. The token is kept
+  notes, picture, every text typed into the project (names, values, text
+  in blocks), since text is what usually needs checking, and every picture
+  uploaded with it (library pictures are left out). The token is kept
   for the browser tab only.
 - **What is accepted.**
   - Titles: up to 80 characters, required.
   - Notes: up to 2,000 characters.
   - Control characters are removed; notes keep their line breaks.
   - Requests: up to 2 MB.
-  - Pictures: JPEG only (checked by its first bytes), up to 300 KB.
+  - The link-preview picture: JPEG only (checked by its first bytes), up
+    to 300 KB.
+  - The project's pictures: PNG or JPEG (checked by their first bytes),
+    named by the SHA-256 of their contents (checked too), up to 5 MB each
+    and 20 MB for a project.
   - The project must pass the same validation as opening a file, and it is
     stored re-serialized, so unknown fields are dropped.
 - **The player shows only shared projects and bundled samples, by id.** It

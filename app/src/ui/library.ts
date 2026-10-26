@@ -7,6 +7,7 @@
 import { assetFileName, type AssetRef } from '../engine/assets'
 import type { Face, FaceName } from '../engine/backdrop'
 import { t, type MessageKey } from '../i18n'
+import { LIBRARY_FILES } from './libraryFiles'
 import rooms from './roomLibrary.json'
 import sceneries from './sceneryLibrary.json'
 
@@ -30,16 +31,13 @@ export const ROOM_LIBRARY = rooms as LibraryRoom[]
 export const librarySceneryName = (s: LibraryScenery): string => t(`sceneryLibrary.${s.key}` as MessageKey)
 export const libraryRoomName = (r: LibraryRoom): string => t(`roomLibrary.${r.key}` as MessageKey)
 
-const LIBRARY_FILES = new Set([
-  ...SCENERY_LIBRARY.map((s) => assetFileName(s.picture)),
-  ...ROOM_LIBRARY.flatMap((r) => Object.values(r.faces).map((f) => assetFileName(f.picture!))),
-])
-
 export const libraryAssetUrl = (ref: AssetRef): string => `${import.meta.env.BASE_URL}library/${assetFileName(ref)}`
+
+export const isLibraryAsset = (ref: AssetRef): boolean => LIBRARY_FILES.has(assetFileName(ref))
 
 /** Fetches a library picture; null for any other asset. */
 export async function loadLibraryAsset(ref: AssetRef): Promise<Uint8Array | null> {
-  if (!LIBRARY_FILES.has(assetFileName(ref))) return null
+  if (!isLibraryAsset(ref)) return null
   const res = await fetch(libraryAssetUrl(ref))
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return new Uint8Array(await res.arrayBuffer())

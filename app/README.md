@@ -80,7 +80,8 @@ seconds and restored on reload; File > New resets it.
 
 Sharing runs on Cloudflare Pages: the built app plus Pages Functions
 (`functions/`), which call the API in `server/api.ts` (routes are listed at its
-top). Shared projects' metadata is in D1 (`migrations/`), their JSON in R2.
+top). Shared projects' metadata is in D1 (`migrations/`), their JSON and
+pictures in R2.
 The design and the safety measures for a young audience are in
 [docs/sharing.md](../docs/sharing.md).
 

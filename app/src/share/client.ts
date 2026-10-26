@@ -4,6 +4,7 @@
  * which is the only way to update or stop sharing it: there are no accounts.
  */
 import { APP_ID } from '../brand'
+import { ASSET_MIME, assetFileName, type AssetFormat, type AssetLoader, type AssetRef } from '../engine/assets'
 
 export type ReportReason = 'personal-info' | 'mean' | 'scary' | 'other'
 
@@ -46,14 +47,14 @@ export class ApiError extends Error {
 const API = `${import.meta.env.BASE_URL}api/projects`
 const STORAGE_KEY = `${APP_ID}.shares`
 
-async function request(method: string, url: string, body?: unknown, editKey?: string): Promise<Response> {
+async function request(method: string, url: string, body?: unknown, editKey?: string, contentType = 'application/json'): Promise<Response> {
   const res = await fetch(url, {
     method,
     headers: {
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(body === undefined ? {} : { 'content-type': contentType }),
       ...(editKey ? { authorization: `Bearer ${editKey}` } : {}),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : body instanceof Uint8Array ? (body as Uint8Array<ArrayBuffer>) : JSON.stringify(body),
   })
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null
@@ -68,18 +69,74 @@ export const shareUrl = (id: string) => new URL(`${import.meta.env.BASE_URL}p/${
 /** The API URL of a shared project (what the player and the editor fetch). */
 export const projectApiUrl = (id: string) => `${API}/${encodeURIComponent(id)}`
 
-/** Shares a project; `turnstileToken` is from the Turnstile check (turnstile.ts). */
-export async function createShare(content: ShareContent, turnstileToken: string): Promise<ShareRecord> {
+/** A picture of a shared project, on the API. */
+const assetApiUrl = (id: string, ref: AssetRef) => `${projectApiUrl(id)}/assets/${assetFileName(ref)}`
+
+/** The refs of the API's `missingAssets` (file names). */
+function missingRefs(data: unknown): AssetRef[] {
+  const names = (data as { missingAssets?: unknown }).missingAssets
+  if (!Array.isArray(names)) return []
+  return names.flatMap((name) => {
+    const m = typeof name === 'string' ? /^([0-9a-f]{64})\.(png|jpg)$/.exec(name) : null
+    return m ? [{ assetId: m[1], dataFormat: m[2] as AssetFormat }] : []
+  })
+}
+
+/** Some pictures could not be uploaded, after the project itself was shared (as `record`). */
+export class AssetUploadError extends Error {
+  constructor(
+    readonly record: ShareRecord,
+    readonly reason: unknown,
+  ) {
+    super(`pictures not uploaded: ${String(reason)}`)
+  }
+}
+
+/** Uploads the pictures the share lacks, a few at a time. Throws AssetUploadError. */
+async function uploadAssets(record: ShareRecord, missing: AssetRef[], load: AssetLoader): Promise<void> {
+  const queue = [...missing]
+  const worker = async () => {
+    for (let ref = queue.shift(); ref; ref = queue.shift()) {
+      const data = await load(ref)
+      // A picture that is nowhere (not even in this browser) stays missing, as it does in the editor.
+      if (!data) continue
+      await request('PUT', assetApiUrl(record.id, ref), data, record.editKey, ASSET_MIME[ref.dataFormat])
+    }
+  }
+  try {
+    await Promise.all([worker(), worker(), worker()])
+  } catch (err) {
+    throw new AssetUploadError(record, err)
+  }
+}
+
+/**
+ * Shares a project; `turnstileToken` is from the Turnstile check (turnstile.ts).
+ * Its pictures are uploaded after it, from `load`. If that fails (an
+ * AssetUploadError), the share exists without some pictures: updating it
+ * uploads them again.
+ */
+export async function createShare(content: ShareContent, turnstileToken: string, load: AssetLoader): Promise<ShareRecord> {
   const res = await request('POST', API, { ...content, turnstileToken })
-  const { id, editKey } = (await res.json()) as { id: string; editKey: string }
-  const record = { id, editKey, title: content.title, notes: content.notes, sharedAt: Date.now() }
+  const data = (await res.json()) as { id: string; editKey: string }
+  const record = { id: data.id, editKey: data.editKey, title: content.title, notes: content.notes, sharedAt: Date.now() }
   saveShares([record, ...loadShares()])
+  await uploadAssets(record, missingRefs(data), load)
   return record
 }
 
-export async function updateShare(record: ShareRecord, content: ShareContent): Promise<void> {
-  await request('PUT', projectApiUrl(record.id), content, record.editKey)
+export async function updateShare(record: ShareRecord, content: ShareContent, load: AssetLoader): Promise<void> {
+  const res = await request('PUT', projectApiUrl(record.id), content, record.editKey)
   saveShares(loadShares().map((r) => (r.id === record.id ? { ...r, title: content.title, notes: content.notes } : r)))
+  await uploadAssets(record, missingRefs(await res.json()), load)
+}
+
+/** Fetches a picture of a shared project; null if it isn't there. */
+export async function fetchSharedAsset(id: string, ref: AssetRef): Promise<Uint8Array | null> {
+  const res = await fetch(assetApiUrl(id, ref))
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return new Uint8Array(await res.arrayBuffer())
 }
 
 /** Changes a share's title and notes, keeping its project. */

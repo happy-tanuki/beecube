@@ -1,6 +1,6 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
-import { assetFileName, type AssetRef } from '../engine/assets'
+import { assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
 import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
 import { findExtension } from '../extensions'
@@ -10,7 +10,7 @@ import { STAGE_ID, type ShapeKind, type SpriteData } from '../engine/types'
 import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
 import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
-import { loadLibraryAsset, type LibraryRoom, type LibraryScenery } from './library'
+import { isLibraryAsset, loadLibraryAsset, type LibraryRoom, type LibraryScenery } from './library'
 import { facePicture, panoramaPicture, type Picture } from './pictures'
 import { readProjectFile, writeProjectFile } from './projectFile'
 import { sampleScript } from './sample'
@@ -72,6 +72,20 @@ export class ProjectStore {
   /** Parses and opens project JSON. Throws ProjectFormatError (with the reason) if it isn't valid. */
   openProject(json: string): void {
     this.replace(parseProject(JSON.parse(json)))
+  }
+
+  /**
+   * Opens a shared project (its JSON), with its pictures from `fetch`; they
+   * are kept with the autosave, so the project doesn't depend on the share.
+   * Throws ProjectFormatError if it isn't valid.
+   */
+  async openShared(json: unknown, fetch: AssetLoader): Promise<void> {
+    const project = parseProject(json)
+    const pictures = projectAssets(project).filter((ref) => !isLibraryAsset(ref))
+    for (const [i, data] of (await Promise.all(pictures.map((ref) => fetch(ref).catch(() => null)))).entries()) {
+      if (data) this.rt.assets.put(pictures[i], data)
+    }
+    this.replace(project)
   }
 
   /** Opens a project file (see projectFile.ts). Throws ProjectFormatError or SyntaxError if it isn't valid. */

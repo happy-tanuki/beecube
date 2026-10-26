@@ -4,6 +4,9 @@
  *   POST   /api/projects                 share: { title, notes, project, thumbnail? } → { id, editKey }
  *   GET    /api/projects/:id             → { id, title, notes, project, createdAt, updatedAt }
  *   GET    /api/projects/:id/thumbnail   the link-preview picture (JPEG)
+ *   GET    /api/projects/:id/assets/:file   a picture the project uses (<sha-256>.<png|jpg>)
+ *   PUT    /api/projects/:id/assets/:file   upload one (Authorization: Bearer <editKey>);
+ *                                        the body is the file itself
  *   PUT    /api/projects/:id             update: { title, notes, project?, thumbnail? }
  *                                        (Authorization: Bearer <editKey>); without
  *                                        `project`, only the title and notes change
@@ -13,6 +16,14 @@
  *
  * `thumbnail` is a JPEG data URL, a picture of the stage for link previews.
  *
+ * Pictures are assets, as in the editor (src/engine/assets.ts): the project
+ * refers to them by hash, and they are uploaded one by one after it. They are
+ * kept per project, not shared between projects, so stopping sharing removes
+ * them too. Sharing and updating answer with `missingAssets`, the files the
+ * project uses that aren't uploaded yet (library pictures, which ship with
+ * the app, never are). Only those files are accepted, and pictures the
+ * project stops using are removed when it is updated.
+ *
  * Sharing and reporting need a Turnstile token (`turnstileToken` in the body),
  * which shows a person, not a script, sent them.
  *
@@ -20,6 +31,7 @@
  *   GET    /api/admin/projects           hidden or reported projects, with their reports
  *   GET    /api/admin/projects/:id       one project, hidden or not, with its project JSON
  *   GET    /api/admin/projects/:id/thumbnail
+ *   GET    /api/admin/projects/:id/assets/:file
  *   POST   /api/admin/projects/:id/hide
  *   POST   /api/admin/projects/:id/restore   show again and clear its reports
  *   DELETE /api/admin/projects/:id
@@ -29,7 +41,9 @@
  * here), and reports record only a reason. A project with enough reports is
  * hidden until a moderator reviews it.
  */
-import { parseProject, ProjectFormatError } from '../src/engine/project'
+import { ASSET_MIME, assetFileName, hashAsset, type AssetFormat } from '../src/engine/assets'
+import { parseProject, projectAssets, ProjectFormatError, type ProjectFile } from '../src/engine/project'
+import { LIBRARY_FILES } from '../src/ui/libraryFiles'
 
 export interface Env {
   DB: D1Database
@@ -71,6 +85,10 @@ export const LIMITS = {
   notes: 2000,
   /** Decoded size of a thumbnail, in bytes. */
   thumbnail: 300_000,
+  /** One picture, in bytes: a 360° image 4096 pixels wide, or a face's picture, fits. */
+  asset: 5_000_000,
+  /** All of a project's pictures, in bytes. */
+  assets: 20_000_000,
 }
 
 export const REPORT_REASONS = ['personal-info', 'mean', 'scary', 'other'] as const
@@ -153,17 +171,28 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   return data as Record<string, unknown>
 }
 
+/** The file names of the pictures a project uses, except the library's (which are never uploaded). */
+const uploadedAssets = (project: ProjectFile): Set<string> =>
+  new Set(projectAssets(project).map(assetFileName).filter((name) => !LIBRARY_FILES.has(name)))
+
+interface Share {
+  title: string
+  notes: string
+  projectJson: string
+  /** The file names of the pictures the project uses, except the library's. */
+  assets: Set<string>
+}
+
 /** Title, notes and the project, validated; the project is re-serialized so only known fields are kept. */
-function readShare(body: Record<string, unknown>): { title: string; notes: string; projectJson: string } {
+function readShare(body: Record<string, unknown>): Share {
   const { title, notes } = readInfo(body)
-  let projectJson: string
   try {
-    projectJson = JSON.stringify(parseProject(body.project))
+    const project = parseProject(body.project)
+    return { title, notes, projectJson: JSON.stringify(project), assets: uploadedAssets(project) }
   } catch (err) {
     if (err instanceof ProjectFormatError) throw new HttpError(400, 'invalid_project')
     throw err
   }
-  return { title, notes, projectJson }
 }
 
 function readInfo(body: Record<string, unknown>): { title: string; notes: string } {
@@ -195,6 +224,61 @@ function readThumbnail(body: Record<string, unknown>): Uint8Array | null {
   return bytes
 }
 
+const assetPrefix = (id: string) => `assets/${id}/`
+const ASSET_FILE = /^([0-9a-f]{64})\.(png|jpg)$/
+
+/** The project's uploaded pictures: file name → size in bytes. */
+async function storedAssets(env: Env, id: string): Promise<Map<string, number>> {
+  const found = new Map<string, number>()
+  let cursor: string | undefined
+  do {
+    const page = await env.PROJECTS.list({ prefix: assetPrefix(id), cursor })
+    for (const o of page.objects) found.set(o.key.slice(assetPrefix(id).length), o.size)
+    cursor = page.truncated ? page.cursor : undefined
+  } while (cursor)
+  return found
+}
+
+/** Removes the pictures the project no longer uses, and answers with those it uses but lacks. */
+async function syncAssets(env: Env, id: string, uses: Set<string>): Promise<string[]> {
+  const stored = await storedAssets(env, id)
+  const unused = [...stored.keys()].filter((name) => !uses.has(name))
+  if (unused.length) await env.PROJECTS.delete(unused.map((name) => assetPrefix(id) + name))
+  return [...uses].filter((name) => !stored.has(name))
+}
+
+/** The pictures the stored project uses, except the library's. */
+async function usedAssets(env: Env, id: string): Promise<Set<string>> {
+  const object = await env.PROJECTS.get(objectKey(id))
+  return object ? uploadedAssets(parseProject(JSON.parse(await object.text()))) : new Set()
+}
+
+const MAGIC: Record<AssetFormat, number[]> = { png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], jpg: [0xff, 0xd8, 0xff] }
+
+async function putAsset(env: Env, request: Request, id: string, file: string): Promise<Response> {
+  await ownedProject(env, request, id)
+  const m = ASSET_FILE.exec(file)
+  if (!m || !(await usedAssets(env, id)).has(file)) throw new HttpError(404, 'not_found')
+  const format = m[2] as AssetFormat
+  if (Number(request.headers.get('content-length') ?? 0) > LIMITS.asset) throw new HttpError(413, 'too_large')
+  const bytes = new Uint8Array(await request.arrayBuffer())
+  if (bytes.length > LIMITS.asset) throw new HttpError(413, 'too_large')
+  // The contents must be what the name says: a picture of that format, with that hash.
+  if (!MAGIC[format].every((b, i) => bytes[i] === b) || (await hashAsset(bytes)) !== m[1]) throw new HttpError(400, 'bad_asset')
+  const stored = await storedAssets(env, id)
+  stored.delete(file)
+  if ([...stored.values()].reduce((a, b) => a + b, bytes.length) > LIMITS.assets) throw new HttpError(413, 'too_large')
+  await env.PROJECTS.put(assetPrefix(id) + file, bytes, { httpMetadata: { contentType: ASSET_MIME[format] } })
+  return new Response(null, { status: 204 })
+}
+
+async function getAsset(env: Env, id: string, file: string, cache: string): Promise<Response> {
+  const m = ASSET_FILE.exec(file)
+  const object = m && (await env.PROJECTS.get(assetPrefix(id) + file))
+  if (!object) throw new HttpError(404, 'not_found')
+  return new Response(object.body, { headers: { 'content-type': ASSET_MIME[m[2] as AssetFormat], 'cache-control': cache } })
+}
+
 async function putThumbnail(env: Env, id: string, bytes: Uint8Array): Promise<void> {
   await env.PROJECTS.put(thumbnailKey(id), bytes, { httpMetadata: { contentType: 'image/jpeg' } })
 }
@@ -223,7 +307,7 @@ async function requireHuman(env: Env, deps: Deps, body: Record<string, unknown>)
 
 async function createProject(env: Env, deps: Deps, request: Request): Promise<Response> {
   const body = await readBody(request)
-  const { title, notes, projectJson } = readShare(body)
+  const { title, notes, projectJson, assets } = readShare(body)
   const thumbnail = readThumbnail(body)
   await requireHuman(env, deps, body)
   const editKey = randomKey()
@@ -239,7 +323,7 @@ async function createProject(env: Env, deps: Deps, request: Request): Promise<Re
     if (inserted.meta.changes === 0) continue
     await env.PROJECTS.put(objectKey(id), projectJson, { httpMetadata: { contentType: 'application/json' } })
     if (thumbnail) await putThumbnail(env, id, thumbnail)
-    return json({ id, editKey }, 201)
+    return json({ id, editKey, missingAssets: [...assets] }, 201)
   }
   throw new Error('could not find a free project id')
 }
@@ -297,7 +381,7 @@ async function updateProject(env: Env, request: Request, id: string): Promise<Re
       .run()
     return json({ id })
   }
-  const { title, notes, projectJson } = readShare(body)
+  const { title, notes, projectJson, assets } = readShare(body)
   // Without a new thumbnail the old one stays.
   const thumbnail = readThumbnail(body)
   await env.PROJECTS.put(objectKey(id), projectJson, { httpMetadata: { contentType: 'application/json' } })
@@ -308,7 +392,7 @@ async function updateProject(env: Env, request: Request, id: string): Promise<Re
   )
     .bind(title, notes, byteLength(projectJson), Date.now(), thumbnail ? 1 : 0, id)
     .run()
-  return json({ id })
+  return json({ id, missingAssets: await syncAssets(env, id, assets) })
 }
 
 async function deleteProject(env: Env, id: string): Promise<Response> {
@@ -316,7 +400,8 @@ async function deleteProject(env: Env, id: string): Promise<Response> {
     env.DB.prepare('DELETE FROM reports WHERE project_id = ?').bind(id),
     env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(id),
   ])
-  await env.PROJECTS.delete([objectKey(id), thumbnailKey(id)])
+  const assets = [...(await storedAssets(env, id)).keys()].map((name) => assetPrefix(id) + name)
+  await env.PROJECTS.delete([objectKey(id), thumbnailKey(id), ...assets])
   return new Response(null, { status: 204 })
 }
 
@@ -374,6 +459,7 @@ async function getForReview(env: Env, id: string): Promise<Response> {
     reports: row.reports,
     hasThumbnail: !!row.has_thumbnail,
     project: object ? JSON.parse(await object.text()) : null,
+    assets: [...(await storedAssets(env, id)).keys()],
   })
 }
 
@@ -415,6 +501,12 @@ export async function handleApi(request: Request, env: Env, deps: Deps = default
         return await deleteProject(env, id)
       }
       if (path.length === 3 && path[2] === 'thumbnail' && method === 'GET') return await getThumbnail(env, id)
+      if (path.length === 4 && path[2] === 'assets' && method === 'GET') {
+        const row = await findProject(env, id)
+        if (!row || row.status !== 'shared') throw new HttpError(404, 'not_found')
+        return await getAsset(env, id, path[3], 'public, max-age=300')
+      }
+      if (path.length === 4 && path[2] === 'assets' && method === 'PUT') return await putAsset(env, request, id, path[3])
       if (path.length === 3 && path[2] === 'reports' && method === 'POST') return await reportProject(env, deps, request, id)
     }
     if (path[0] === 'admin' && path[1] === 'projects') {
@@ -423,6 +515,10 @@ export async function handleApi(request: Request, env: Env, deps: Deps = default
       if (path.length === 2 && method === 'GET') return await listForReview(env)
       if (path.length === 3 && method === 'GET') return await getForReview(env, id)
       if (path.length === 4 && method === 'GET' && path[3] === 'thumbnail') return await getThumbnailForReview(env, id)
+      if (path.length === 5 && method === 'GET' && path[3] === 'assets') {
+        if (!(await findProject(env, id))) throw new HttpError(404, 'not_found')
+        return await getAsset(env, id, path[4], 'no-store')
+      }
       if (path.length === 4 && method === 'POST' && path[3] === 'hide') return await setStatus(env, id, 'hidden')
       if (path.length === 4 && method === 'POST' && path[3] === 'restore') return await setStatus(env, id, 'shared')
       if (path.length === 3 && method === 'DELETE') {

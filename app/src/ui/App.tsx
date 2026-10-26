@@ -4,7 +4,7 @@ import { localize } from '../engine/extension'
 import { ProjectFormatError } from '../engine/project'
 import { BUILTIN_EXTENSIONS } from '../extensions'
 import { changeLocale, getLocale, LOCALES, t, type Locale } from '../i18n'
-import { fetchShared, projectApiUrl } from '../share/client'
+import { fetchShared, fetchSharedAsset, projectApiUrl } from '../share/client'
 import type { Stage3D } from '../stage/Stage3D'
 import { DialogHost, showAlert, showConfirm } from './dialogs'
 import { listenKeys } from './keys'
@@ -136,7 +136,7 @@ async function openSharedFromUrl(): Promise<void> {
   try {
     const shared = await fetchShared(projectApiUrl(id))
     if (!(await showConfirm(t('menu.confirmOpenShared', { title: shared.title })))) return
-    store.openProject(JSON.stringify(shared.project))
+    await store.openShared(shared.project, (ref) => fetchSharedAsset(id, ref))
   } catch (err) {
     console.warn('could not open the shared project', err)
     await showAlert(t('menu.openSharedFailed'))

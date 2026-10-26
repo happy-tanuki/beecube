@@ -57,7 +57,7 @@ export const en: Pages = {
   },
   privacy: {
     title: 'Privacy policy',
-    updated: 'Last updated: October 18, 2026',
+    updated: 'Last updated: October 26, 2026',
     sections: [
       {
         id: 'short',
@@ -72,7 +72,7 @@ export const en: Pages = {
         id: 'share',
         heading: 'What we keep when you share',
         paragraphs: [
-          'When you press Share, we keep the title, the text about the project, the project itself and a picture of the stage. They stay until you stop sharing, or until we remove the project.',
+          'When you press Share, we keep the title, the text about the project, the project itself with the pictures you put in it, and a picture of the stage. They stay until you stop sharing, or until we remove the project.',
           'We also give your browser a secret key. Only that browser can change the project or stop sharing it.',
         ],
       },
