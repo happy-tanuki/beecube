@@ -1,6 +1,6 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
-import { assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
+import { ASSET_MIME, assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
 import { plainCostume, type Costume } from '../engine/costume'
 import { availableName } from '../engine/rename'
 import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
@@ -280,7 +280,7 @@ export class ProjectStore {
   }
 
   /** Puts a picture on a face of a backdrop (null takes it off). */
-  async setFacePicture(index: number, face: FaceName, file: File | null): Promise<void> {
+  async setFacePicture(index: number, face: FaceName, file: Blob | null): Promise<void> {
     const picture = file ? await this.storePicture(await facePicture(file, face)) : null
     this.updateBackdrop(index, (b) => (b.faces[face].picture = picture))
   }
@@ -365,6 +365,19 @@ export class ProjectStore {
   /** Adds a costume from the library and wears it. */
   addLibraryCostume(entry: LibraryCostume): void {
     this.pushCostume({ name: libraryCostumeName(entry), shape: entry.shape, picture: { ...entry.picture }, layout: entry.layout })
+  }
+
+  /** Puts a painted picture on a costume, or on a new one (index null) of the shape of the one worn. */
+  async paintCostume(index: number | null, painted: Blob): Promise<void> {
+    const picture = await this.storePicture(await costumePicture(painted))
+    if (index !== null) return this.updateCostume(index, { picture })
+    this.pushCostume({ ...plainCostume(shapeName(this.editing.shape), this.editing.shape), picture })
+  }
+
+  /** The contents of a picture, to edit it; null if it can't be found. */
+  async pictureBlob(ref: AssetRef): Promise<Blob | null> {
+    const data = await this.rt.assets.load(ref)
+    return data && new Blob([data as Uint8Array<ArrayBuffer>], { type: ASSET_MIME[ref.dataFormat] })
   }
 
   /** Puts a picture on a costume (null takes it off). */

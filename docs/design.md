@@ -75,8 +75,17 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   the Earth, the Moon, a beach ball, a watermelon, a can and a traffic
   cone) is made by `app/scripts/make-costume-library.mjs`; the Earth and the
   Moon are NASA's maps. Files from before costumes open with one costume of
-  their sprite's shape. Sounds are not done yet; 3D models and a picture
-  editor are planned as costumes' next steps.
+  their sprite's shape. Sounds are not done yet; 3D models are planned as
+  costumes' next step.
+- **The picture editor** (`app/src/ui/PaintEditor.tsx`) paints a costume's
+  picture or a backdrop face's, like Scratch's paint editor in bitmap mode
+  (there is no vector mode): brush, eraser, fill, line, rectangle, ellipse,
+  text and a color picker, with undo and redo. It opens over the tab with
+  "Paint", on the picture there is or a new transparent one (a net's
+  1024 × 768, a globe's 1024 × 512, otherwise 512 × 512; a face's its
+  picture size), and shows a guide of where each part of the shape goes,
+  over the picture but not in it. What it makes is kept as an uploaded
+  picture would be.
 - **Width, depth and height** stretch a shape along its own axes, in
   percent of its size (1–2000%, 100% each by default): width along its
   heading (x at direction 90), depth across it, height up its local z axis.

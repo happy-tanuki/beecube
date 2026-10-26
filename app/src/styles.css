@@ -1082,3 +1082,181 @@ body,
   color: #8a91a6;
   font-size: 12px;
 }
+
+/* The picture editor covers the tab it is opened from, as the library does. */
+.paint-editor {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg);
+}
+
+.paint-header-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.paint-editor .library-header .paint-header-buttons button {
+  width: auto;
+  height: 30px;
+  padding: 0 16px;
+  border-radius: 15px;
+  font-size: 13px;
+}
+
+.paint-editor .library-header .paint-header-buttons button.primary {
+  background: #fff;
+  color: var(--menu-bar);
+  font-weight: bold;
+}
+
+.paint-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 12px;
+}
+
+.paint-swatches {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.paint-swatches input[type='color'] {
+  width: 32px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+}
+
+.paint-swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.paint-swatch.selected {
+  outline: 2px solid var(--menu-bar);
+  outline-offset: 1px;
+}
+
+.paint-width {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.paint-width input {
+  width: 100px;
+}
+
+.paint-width-value {
+  min-width: 24px;
+}
+
+.paint-history {
+  display: flex;
+  gap: 4px;
+}
+
+.paint-history button,
+.paint-tools button {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.paint-history button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.paint-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.paint-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.paint-tools button {
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+}
+
+.paint-tools button.selected {
+  border-color: var(--menu-bar);
+  background: #e6f0ff;
+}
+
+.paint-area {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Transparent parts show as a checkerboard. */
+.paint-canvas {
+  position: relative;
+  flex: none;
+  box-shadow: 0 0 0 1px var(--border);
+  background: repeating-conic-gradient(#e4e8ef 0 25%, #fff 0 50%) 0 0 / 16px 16px;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.paint-canvas.tool-text {
+  cursor: text;
+}
+
+.paint-canvas canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* The guide is only shown: the pointer goes to the picture. */
+.paint-canvas canvas:last-of-type {
+  pointer-events: none;
+}
+
+.paint-text {
+  position: absolute;
+  min-width: 80px;
+  padding: 0;
+  border: 1px dashed var(--menu-bar);
+  background: rgba(255, 255, 255, 0.6);
+  font-family: sans-serif;
+  font-weight: bold;
+  line-height: 1;
+}

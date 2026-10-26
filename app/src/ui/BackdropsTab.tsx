@@ -4,6 +4,8 @@ import { t } from '../i18n'
 import { assetUrl } from './assetUrls'
 import { libraryAssetUrl, libraryRoomName, librarySceneryName, ROOM_LIBRARY, SCENERY_LIBRARY } from './library'
 import { showAlert } from './dialogs'
+import { PaintEditor } from './PaintEditor'
+import { pictureSize } from './pictures'
 import { backdropPreview } from './StagePane'
 import type { ProjectStore } from './store'
 
@@ -64,7 +66,7 @@ function NameField({ store, index, backdrop }: { store: ProjectStore; index: num
   )
 }
 
-function FaceRow({ store, index, backdrop, name }: { store: ProjectStore; index: number; backdrop: BackdropData; name: FaceName }) {
+function FaceRow({ store, index, backdrop, name, onPaint }: { store: ProjectStore; index: number; backdrop: BackdropData; name: FaceName; onPaint: () => void }) {
   const update = (change: (b: BackdropData) => void) => store.updateBackdrop(index, change)
   const { color, picture } = backdrop.faces[name]
   const picker = useImagePicker((file) => store.setFacePicture(index, name, file))
@@ -103,6 +105,7 @@ function FaceRow({ store, index, backdrop, name }: { store: ProjectStore; index:
         ) : (
           <button onClick={picker.pick}>{t('backdrop.addPicture')}</button>
         )}
+        <button onClick={onPaint}>{t('backdrop.paint')}</button>
       </td>
     </tr>
   )
@@ -158,7 +161,14 @@ function RoomRow({ onChoose }: { onChoose: () => void }) {
   )
 }
 
-function BackdropForm({ store, index, backdrop, onChoose }: { store: ProjectStore; index: number; backdrop: BackdropData; onChoose: (library: LibraryKind) => void }) {
+function BackdropForm(props: {
+  store: ProjectStore
+  index: number
+  backdrop: BackdropData
+  onChoose: (library: LibraryKind) => void
+  onPaint: (face: FaceName) => void
+}) {
+  const { store, index, backdrop, onChoose, onPaint } = props
   const update = (change: (b: BackdropData) => void) => store.updateBackdrop(index, change)
   return (
     <div className="backdrop-form">
@@ -168,7 +178,7 @@ function BackdropForm({ store, index, backdrop, onChoose }: { store: ProjectStor
           <SceneryRow store={store} index={index} backdrop={backdrop} onChoose={() => onChoose('scenery')} />
           <RoomRow onChoose={() => onChoose('room')} />
           {FACES.map((name) => (
-            <FaceRow key={name} store={store} index={index} backdrop={backdrop} name={name} />
+            <FaceRow key={name} store={store} index={index} backdrop={backdrop} name={name} onPaint={() => onPaint(name)} />
           ))}
         </tbody>
       </table>
@@ -251,8 +261,14 @@ export function BackdropsTab({ store }: { store: ProjectStore }) {
   useTicker(250)
   const [menuOpen, setMenuOpen] = useState(false)
   const [library, setLibrary] = useState<LibraryKind | null>(null)
+  /** The face whose picture is being painted, and the picture to start from. */
+  const [painting, setPainting] = useState<{ face: FaceName; source: Blob | null } | null>(null)
   const upload = useImagePicker((file) => store.uploadBackdrop(file))
   const { list, current, backdrop } = store.rt.backdrops
+  const paint = async (face: FaceName) => {
+    const picture = backdrop.faces[face].picture
+    setPainting({ face, source: picture && (await store.pictureBlob(picture)) })
+  }
   const choose = (open: () => void) => () => {
     setMenuOpen(false)
     open()
@@ -294,7 +310,17 @@ export function BackdropsTab({ store }: { store: ProjectStore }) {
           )}
         </div>
       </div>
-      <BackdropForm key={backdrop.id} store={store} index={current} backdrop={backdrop} onChoose={setLibrary} />
+      <BackdropForm key={backdrop.id} store={store} index={current} backdrop={backdrop} onChoose={setLibrary} onPaint={(face) => void paint(face)} />
+      {painting && (
+        <PaintEditor
+          title={`${backdrop.name}: ${t(`backdrop.face.${painting.face}`)}`}
+          source={painting.source}
+          size={pictureSize(painting.face)}
+          guide={[]}
+          onSave={(picture) => store.setFacePicture(current, painting.face, picture)}
+          onClose={() => setPainting(null)}
+        />
+      )}
       {library && <BackdropLibrary store={store} index={current} kind={library} onClose={() => setLibrary(null)} />}
     </div>
   )

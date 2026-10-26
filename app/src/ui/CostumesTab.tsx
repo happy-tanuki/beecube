@@ -11,6 +11,8 @@ import { t, type MessageKey } from '../i18n'
 import { assetUrl } from './assetUrls'
 import { Library, useImagePicker, useTicker } from './BackdropsTab'
 import { COSTUME_LIBRARY, libraryAssetUrl, libraryCostumeName } from './library'
+import { costumeGuide, newCostumeSize } from './paint'
+import { PaintEditor } from './PaintEditor'
 import { SHAPE_ICONS } from './SpritePane'
 import { SHAPES, shapeName, type ProjectStore } from './store'
 
@@ -79,7 +81,7 @@ function NetGuide({ shape }: { shape: Exclude<ShapeKind, 'sphere'> }) {
   )
 }
 
-function CostumeForm({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
+function CostumeForm({ store, index, costume, onPaint }: { store: ProjectStore; index: number; costume: Costume; onPaint: () => void }) {
   const picker = useImagePicker((file) => store.setCostumePicture(index, file))
   const url = costume.picture && assetUrl(store.rt.assets, costume.picture)
   const { shape } = costume
@@ -108,6 +110,7 @@ function CostumeForm({ store, index, costume }: { store: ProjectStore; index: nu
           </>
         ) : null}
         <button onClick={picker.pick}>{t('costume.uploadPicture')}</button>
+        <button onClick={onPaint}>{t('costume.paint')}</button>
       </div>
       {shape === 'sphere' ? (
         <p className="costume-note">{t('costume.sphereNote')}</p>
@@ -136,9 +139,17 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
   useTicker(250)
   const [menuOpen, setMenuOpen] = useState(false)
   const [library, setLibrary] = useState(false)
+  /** The costume whose picture is being painted (null for a new one), and the picture to start from. */
+  const [painting, setPainting] = useState<{ index: number | null; source: Blob | null } | null>(null)
   const upload = useImagePicker((file) => store.uploadCostume(file))
   const sprite = store.editing
   const current = sprite.costume
+  const paint = async (index: number | null) => {
+    const picture = index === null ? null : sprite.costumes[index].picture
+    setPainting({ index, source: picture && (await store.pictureBlob(picture)) })
+  }
+  // A new costume is painted for the shape worn, with its whole picture on every side.
+  const painted = painting && (painting.index === null ? { ...sprite.costumes[current], layout: 'same' as const } : sprite.costumes[painting.index])
   const choose = (open: () => void) => () => {
     setMenuOpen(false)
     open()
@@ -181,12 +192,23 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
             <div className="add-sprite-menu backdrop-add-menu">
               <button onClick={choose(() => setLibrary(true))}>{t('costume.choose')}</button>
               <button onClick={choose(upload.pick)}>{t('costume.upload')}</button>
+              <button onClick={choose(() => void paint(null))}>{t('costume.paintNew')}</button>
               <button onClick={choose(() => store.addCostume())}>{t('costume.add')}</button>
             </div>
           )}
         </div>
       </div>
-      <CostumeForm key={`${sprite.id}:${current}`} store={store} index={current} costume={sprite.costumes[current]} />
+      <CostumeForm key={`${sprite.id}:${current}`} store={store} index={current} costume={sprite.costumes[current]} onPaint={() => void paint(current)} />
+      {painting && painted && (
+        <PaintEditor
+          title={painting.index === null ? t('costume.paintNew') : painted.name}
+          source={painting.source}
+          size={newCostumeSize(painted.shape, painted.layout)}
+          guide={costumeGuide(painted.shape, painted.layout)}
+          onSave={(picture) => store.paintCostume(painting.index, picture)}
+          onClose={() => setPainting(null)}
+        />
+      )}
       {library && (
         <Library
           title={t('costume.choose')}
