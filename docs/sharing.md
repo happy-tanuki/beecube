@@ -13,9 +13,9 @@ open, including on a phone. The audience is children (see
 - **Storage.** D1 keeps each shared project's metadata: title, notes, the
   hash of its edit key, its status and its report count
   (`app/migrations/`). R2 keeps the project JSON at `projects/<id>.json`
-  and its pictures at `assets/<id>/<sha-256>.<png|jpg>`.
-- **Pictures** are assets, as in the editor: the project JSON refers to
-  them by hash. Settled on 2026-10-26:
+  and its pictures and 3D models at `assets/<id>/<sha-256>.<png|jpg|glb>`.
+- **Pictures and 3D models** are assets, as in the editor: the project JSON
+  refers to them by hash. Settled on 2026-10-26:
   - They are kept **per project**, not for everyone as Scratch's asset
     server does. Stopping sharing or a moderator's delete removes them
     with the project, and a picture can't be seen through another
@@ -92,7 +92,7 @@ project. A request with a wrong key gets
   indexed), does this from a browser. For each project it shows the title,
   notes, picture, every text typed into the project (names, values, text
   in blocks), since text is what usually needs checking, and every picture
-  uploaded with it (library pictures are left out). The token is kept
+  and 3D model uploaded with it, models drawn (the library's are left out). The token is kept
   for the browser tab only.
 - **What is accepted.**
   - Titles: up to 80 characters, required.
@@ -101,9 +101,9 @@ project. A request with a wrong key gets
   - Requests: up to 2 MB.
   - The link-preview picture: JPEG only (checked by its first bytes), up
     to 300 KB.
-  - The project's pictures: PNG or JPEG (checked by their first bytes),
-    named by the SHA-256 of their contents (checked too), up to 5 MB each
-    and 20 MB for a project.
+  - The project's pictures and 3D models: PNG, JPEG or binary glTF
+    (checked by their first bytes), named by the SHA-256 of their contents
+    (checked too), up to 5 MB each and 20 MB for a project.
   - The project must pass the same validation as opening a file, and it is
     stored re-serialized, so unknown fields are dropped.
 - **The player shows only shared projects and bundled samples, by id.** It

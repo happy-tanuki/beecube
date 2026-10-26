@@ -20,7 +20,7 @@ export interface ReviewDetail {
   reports: number
   hasThumbnail: boolean
   project: unknown
-  /** The project's own pictures (file names), as uploaded. */
+  /** The project's own pictures and 3D models (file names), as uploaded. */
   assets: string[]
 }
 
@@ -54,6 +54,11 @@ export class AdminApi {
   /** An object URL for one of the project's pictures; revoke it when done. */
   async assetUrl(id: string, file: string): Promise<string> {
     return URL.createObjectURL(await (await this.call('GET', `/${id}/assets/${file}`)).blob())
+  }
+
+  /** One of the project's assets, as bytes (for drawing a 3D model). */
+  async assetBytes(id: string, file: string): Promise<Uint8Array> {
+    return new Uint8Array(await (await this.call('GET', `/${id}/assets/${file}`)).arrayBuffer())
   }
 
   async hide(id: string): Promise<void> {

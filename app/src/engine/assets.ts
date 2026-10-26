@@ -1,11 +1,14 @@
 /**
- * Assets: pictures a project uses, kept apart from the project's JSON as in
+ * Assets: pictures and 3D models a project uses, kept apart from the project's JSON as in
  * Scratch. The JSON refers to an asset by the hash of its contents and its
  * format; the contents live here while the project is open, and in the
  * browser's storage or the project file's zip when it is saved.
  */
 
-export type AssetFormat = 'png' | 'jpg'
+export type AssetFormat = 'png' | 'jpg' | 'glb'
+
+/** Formats of pictures (the others are 3D models, binary glTF). */
+export type PictureFormat = 'png' | 'jpg'
 
 export interface AssetRef {
   /** The SHA-256 of the contents, in hex. */
@@ -13,9 +16,16 @@ export interface AssetRef {
   dataFormat: AssetFormat
 }
 
-export const ASSET_FORMATS: AssetFormat[] = ['png', 'jpg']
+export const ASSET_FORMATS: AssetFormat[] = ['png', 'jpg', 'glb']
+export const PICTURE_FORMATS: PictureFormat[] = ['png', 'jpg']
 
-export const ASSET_MIME: Record<AssetFormat, string> = { png: 'image/png', jpg: 'image/jpeg' }
+export const ASSET_MIME: Record<AssetFormat, string> = { png: 'image/png', jpg: 'image/jpeg', glb: 'model/gltf-binary' }
+
+/** An asset file's name, `<sha-256>.<format>`, split; null if it isn't one. */
+export function parseAssetFileName(name: string): AssetRef | null {
+  const m = /^([0-9a-f]{64})\.(png|jpg|glb)$/.exec(name)
+  return m ? { assetId: m[1], dataFormat: m[2] as AssetFormat } : null
+}
 
 /** The asset's file name in a project file's zip (and on a web server). */
 export const assetFileName = (ref: AssetRef): string => `${ref.assetId}.${ref.dataFormat}`

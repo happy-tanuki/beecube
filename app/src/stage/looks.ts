@@ -1,9 +1,10 @@
 /**
  * Drawing costumes' looks (engine/costume.ts): each shape's geometry with
- * texture coordinates for the ways a picture wraps it, and materials that
- * show a picture over the sprite's color (its transparent parts show the
- * color, as a backdrop's faces do). Pictures load from the runtime's assets;
- * until one has, the shape shows its color.
+ * texture coordinates for the ways a picture wraps it, materials that show
+ * a picture over the sprite's color (its transparent parts show the color,
+ * as a backdrop's faces do), and models (models.ts). Pictures and models
+ * load from the runtime's assets; until a picture has, the shape shows its
+ * color, and until a model has, nothing is drawn.
  *
  * Shapes are built in local space: x is the front (the heading), y the
  * left and z up. Seen from outside, a face's picture is upright; the top's
@@ -14,6 +15,8 @@ import { APP_ID } from '../brand'
 import { ASSET_MIME, assetFileName, type AssetRef, type Assets } from '../engine/assets'
 import { NET_COLUMNS, NET_ROWS, type CostumeLayout, type Look } from '../engine/costume'
 import { BASE_SIZE, SHAPES } from '../engine/types'
+import type { BatchPart } from './instances'
+import { modelParts, readModel } from './models'
 
 /** A part of the picture, in texture coordinates (v up): left, bottom, width, height. */
 type Region = [number, number, number, number]
@@ -152,23 +155,47 @@ diffuseColor.rgb = mix(diffuseColor.rgb, pictureTexel.rgb, pictureTexel.a);
 }
 
 /**
- * Geometries and materials for looks, made when first asked for and kept.
- * `makeMaterial` makes a plain material of the kind the caller draws with
- * (instanced with pose attributes, or not).
+ * What to draw for each look (a batch's parts), made when first asked for
+ * and kept: a plain shape, a shape with its picture, or a model's meshes.
+ * `prepare` readies each material for how the caller draws (the pose
+ * attributes).
  */
 export class LookResources {
+  private readonly plainMaterial: THREE.MeshStandardMaterial
   private readonly geometries = new Map<string, THREE.BufferGeometry>()
   private readonly materials = new Map<string, THREE.MeshStandardMaterial>()
   private readonly textures = new Map<string, THREE.Texture>()
+  private readonly models = new Map<string, Promise<BatchPart[]>>()
 
   constructor(
     private readonly assets: Assets,
     private readonly plainGeometries: THREE.BufferGeometry[],
-    private readonly plainMaterial: THREE.Material,
-    private readonly makeMaterial: () => THREE.MeshStandardMaterial,
-  ) {}
+    private readonly prepare: (material: THREE.Material) => void,
+  ) {
+    this.plainMaterial = this.makeMaterial()
+  }
 
-  geometry(look: Look): THREE.BufferGeometry {
+  private makeMaterial(): THREE.MeshStandardMaterial {
+    const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55 })
+    this.prepare(m)
+    return m
+  }
+
+  /** The material plain shapes are drawn with. */
+  get material(): THREE.Material {
+    return this.plainMaterial
+  }
+
+  /** A look's parts now; a model's are none until it has loaded, when `ready` gets them. */
+  parts(look: Look, ready: (parts: BatchPart[]) => void): BatchPart[] {
+    if (look.model) {
+      void this.model(look.model).then(ready)
+      return []
+    }
+    return [{ geometry: this.geometry(look), material: this.pictureMaterial(look), tinted: true }]
+  }
+
+  private geometry(look: Look): THREE.BufferGeometry {
     if (!look.picture) return this.plainGeometries[look.shape]
     const key = `${look.shape}:${look.layout}`
     let g = this.geometries.get(key)
@@ -176,7 +203,7 @@ export class LookResources {
     return g
   }
 
-  material(look: Look): THREE.Material {
+  private pictureMaterial(look: Look): THREE.Material {
     if (!look.picture) return this.plainMaterial
     const key = assetFileName(look.picture)
     let m = this.materials.get(key)
@@ -192,6 +219,26 @@ export class LookResources {
       })
     }
     return m
+  }
+
+  private model(ref: AssetRef): Promise<BatchPart[]> {
+    const key = assetFileName(ref)
+    let parts = this.models.get(key)
+    if (!parts) {
+      parts = (async () => {
+        const data = await this.assets.load(ref)
+        if (!data) return []
+        return modelParts(await readModel(data)).map(({ geometry, material }) => {
+          for (const m of Array.isArray(material) ? material : [material]) this.prepare(m)
+          return { geometry, material, tinted: false }
+        })
+      })().catch((err) => {
+        console.warn(`LookResources: the model ${key} could not be read`, err)
+        return []
+      })
+      this.models.set(key, parts)
+    }
+    return parts
   }
 
   private async load(ref: AssetRef): Promise<THREE.Texture | null> {
@@ -215,8 +262,17 @@ export class LookResources {
   }
 
   dispose(): void {
+    this.plainMaterial.dispose()
     for (const g of this.geometries.values()) g.dispose()
     for (const m of this.materials.values()) m.dispose()
     for (const t of this.textures.values()) t.dispose()
+    for (const parts of this.models.values()) {
+      void parts.then((ps) => {
+        for (const p of ps) {
+          p.geometry.dispose()
+          for (const m of Array.isArray(p.material) ? p.material : [p.material]) m.dispose()
+        }
+      })
+    }
   }
 }

@@ -75,8 +75,21 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   the Earth, the Moon, a beach ball, a watermelon, a can and a traffic
   cone) is made by `app/scripts/make-costume-library.mjs`; the Earth and the
   Moon are NASA's maps. Files from before costumes open with one costume of
-  their sprite's shape. Sounds are not done yet; 3D models are planned as
-  costumes' next step.
+  their sprite's shape. Sounds are not done yet.
+- **3D models as costumes.** A costume can be a binary glTF file (`.glb`,
+  up to 5 MB) in place of a shape and picture (`app/src/stage/models.ts`).
+  It is turned from glTF's axes (up +y, front +z) to the sprite's (up +z,
+  front +x), centered on its box, and scaled so the box's longest side is a
+  cube's; it keeps its own colors (the sprite's color doesn't show; metal
+  is made mostly matte, as the stage has nothing to reflect). It touches
+  things, bounces and takes part in physics as that box: the costume keeps
+  the box's proportions, and the store an extent per axis that collisions
+  multiply width, depth and height by. Skinned models are drawn as their
+  skeleton stands; animations are not played yet. The library adds 24
+  models from Kenney's kits (CC0): animals, children, cars, space, trees
+  and food, re-exported with their textures inside. Models are assets like
+  pictures, so they are saved, shared and moderated the same way (the
+  moderation page draws them).
 - **The picture editor** (`app/src/ui/PaintEditor.tsx`) paints a costume's
   picture or a backdrop face's, like Scratch's paint editor in bitmap mode
   (there is no vector mode): brush, eraser, fill, line, rectangle, ellipse,

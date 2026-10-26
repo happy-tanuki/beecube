@@ -13,9 +13,20 @@ import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
 import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
 import { isLibraryAsset, libraryCostumeName, loadLibraryAsset, type LibraryCostume, type LibraryRoom, type LibraryScenery } from './library'
+import { modelSize, readModel } from '../stage/models'
 import { costumePicture, facePicture, panoramaPicture, type Picture } from './pictures'
 import { readProjectFile, writeProjectFile } from './projectFile'
 import { sampleScript } from './sample'
+
+/** The largest 3D model file accepted (the sharing API's limit for one asset). */
+export const MODEL_MAX_BYTES = 5_000_000
+
+/** Why a 3D model file can't be used, as a message key's last part (costume.modelError.*). */
+export class ModelError extends Error {
+  constructor(readonly reason: 'tooLarge' | 'notGlb' | 'unreadable' | 'empty') {
+    super(`model: ${reason}`)
+  }
+}
 
 export const SHAPES: ShapeKind[] = ['cube', 'sphere', 'cone', 'cylinder']
 
@@ -359,12 +370,36 @@ export class ProjectStore {
   async uploadCostume(file: File): Promise<void> {
     const picture = await this.storePicture(await costumePicture(file))
     const name = file.name.replace(/\.[^.]*$/, '') || shapeName(this.editing.shape)
-    this.pushCostume({ name, shape: this.editing.shape, picture, layout: 'same' })
+    this.pushCostume({ ...plainCostume(name, this.editing.shape), picture })
   }
 
   /** Adds a costume from the library and wears it. */
   addLibraryCostume(entry: LibraryCostume): void {
-    this.pushCostume({ name: libraryCostumeName(entry), shape: entry.shape, picture: { ...entry.picture }, layout: entry.layout })
+    const c = plainCostume(libraryCostumeName(entry), entry.shape)
+    if (entry.picture) c.picture = { ...entry.picture }
+    if (entry.model) c.model = { asset: { ...entry.model.asset }, size: [...entry.model.size] }
+    this.pushCostume({ ...c, layout: entry.layout })
+  }
+
+  /**
+   * Adds a costume that is a 3D model (a binary glTF file) and wears it.
+   * Throws ModelError if the file can't be used.
+   */
+  async uploadModel(file: File): Promise<void> {
+    if (file.size > MODEL_MAX_BYTES) throw new ModelError('tooLarge')
+    const data = new Uint8Array(await file.arrayBuffer())
+    // Binary glTF starts with "glTF".
+    if (!(data[0] === 0x67 && data[1] === 0x6c && data[2] === 0x54 && data[3] === 0x46)) throw new ModelError('notGlb')
+    const size = modelSize(await readModel(data).catch(() => Promise.reject(new ModelError('unreadable'))))
+    if (!size) throw new ModelError('empty')
+    const asset = await this.rt.assets.add(data, 'glb')
+    const name = file.name.replace(/\.[^.]*$/, '') || t('costume.model')
+    this.pushCostume({ ...plainCostume(name, 'cube'), model: { asset, size } })
+  }
+
+  /** Takes the model off a costume: it is its shape again. */
+  removeModel(index: number): void {
+    this.updateCostume(index, { model: null })
   }
 
   /** Puts a painted picture on a costume, or on a new one (index null) of the shape of the one worn. */

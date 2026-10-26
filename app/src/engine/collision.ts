@@ -30,9 +30,9 @@ export function halfSize(E: EntityStore, slot: number): number {
   return E.size[slot] * HALF_PER_PERCENT
 }
 
-/** The largest of width, depth and height, as a factor. */
+/** The largest stretch along the local axes, as a factor: width, depth and height, times the look's extent. */
 function maxStretch(E: EntityStore, slot: number): number {
-  return Math.max(E.width[slot], E.depth[slot], E.height[slot]) / 100
+  return Math.max(E.width[slot] * E.extentX[slot], E.depth[slot] * E.extentY[slot], E.height[slot] * E.extentZ[slot]) / 100
 }
 
 export function boundingRadius(E: EntityStore, slot: number): number {
@@ -106,9 +106,9 @@ function loadPose(E: EntityStore, slot: number): void {
   POSE[5] = E.direction[slot]
   POSE[6] = E.pitch[slot]
   POSE[7] = E.roll[slot]
-  POSE[8] = E.width[slot]
-  POSE[9] = E.depth[slot]
-  POSE[10] = E.height[slot]
+  POSE[8] = E.width[slot] * E.extentX[slot]
+  POSE[9] = E.depth[slot] * E.extentY[slot]
+  POSE[10] = E.height[slot] * E.extentZ[slot]
 }
 
 function loadShape(s: Shape, E: EntityStore, slot: number): void {
@@ -337,11 +337,11 @@ const HALF = new Float64Array(6)
 function boxHalfExtents(E: EntityStore, slot: number, h: number, o: number): void {
   // Facing up or down the y axis (direction 0 or 180), the box's width runs along y.
   const across = E.direction[slot] % 180 === 0
-  const w = (h * E.width[slot]) / 100
-  const d = (h * E.depth[slot]) / 100
+  const w = (h * E.width[slot] * E.extentX[slot]) / 100
+  const d = (h * E.depth[slot] * E.extentY[slot]) / 100
   HALF[o] = across ? d : w
   HALF[o + 1] = across ? w : d
-  HALF[o + 2] = (h * E.height[slot]) / 100
+  HALF[o + 2] = (h * E.height[slot] * E.extentZ[slot]) / 100
 }
 
 /**

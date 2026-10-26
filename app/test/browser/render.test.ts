@@ -9,6 +9,9 @@ import { Runtime } from '../../src/engine/runtime'
 import { EntityStore, F_ALIVE, F_VISIBLE } from '../../src/engine/store'
 import { SHAPES } from '../../src/engine/types'
 import { EntityInstances, usePoseAttributes, writeMatrix } from '../../src/stage/instances'
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
+import { plainCostume } from '../../src/engine/costume'
+import { modelSize, readModel } from '../../src/stage/models'
 import { Stage3D } from '../../src/stage/Stage3D'
 import { makeSprite } from '../helpers'
 
@@ -164,12 +167,35 @@ describe('Stage3D', () => {
     const png = new Uint8Array(await (await new Promise<Blob>((resolve) => picture.toBlob((b) => resolve(b!), 'image/png'))).arrayBuffer())
     const rt = new Runtime({ randomSeed: 1 })
     const ref = await rt.assets.add(png, 'png')
-    const costume = { name: 'hole', shape: 'cube' as const, picture: ref, layout: 'same' as const }
+    const costume = { name: 'hole', shape: 'cube' as const, picture: ref, layout: 'same' as const, model: null }
     rt.addSprite(makeSprite('red', [], { z: 40, size: 200, color: '#e02020', costumes: [costume] }))
     const { colorAt } = open(rt)
     // The top face, 80 up: its middle shows the sprite's color, its corners the picture.
     await vi.waitFor(() => expect(greenish(colorAt(30, 30, 80))).toBe(true))
     expect(reddish(colorAt(0, 0, 80))).toBe(true)
+  })
+
+  it("draws a 3D model in its own colors, turned from glTF's axes to the sprite's", async () => {
+    // A red box 2 wide (glTF x, the model's left), 1 high (y) and 4 long (z, its front), with a green nose in front.
+    const box = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4), new THREE.MeshStandardMaterial({ color: '#e02020' }))
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: '#20c020' }))
+    nose.position.set(0, 0, 2.2)
+    const scene = new THREE.Scene()
+    scene.add(box, nose)
+    const glb = new Uint8Array((await new GLTFExporter().parseAsync(scene, { binary: true })) as ArrayBuffer)
+    const size = modelSize(await readModel(glb))!
+    // Along the sprite's x (front), y (left) and z (up), as fractions of the longest (4.45, with the nose).
+    expect(size.map((n) => Math.round(n * 100) / 100)).toEqual([1, 0.45, 0.22])
+    const rt = new Runtime({ randomSeed: 1 })
+    const asset = await rt.assets.add(glb, 'glb')
+    const car = { ...plainCostume('car', 'cube'), model: { asset, size } }
+    // Heading +x, as a cube of 200: the model is 80 long, its front (the nose) at x = +40.
+    rt.addSprite(makeSprite('car', [], { z: 20, size: 200, color: '#2040e0', costumes: [car] }))
+    const { colorAt } = open(rt)
+    await vi.waitFor(() => expect(reddish(colorAt(0, 0, 20 + 9))).toBe(true))
+    expect(greenish(colorAt(41, 0, 20))).toBe(true)
+    // The sprite's color doesn't show, and beside it (y = 30) is the floor.
+    expect(bluish(colorAt(0, 30, 20))).toBe(false)
   })
 
   it('interpolates between the start and end of the last tick', () => {

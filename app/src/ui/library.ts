@@ -6,7 +6,7 @@
  */
 import { assetFileName, type AssetRef } from '../engine/assets'
 import type { Face, FaceName } from '../engine/backdrop'
-import type { CostumeLayout } from '../engine/costume'
+import type { CostumeLayout, CostumeModel } from '../engine/costume'
 import type { ShapeKind } from '../engine/types'
 import { t, type MessageKey } from '../i18n'
 import costumes from './costumeLibrary.json'
@@ -28,11 +28,13 @@ export interface LibraryRoom {
   faces: Record<FaceName, Face>
 }
 
+/** A picture on a shape, or a 3D model. */
 export interface LibraryCostume {
   key: string
   shape: ShapeKind
-  picture: AssetRef
+  picture?: AssetRef
   layout: CostumeLayout
+  model?: CostumeModel
 }
 
 export const SCENERY_LIBRARY = sceneries as LibraryScenery[]

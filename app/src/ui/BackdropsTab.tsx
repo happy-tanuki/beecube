@@ -195,7 +195,8 @@ type LibraryKind = 'scenery' | 'room'
 export interface LibraryItem {
   key: string
   name: string
-  picture: string
+  /** null until it is ready (a model's is drawn first). */
+  picture: string | null
   choose: () => void
 }
 
@@ -219,7 +220,7 @@ export function Library({ title, items, onClose }: { title: string; items: Libra
               onClose()
             }}
           >
-            <img src={item.picture} alt="" loading="lazy" />
+            {item.picture ? <img src={item.picture} alt="" loading="lazy" /> : <span className="library-item-blank" />}
             <span>{item.name}</span>
           </button>
         ))}

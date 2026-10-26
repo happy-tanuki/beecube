@@ -395,11 +395,14 @@ export class Runtime {
     if (n === 0) return
     const costume = Math.min(Math.max(0, Math.floor(index) || 0), n - 1)
     const look = sprite.lookOf[costume]
-    const shape = this.looks.list[look].shape
+    const { shape, extent } = this.looks.list[look]
     s.costume[slot] = costume
     s.look[slot] = look
-    if (s.shape[slot] !== shape) {
+    if (s.shape[slot] !== shape || s.extentX[slot] !== extent[0] || s.extentY[slot] !== extent[1] || s.extentZ[slot] !== extent[2]) {
       s.shape[slot] = shape
+      s.extentX[slot] = extent[0]
+      s.extentY[slot] = extent[1]
+      s.extentZ[slot] = extent[2]
       this.posesChanged(slot)
     }
   }

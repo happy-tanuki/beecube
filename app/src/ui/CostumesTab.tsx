@@ -1,10 +1,11 @@
 /**
  * A sprite's Costumes tab, as Scratch's: the list (choosing one puts it on
- * the sprite), adding one (from the library, uploaded, or without a
- * picture), and the chosen one's name, shape, picture and how the picture
- * wraps the shape (engine/costume.ts).
+ * the sprite), adding one (from the library, uploaded, painted, a 3D model,
+ * or without a picture), and the chosen one's name, shape, picture and how
+ * the picture wraps the shape, or its model (engine/costume.ts).
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { Assets } from '../engine/assets'
 import { COSTUME_LAYOUTS, type Costume } from '../engine/costume'
 import type { ShapeKind } from '../engine/types'
 import { t, type MessageKey } from '../i18n'
@@ -13,8 +14,16 @@ import { Library, useImagePicker, useTicker } from './BackdropsTab'
 import { COSTUME_LIBRARY, libraryAssetUrl, libraryCostumeName } from './library'
 import { costumeGuide, newCostumeSize } from './paint'
 import { PaintEditor } from './PaintEditor'
+import { showAlert } from './dialogs'
+import { modelThumbnail } from './modelThumbnails'
 import { SHAPE_ICONS } from './SpritePane'
-import { SHAPES, shapeName, type ProjectStore } from './store'
+import { ModelError, SHAPES, shapeName, type ProjectStore } from './store'
+
+/** A costume's picture for the page: its model drawn, or its picture; null if it has neither (or it isn't ready). */
+export function costumeThumbnail(assets: Assets, c: Costume): string | null {
+  if (c.model) return modelThumbnail(assets, c.model.asset)
+  return c.picture && assetUrl(assets, c.picture)
+}
 
 /** Applied on Enter or leaving the field, so blocks that refer to the costume follow once. */
 function NameField({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
@@ -81,10 +90,29 @@ function NetGuide({ shape }: { shape: Exclude<ShapeKind, 'sphere'> }) {
   )
 }
 
+/** A model costume's form: the model, which can be taken off to leave the shape. */
+function ModelForm({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
+  const url = costumeThumbnail(store.rt.assets, costume)
+  return (
+    <div className="backdrop-form costume-form">
+      <NameField store={store} index={index} costume={costume} />
+      <div className="field costume-picture">
+        <span>{t('costume.model')}</span>
+        <span className="face-picture-thumb costume-model-thumb" style={url ? { backgroundImage: `url("${url}")` } : undefined} />
+        <button className="face-picture-remove" title={t('costume.removeModel')} onClick={() => store.removeModel(index)}>
+          ×
+        </button>
+      </div>
+      <p className="costume-note">{t('costume.modelNote')}</p>
+    </div>
+  )
+}
+
 function CostumeForm({ store, index, costume, onPaint }: { store: ProjectStore; index: number; costume: Costume; onPaint: () => void }) {
   const picker = useImagePicker((file) => store.setCostumePicture(index, file))
   const url = costume.picture && assetUrl(store.rt.assets, costume.picture)
   const { shape } = costume
+  if (costume.model) return <ModelForm store={store} index={index} costume={costume} />
   return (
     <div className="backdrop-form costume-form">
       <NameField store={store} index={index} costume={costume} />
@@ -142,6 +170,7 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
   /** The costume whose picture is being painted (null for a new one), and the picture to start from. */
   const [painting, setPainting] = useState<{ index: number | null; source: Blob | null } | null>(null)
   const upload = useImagePicker((file) => store.uploadCostume(file))
+  const modelInput = useRef<HTMLInputElement>(null)
   const sprite = store.editing
   const current = sprite.costume
   const paint = async (index: number | null) => {
@@ -159,12 +188,12 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
       <div className="backdrop-column">
         <div className="backdrop-list">
           {sprite.costumes.map((c, i) => {
-            const url = c.picture && assetUrl(store.rt.assets, c.picture)
+            const url = costumeThumbnail(store.rt.assets, c)
             return (
               <div key={i} className={`backdrop-tile${i === current ? ' selected' : ''}`} onClick={() => store.selectCostume(i)}>
                 <span className="backdrop-number">{i + 1}</span>
                 <span className="backdrop-thumb costume-thumb" style={url ? { backgroundImage: `url("${url}")` } : { color: sprite.color }}>
-                  {!c.picture && SHAPE_ICONS[c.shape]}
+                  {!c.picture && !c.model && SHAPE_ICONS[c.shape]}
                 </span>
                 <span className="backdrop-name">{c.name}</span>
                 {i === current && sprite.costumes.length > 1 && (
@@ -185,6 +214,21 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
         </div>
         <div className="backdrop-add">
           {upload.element}
+          <input
+            ref={modelInput}
+            type="file"
+            accept=".glb,model/gltf-binary"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
+              store.uploadModel(file).catch((err: unknown) => {
+                const reason = err instanceof ModelError ? err.reason : 'unreadable'
+                void showAlert(t(`costume.modelError.${reason}`, { name: file.name }))
+              })
+            }}
+          />
           <button className="add-sprite-button" title={t('costume.add')} onClick={() => setMenuOpen(!menuOpen)}>
             +
           </button>
@@ -192,6 +236,7 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
             <div className="add-sprite-menu backdrop-add-menu">
               <button onClick={choose(() => setLibrary(true))}>{t('costume.choose')}</button>
               <button onClick={choose(upload.pick)}>{t('costume.upload')}</button>
+              <button onClick={choose(() => modelInput.current?.click())}>{t('costume.uploadModel')}</button>
               <button onClick={choose(() => void paint(null))}>{t('costume.paintNew')}</button>
               <button onClick={choose(() => store.addCostume())}>{t('costume.add')}</button>
             </div>
@@ -215,7 +260,7 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
           items={COSTUME_LIBRARY.map((entry) => ({
             key: entry.key,
             name: libraryCostumeName(entry),
-            picture: libraryAssetUrl(entry.picture),
+            picture: entry.model ? modelThumbnail(store.rt.assets, entry.model.asset) : libraryAssetUrl(entry.picture!),
             choose: () => store.addLibraryCostume(entry),
           }))}
           onClose={() => setLibrary(false)}

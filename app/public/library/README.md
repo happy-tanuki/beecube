@@ -40,9 +40,9 @@ map of each):
 
 ## Costumes
 
-Each entry in the costume library is a picture on one of the shapes, drawn
-by `scripts/make-costume-library.mjs` (the drawing is in
-`scripts/costumes.js`) and re-encoded as the editor re-encodes a picture a
+Each entry in the costume library is a picture on one of the shapes or a 3D
+model, made by `scripts/make-costume-library.mjs`. The pictures are drawn by
+`scripts/costumes.js` and re-encoded as the editor re-encodes a picture a
 user uploads for a costume. The list, with each one's shape and how its
 picture wraps it, is in `src/ui/costumeLibrary.json`.
 
@@ -53,3 +53,17 @@ NASA's maps (public domain), scaled down:
 | --- | --- |
 | earth | [Blue Marble: Land Surface, Shallow Water, and Shaded Topography](https://visibleearth.nasa.gov/images/57752/blue-marble-land-surface-shallow-water-and-shaded-topography) (NASA Earth Observatory) |
 | moon | [CGI Moon Kit](https://svs.gsfc.nasa.gov/4720) color map (NASA's Scientific Visualization Studio, from the Lunar Reconnaissance Orbiter) |
+
+The 3D models are from [Kenney](https://kenney.nl)'s kits, released under
+[CC0](https://creativecommons.org/publicdomain/zero/1.0/), each re-exported
+as one binary glTF file with its textures inside (and the space kit's turned
+to face +z, as the others do):
+
+| Kit | Models |
+| --- | --- |
+| [Cube Pets](https://kenney.nl/assets/cube-pets) | cat, dog, bunny, panda, penguin, chick |
+| [Mini Characters](https://kenney.nl/assets/mini-characters) | girl, boy |
+| [Car Kit](https://kenney.nl/assets/car-kit) | car, police car, fire truck, race car |
+| [Space Kit](https://kenney.nl/assets/space-kit) | spaceship, alien, astronaut, rover |
+| [Nature Kit](https://kenney.nl/assets/nature-kit) | tree, pine tree, flower |
+| [Food Kit](https://kenney.nl/assets/food-kit) | apple, burger, cake, donut, pizza |

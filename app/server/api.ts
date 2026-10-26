@@ -4,7 +4,7 @@
  *   POST   /api/projects                 share: { title, notes, project, thumbnail? } → { id, editKey }
  *   GET    /api/projects/:id             → { id, title, notes, project, createdAt, updatedAt }
  *   GET    /api/projects/:id/thumbnail   the link-preview picture (JPEG)
- *   GET    /api/projects/:id/assets/:file   a picture the project uses (<sha-256>.<png|jpg>)
+ *   GET    /api/projects/:id/assets/:file   a picture or 3D model the project uses (<sha-256>.<png|jpg|glb>)
  *   PUT    /api/projects/:id/assets/:file   upload one (Authorization: Bearer <editKey>);
  *                                        the body is the file itself
  *   PUT    /api/projects/:id             update: { title, notes, project?, thumbnail? }
@@ -16,8 +16,8 @@
  *
  * `thumbnail` is a JPEG data URL, a picture of the stage for link previews.
  *
- * Pictures are assets, as in the editor (src/engine/assets.ts): the project
- * refers to them by hash, and they are uploaded one by one after it. They are
+ * Pictures and 3D models are assets, as in the editor (src/engine/assets.ts):
+ * the project refers to them by hash, and they are uploaded one by one after it. They are
  * kept per project, not shared between projects, so stopping sharing removes
  * them too. Sharing and updating answer with `missingAssets`, the files the
  * project uses that aren't uploaded yet (library pictures, which ship with
@@ -225,7 +225,7 @@ function readThumbnail(body: Record<string, unknown>): Uint8Array | null {
 }
 
 const assetPrefix = (id: string) => `assets/${id}/`
-const ASSET_FILE = /^([0-9a-f]{64})\.(png|jpg)$/
+const ASSET_FILE = /^([0-9a-f]{64})\.(png|jpg|glb)$/
 
 /** The project's uploaded pictures: file name → size in bytes. */
 async function storedAssets(env: Env, id: string): Promise<Map<string, number>> {
@@ -253,7 +253,12 @@ async function usedAssets(env: Env, id: string): Promise<Set<string>> {
   return object ? uploadedAssets(parseProject(JSON.parse(await object.text()))) : new Set()
 }
 
-const MAGIC: Record<AssetFormat, number[]> = { png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], jpg: [0xff, 0xd8, 0xff] }
+const MAGIC: Record<AssetFormat, number[]> = {
+  png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  jpg: [0xff, 0xd8, 0xff],
+  // Binary glTF starts with "glTF".
+  glb: [0x67, 0x6c, 0x54, 0x46],
+}
 
 async function putAsset(env: Env, request: Request, id: string, file: string): Promise<Response> {
   await ownedProject(env, request, id)

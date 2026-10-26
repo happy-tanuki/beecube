@@ -15,7 +15,7 @@ export function writeProjectFile(project: ProjectFile, assets: Map<string, Uint8
   for (const ref of projectAssets(project)) {
     const name = assetFileName(ref)
     const data = assets.get(name)
-    // Pictures are compressed already (see the level below).
+    // Stored as they are (see the level below): pictures are compressed already.
     if (data) files[name] = data
   }
   return zipSync(files, { level: 0 })

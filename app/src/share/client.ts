@@ -4,7 +4,7 @@
  * which is the only way to update or stop sharing it: there are no accounts.
  */
 import { APP_ID } from '../brand'
-import { ASSET_MIME, assetFileName, type AssetFormat, type AssetLoader, type AssetRef } from '../engine/assets'
+import { ASSET_MIME, assetFileName, parseAssetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
 
 export type ReportReason = 'personal-info' | 'mean' | 'scary' | 'other'
 
@@ -77,8 +77,8 @@ function missingRefs(data: unknown): AssetRef[] {
   const names = (data as { missingAssets?: unknown }).missingAssets
   if (!Array.isArray(names)) return []
   return names.flatMap((name) => {
-    const m = typeof name === 'string' ? /^([0-9a-f]{64})\.(png|jpg)$/.exec(name) : null
-    return m ? [{ assetId: m[1], dataFormat: m[2] as AssetFormat }] : []
+    const ref = typeof name === 'string' ? parseAssetFileName(name) : null
+    return ref ? [ref] : []
   })
 }
 

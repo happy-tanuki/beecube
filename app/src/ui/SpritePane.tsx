@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Sprite } from '../engine/sprite'
 import type { ShapeKind } from '../engine/types'
 import { t } from '../i18n'
-import { assetUrl } from './assetUrls'
+import { costumeThumbnail } from './CostumesTab'
 import { SHAPES, shapeName, type ProjectStore } from './store'
 
 interface Props {
@@ -17,10 +17,10 @@ export const SHAPE_ICONS: Record<ShapeKind, string> = {
   cylinder: '▮',
 }
 
-/** The costume worn: its picture, or its shape in the sprite's color. */
+/** The costume worn: its picture or model, or its shape in the sprite's color. */
 function SpriteThumb({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
-  const picture = sprite.costumes[sprite.costume]?.picture
-  const url = picture && assetUrl(store.rt.assets, picture)
+  const costume = sprite.costumes[sprite.costume]
+  const url = costume && costumeThumbnail(store.rt.assets, costume)
   if (url) return <div className="sprite-thumb picture" style={{ backgroundImage: `url("${url}")` }} />
   return (
     <div className="sprite-thumb" style={{ color: sprite.color }}>

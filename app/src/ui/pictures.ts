@@ -4,7 +4,7 @@
  * re-encoded in the browser (which also drops a photo's location and other
  * metadata): JPEG, or PNG when they have transparent parts.
  */
-import type { AssetFormat } from '../engine/assets'
+import type { PictureFormat } from '../engine/assets'
 import { FACE_SIZE, type FaceName } from '../engine/backdrop'
 
 /** Pictures have twice as many pixels across as the face is long, as Scratch's bitmaps have twice the stage's. */
@@ -19,7 +19,7 @@ const COSTUME_SIZE = 1024
 
 export interface Picture {
   data: Uint8Array
-  format: AssetFormat
+  format: PictureFormat
 }
 
 export const pictureSize = (face: FaceName): [number, number] => [FACE_SIZE[face][0] * RESOLUTION, FACE_SIZE[face][1] * RESOLUTION]
@@ -35,7 +35,7 @@ async function encode(c: HTMLCanvasElement, g: CanvasRenderingContext2D, quality
   const pixels = g.getImageData(0, 0, c.width, c.height).data
   let opaque = true
   for (let i = 3; i < pixels.length && opaque; i += 4) opaque = pixels[i] === 255
-  const format: AssetFormat = opaque ? 'jpg' : 'png'
+  const format: PictureFormat = opaque ? 'jpg' : 'png'
   const blob = await new Promise<Blob | null>((resolve) => c.toBlob(resolve, opaque ? 'image/jpeg' : 'image/png', quality))
   if (!blob) throw new Error('the picture could not be encoded')
   return { data: new Uint8Array(await blob.arrayBuffer()), format }

@@ -12,7 +12,7 @@ import { APP_ID } from '../brand'
 import { wrapDirection } from '../engine/ops'
 import { F_ALIVE, F_VISIBLE } from '../engine/store'
 import { Assets } from '../engine/assets'
-import type { Look } from '../engine/costume'
+import { plainLook, type Look } from '../engine/costume'
 import { BASE_SIZE, SHAPES, type ShapeKind } from '../engine/types'
 import { LookResources } from './looks'
 
@@ -54,7 +54,7 @@ const COLOR = new THREE.Color()
 const DEG = Math.PI / 180
 
 /** The plain shapes' looks, as the runtime numbers them (Looks in costume.ts). */
-const PLAIN_LOOKS: Look[] = SHAPES.map((_, shape) => ({ shape, picture: null, layout: 'same' }))
+const PLAIN_LOOKS: Look[] = SHAPES.map((_, shape) => plainLook(shape))
 
 export function makeGeometry(shape: ShapeKind): THREE.BufferGeometry {
   const s = BASE_SIZE
@@ -185,10 +185,22 @@ const POSE_ATTRIBUTES = [
   ['stretch', 3],
 ] as const
 
-/** One shape's instances, densely packed; entities are swapped with the last one when removed. */
+/** Something a batch draws for each instance: a geometry, its material, and whether instances color it (a model keeps its own colors). */
+export interface BatchPart {
+  geometry: THREE.BufferGeometry
+  material: THREE.Material | THREE.Material[]
+  tinted: boolean
+}
+
+/**
+ * One look's instances, densely packed; entities are swapped with the last
+ * one when removed. A look is drawn by one or more parts (a model's
+ * meshes), one InstancedMesh each, sharing the instances' attributes.
+ */
 export class ShapeBatch {
-  mesh: THREE.InstancedMesh
+  meshes: THREE.InstancedMesh[] = []
   count = 0
+  capacity = 0
   /** Instance → slot. */
   slots = new Int32Array(0)
   dirty = false
@@ -198,60 +210,89 @@ export class ShapeBatch {
   turnFrom = new Float32Array(0)
   turnTo = new Float32Array(0)
   stretch = new Float32Array(0)
+  /** Linear RGB, per instance. */
+  colors = new Float32Array(0)
+  private attributes: THREE.InstancedBufferAttribute[] = []
+  private colorAttribute: THREE.InstancedBufferAttribute | null = null
+  private castShadow = true
 
   constructor(
     private readonly scene: THREE.Scene,
-    private readonly shape: THREE.BufferGeometry,
-    private readonly material: THREE.Material,
+    private parts: BatchPart[],
     private readonly depthMaterial: THREE.Material,
   ) {
-    this.mesh = this.makeMesh(64)
+    this.resize(64)
   }
 
-  private makeMesh(capacity: number): THREE.InstancedMesh {
-    // Each mesh gets its own geometry sharing the shape's buffers: three.js does not pick up
-    // instanced attributes replaced on a geometry it has drawn.
-    const geometry = new THREE.BufferGeometry()
-    geometry.setIndex(this.shape.index)
-    for (const [name, attr] of Object.entries(this.shape.attributes)) geometry.setAttribute(name, attr)
-    // The matrix comes from the pose attributes, so instanceMatrix is never uploaded.
-    const mesh = new THREE.InstancedMesh(geometry, this.material, capacity)
-    mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3)
-    mesh.instanceColor.setUsage(THREE.DynamicDrawUsage)
-    for (const [name, size] of POSE_ATTRIBUTES) {
-      const array = new Float32Array(capacity * size)
-      array.set(this[name].subarray(0, Math.min(this[name].length, array.length)))
-      this[name] = array
-      const attr = new THREE.InstancedBufferAttribute(array, size)
-      attr.setUsage(THREE.DynamicDrawUsage)
-      geometry.setAttribute(name, attr)
+  /** The first part's mesh (a plain shape has only one). */
+  get mesh(): THREE.InstancedMesh {
+    return this.meshes[0]
+  }
+
+  /** Replaces what is drawn (a model that has loaded), keeping the instances. */
+  setParts(parts: BatchPart[]): void {
+    this.parts = parts
+    this.build()
+  }
+
+  private resize(capacity: number): void {
+    const grow = (a: Float32Array, size: number) => {
+      const b = new Float32Array(capacity * size)
+      b.set(a.subarray(0, Math.min(a.length, b.length)))
+      return b
     }
-    mesh.customDepthMaterial = this.depthMaterial
-    mesh.count = 0
-    mesh.castShadow = true
-    mesh.frustumCulled = false
+    for (const [name, size] of POSE_ATTRIBUTES) this[name] = grow(this[name], size)
+    this.colors = grow(this.colors, 3)
     const slots = new Int32Array(capacity)
     slots.set(this.slots.subarray(0, Math.min(this.slots.length, capacity)))
     this.slots = slots
-    return mesh
+    this.capacity = capacity
+    this.attributes = POSE_ATTRIBUTES.map(([name, size]) => {
+      const attr = new THREE.InstancedBufferAttribute(this[name], size)
+      attr.setUsage(THREE.DynamicDrawUsage)
+      return attr
+    })
+    this.colorAttribute = new THREE.InstancedBufferAttribute(this.colors, 3)
+    this.colorAttribute.setUsage(THREE.DynamicDrawUsage)
+    this.build()
+    this.dirty = true
+  }
+
+  /**
+   * Makes the meshes again. Each gets its own geometry sharing the part's
+   * buffers: three.js does not pick up instanced attributes replaced on a
+   * geometry it has drawn.
+   */
+  private build(): void {
+    for (const old of this.meshes) {
+      this.scene.remove(old)
+      old.dispose()
+      // Frees the geometry made here but not the part's buffers, which it shares.
+      old.geometry.setIndex(null)
+      for (const name of Object.keys(old.geometry.attributes)) old.geometry.deleteAttribute(name)
+      old.geometry.dispose()
+    }
+    this.meshes = this.parts.map((part) => {
+      const geometry = new THREE.BufferGeometry()
+      geometry.setIndex(part.geometry.index)
+      for (const [name, attr] of Object.entries(part.geometry.attributes)) geometry.setAttribute(name, attr)
+      for (const group of part.geometry.groups) geometry.addGroup(group.start, group.count, group.materialIndex)
+      POSE_ATTRIBUTES.forEach(([name], k) => geometry.setAttribute(name, this.attributes[k]))
+      // The matrix comes from the pose attributes, so instanceMatrix is never uploaded.
+      const mesh = new THREE.InstancedMesh(geometry, part.material, this.capacity)
+      if (part.tinted) mesh.instanceColor = this.colorAttribute
+      mesh.customDepthMaterial = this.depthMaterial
+      mesh.count = this.count
+      mesh.castShadow = this.castShadow
+      mesh.frustumCulled = false
+      this.scene.add(mesh)
+      return mesh
+    })
   }
 
   /** Adds a slot and returns its instance index. */
   add(slot: number): number {
-    if (this.count === this.slots.length) {
-      const old = this.mesh
-      const mesh = this.makeMesh(this.slots.length * 2)
-      ;(mesh.instanceColor!.array as Float32Array).set(old.instanceColor!.array as Float32Array)
-      mesh.castShadow = old.castShadow
-      this.scene.remove(old)
-      old.dispose()
-      // Frees the old pose buffers but not the shape's, which the new geometry shares.
-      for (const name of Object.keys(this.shape.attributes)) old.geometry.deleteAttribute(name)
-      old.geometry.setIndex(null)
-      old.geometry.dispose()
-      this.scene.add(mesh)
-      this.mesh = mesh
-    }
+    if (this.count === this.capacity) this.resize(this.capacity * 2)
     this.slots[this.count] = slot
     this.dirty = true
     return this.count++
@@ -263,20 +304,31 @@ export class ShapeBatch {
     this.dirty = true
     if (index === last) return -1
     for (const [name, size] of POSE_ATTRIBUTES) this[name].copyWithin(index * size, last * size, last * size + size)
-    const c = this.mesh.instanceColor!.array as Float32Array
-    c.copyWithin(index * 3, last * 3, last * 3 + 3)
+    this.colors.copyWithin(index * 3, last * 3, last * 3 + 3)
     const moved = this.slots[last]
     this.slots[index] = moved
     return moved
   }
 
+  /** Writes an instance's color (sRGB 0xRRGGBB, kept as the linear values instance colors hold). */
+  writeColor(index: number, rgb: number): void {
+    COLOR.setHex(rgb)
+    this.colors[index * 3] = COLOR.r
+    this.colors[index * 3 + 1] = COLOR.g
+    this.colors[index * 3 + 2] = COLOR.b
+    this.dirty = true
+  }
+
   upload(shadows: boolean): void {
-    this.mesh.count = this.count
-    this.mesh.castShadow = shadows
+    this.castShadow = shadows
+    for (const mesh of this.meshes) {
+      mesh.count = this.count
+      mesh.castShadow = shadows
+    }
     if (!this.dirty) return
     // Only the instances in use are uploaded.
-    for (const [name, size] of POSE_ATTRIBUTES) this.markUsed(this.mesh.geometry.getAttribute(name) as THREE.InstancedBufferAttribute, size)
-    this.markUsed(this.mesh.instanceColor!, 3)
+    POSE_ATTRIBUTES.forEach(([, size], k) => this.markUsed(this.attributes[k], size))
+    this.markUsed(this.colorAttribute!, 3)
     this.dirty = false
   }
 
@@ -289,37 +341,54 @@ export class ShapeBatch {
 
   /** Writes an entity's pose at the start and end of the last tick (the same when it did not move). */
   writePose(index: number, E: RenderColumns, i: number, moving: boolean): void {
+    if (moving) {
+      this.writePoses(index, E.px[i], E.py[i], E.pz[i], E.psize[i], E.pdirection[i], E.ppitch[i], E.proll[i], E.x[i], E.y[i], E.z[i], E.size[i], E.direction[i], E.pitch[i], E.roll[i])
+    } else {
+      this.writePoses(index, E.x[i], E.y[i], E.z[i], E.size[i], E.direction[i], E.pitch[i], E.roll[i], E.x[i], E.y[i], E.z[i], E.size[i], E.direction[i], E.pitch[i], E.roll[i])
+    }
+    const t = index * 3
+    this.stretch[t] = E.width[i]
+    this.stretch[t + 1] = E.depth[i]
+    this.stretch[t + 2] = E.height[i]
+  }
+
+  /** Writes a pose that doesn't move (a stamp): x, y, z, direction, pitch, roll, size, width, depth, height. */
+  writeStill(index: number, p: ArrayLike<number>, o: number): void {
+    this.writePoses(index, p[o], p[o + 1], p[o + 2], p[o + 6], p[o + 3], p[o + 4], p[o + 5], p[o], p[o + 1], p[o + 2], p[o + 6], p[o + 3], p[o + 4], p[o + 5])
+    const t = index * 3
+    this.stretch[t] = p[o + 7]
+    this.stretch[t + 1] = p[o + 8]
+    this.stretch[t + 2] = p[o + 9]
+  }
+
+  private writePoses(
+    index: number,
+    x0: number, y0: number, z0: number, s0: number, d0: number, p0: number, r0: number,
+    x1: number, y1: number, z1: number, s1: number, d1: number, p1: number, r1: number,
+  ): void {
     const p = index * 4
     const t = index * 3
-    const { poseFrom, poseTo, turnFrom, turnTo, stretch } = this
-    poseTo[p] = E.x[i]
-    poseTo[p + 1] = E.y[i]
-    poseTo[p + 2] = E.z[i]
-    poseTo[p + 3] = E.size[i]
-    turnTo[t] = E.direction[i]
-    turnTo[t + 1] = E.pitch[i]
-    turnTo[t + 2] = E.roll[i]
-    stretch[t] = E.width[i]
-    stretch[t + 1] = E.depth[i]
-    stretch[t + 2] = E.height[i]
-    if (moving) {
-      poseFrom[p] = E.px[i]
-      poseFrom[p + 1] = E.py[i]
-      poseFrom[p + 2] = E.pz[i]
-      poseFrom[p + 3] = E.psize[i]
-      turnFrom[t] = E.pdirection[i]
-      turnFrom[t + 1] = E.ppitch[i]
-      turnFrom[t + 2] = E.proll[i]
-    } else {
-      poseFrom[p] = poseTo[p]
-      poseFrom[p + 1] = poseTo[p + 1]
-      poseFrom[p + 2] = poseTo[p + 2]
-      poseFrom[p + 3] = poseTo[p + 3]
-      turnFrom[t] = turnTo[t]
-      turnFrom[t + 1] = turnTo[t + 1]
-      turnFrom[t + 2] = turnTo[t + 2]
-    }
+    const { poseFrom, poseTo, turnFrom, turnTo } = this
+    poseFrom[p] = x0
+    poseFrom[p + 1] = y0
+    poseFrom[p + 2] = z0
+    poseFrom[p + 3] = s0
+    turnFrom[t] = d0
+    turnFrom[t + 1] = p0
+    turnFrom[t + 2] = r0
+    poseTo[p] = x1
+    poseTo[p + 1] = y1
+    poseTo[p + 2] = z1
+    poseTo[p + 3] = s1
+    turnTo[t] = d1
+    turnTo[t + 1] = p1
+    turnTo[t + 2] = r1
     this.dirty = true
+  }
+
+  dispose(): void {
+    this.parts = []
+    this.build()
   }
 }
 
@@ -358,30 +427,24 @@ export class EntityInstances {
   private syncedHidden = -1
   private visibleCount = 0
 
-  /** `assets` has the costumes' pictures. */
+  /** `assets` has the costumes' pictures and models. */
   constructor(
     private readonly scene: THREE.Scene,
     assets = new Assets(),
   ) {
-    const makeMaterial = () => {
-      const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55 })
-      usePoseAttributes(m, this.poseAlpha)
-      return m
-    }
-    this.material = makeMaterial()
     this.depthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking })
     usePoseAttributes(this.depthMaterial, this.poseAlpha)
     this.geometries = SHAPES.map(makeGeometry)
-    this.resources = new LookResources(assets, this.geometries, this.material, makeMaterial)
-    this.batches = this.geometries.map((g) => new ShapeBatch(scene, g, this.material, this.depthMaterial))
-    for (const b of this.batches) scene.add(b.mesh)
+    this.resources = new LookResources(assets, this.geometries, (m) => usePoseAttributes(m, this.poseAlpha))
+    this.material = this.resources.material as THREE.MeshStandardMaterial
+    this.batches = []
+    for (let shape = 0; shape < SHAPES.length; shape++) this.batch(shape, PLAIN_LOOKS)
   }
 
   dispose(): void {
-    for (const b of this.batches) b.mesh.dispose()
+    for (const b of this.batches) b.dispose()
     for (const g of this.geometries) g.dispose()
     this.resources.dispose()
-    this.material.dispose()
     this.depthMaterial.dispose()
   }
 
@@ -389,8 +452,7 @@ export class EntityInstances {
   private batch(look: number, looks: readonly Look[]): ShapeBatch {
     while (this.batches.length <= look) {
       const l = looks[this.batches.length] ?? looks[0]
-      const b = new ShapeBatch(this.scene, this.resources.geometry(l), this.resources.material(l), this.depthMaterial)
-      this.scene.add(b.mesh)
+      const b: ShapeBatch = new ShapeBatch(this.scene, this.resources.parts(l, (parts) => b.setParts(parts)), this.depthMaterial)
       this.batches.push(b)
     }
     return this.batches[look]
@@ -469,12 +531,7 @@ export class EntityInstances {
       const batch = this.batches[look]
       batch.writePose(inst[i], E, i, moving)
       if (changed) {
-        // setHex converts the sprite's sRGB color to the linear values instance colors hold.
-        COLOR.setHex(E.color[i])
-        const colors = batch.mesh.instanceColor!.array as Float32Array
-        colors[inst[i] * 3] = COLOR.r
-        colors[inst[i] * 3 + 1] = COLOR.g
-        colors[inst[i] * 3 + 2] = COLOR.b
+        batch.writeColor(inst[i], E.color[i])
         this.drawnColor[i] = E.color[i]
       }
       if (moving) d[o] = NaN

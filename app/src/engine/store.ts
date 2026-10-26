@@ -75,6 +75,14 @@ export class EntityStore {
   costume = new Uint16Array(0)
   /** What the stage draws: index into the runtime's looks (costume.ts), set with the costume. */
   look = new Uint16Array(0)
+  /**
+   * The look's own extent along the local axes, as fractions: 1 for the
+   * shapes, a model's box in a cube. Collisions and physics stretch the
+   * shape by these as well as by width, depth and height.
+   */
+  extentX = new Float64Array(0)
+  extentY = new Float64Array(0)
+  extentZ = new Float64Array(0)
   flags = new Uint8Array(0)
   /** Index of the kind (original sprite) whose scripts the entity runs. */
   kind = new Uint16Array(0)
@@ -127,6 +135,9 @@ export class EntityStore {
     this.shape = grow(this.shape, (n) => new Uint8Array(n))
     this.costume = grow(this.costume, (n) => new Uint16Array(n))
     this.look = grow(this.look, (n) => new Uint16Array(n))
+    this.extentX = grow(this.extentX, f64)
+    this.extentY = grow(this.extentY, f64)
+    this.extentZ = grow(this.extentZ, f64)
     this.flags = grow(this.flags, (n) => new Uint8Array(n))
     this.kind = grow(this.kind, (n) => new Uint16Array(n))
     this.generation = grow(this.generation, (n) => new Uint32Array(n))
@@ -137,7 +148,7 @@ export class EntityStore {
 
   /**
    * Takes a free slot, or returns -1 when full. Width, depth and height start
-   * at 100%; the slot's other columns are left as they were.
+   * at 100% and the extents at 1; the slot's other columns are left as they were.
    */
   alloc(): number {
     let slot: number
@@ -146,6 +157,7 @@ export class EntityStore {
     else return -1
     this.flags[slot] = F_ALIVE
     this.width[slot] = this.depth[slot] = this.height[slot] = 100
+    this.extentX[slot] = this.extentY[slot] = this.extentZ[slot] = 1
     this.saying[slot] = null
     this.count++
     return slot
@@ -216,6 +228,9 @@ export class EntityStore {
     this.shape[to] = this.shape[from]
     this.costume[to] = this.costume[from]
     this.look[to] = this.look[from]
+    this.extentX[to] = this.extentX[from]
+    this.extentY[to] = this.extentY[from]
+    this.extentZ[to] = this.extentZ[from]
   }
 
   /** Sets the pen color from 0xRRGGBB; as in Scratch, the pen becomes opaque. */

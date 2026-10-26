@@ -204,6 +204,21 @@ describe('sharing API', () => {
     expect((await env.PROJECTS.list({ prefix: `assets/${id}/` })).objects).toEqual([])
   })
 
+  it('keeps 3D models as it keeps pictures', async () => {
+    // The smallest bytes that pass the check: "glTF", then anything.
+    const glb = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0])
+    const file = `${await hashAsset(glb)}.glb`
+    const model = { asset: { assetId: file.slice(0, 64), dataFormat: 'glb' }, size: [1, 0.5, 0.5] }
+    const costume = { name: 'car', shape: 'cube', picture: null, layout: 'same', model }
+    const withModel = { ...project, sprites: project.sprites.map((s) => ({ ...s, costumes: [costume], costume: 0 })) }
+    const { id, editKey, missingAssets } = (await (await share({ project: withModel })).json()) as { id: string; editKey: string; missingAssets: string[] }
+    expect(missingAssets).toEqual([file])
+    expect((await call('PUT', `projects/${id}/assets/${file}`, new Uint8Array([0x89, 0x50, 0x4e, 0x47]), editKey)).status).toBe(400)
+    expect((await call('PUT', `projects/${id}/assets/${file}`, glb, editKey)).status).toBe(204)
+    const got = await call('GET', `projects/${id}/assets/${file}`)
+    expect(got.headers.get('content-type')).toBe('model/gltf-binary')
+  })
+
   it('needs a Turnstile token to share or report', async () => {
     expect((await share({ turnstileToken: undefined })).status).toBe(403)
     expect((await share({ turnstileToken: 'robot' })).status).toBe(403)

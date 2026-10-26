@@ -5,9 +5,9 @@
  * the JSON only refers to them.
  */
 import { APP_ID, APP_NAME } from '../brand'
-import { ASSET_FORMATS, assetFileName, isAssetId, type AssetFormat, type AssetRef } from './assets'
+import { assetFileName, isAssetId, PICTURE_FORMATS, type AssetFormat, type AssetRef } from './assets'
 import { FACES, type BackdropData, type Face, type FaceName } from './backdrop'
-import { COSTUME_LAYOUTS, plainCostume, type Costume, type CostumeLayout } from './costume'
+import { COSTUME_LAYOUTS, plainCostume, type Costume, type CostumeLayout, type CostumeModel } from './costume'
 import { isColorString } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
@@ -67,7 +67,10 @@ export function serializeProject(rt: Runtime): ProjectFile {
 export function projectAssets(project: ProjectFile): AssetRef[] {
   const found = new Map<string, AssetRef>()
   for (const s of project.sprites) {
-    for (const c of s.costumes) if (c.picture) found.set(assetFileName(c.picture), c.picture)
+    for (const c of s.costumes) {
+      if (c.picture) found.set(assetFileName(c.picture), c.picture)
+      if (c.model) found.set(assetFileName(c.model.asset), c.model.asset)
+    }
   }
   for (const b of project.backdrops) {
     if (b.sceneryPicture) found.set(assetFileName(b.sceneryPicture), b.sceneryPicture)
@@ -164,7 +167,19 @@ function parseCostume(v: unknown, where: string): Costume {
   if (!isObj(v)) fail(`${where} must be an object`)
   const layout = (v.layout ?? 'same') as CostumeLayout
   if (!COSTUME_LAYOUTS.includes(layout)) fail(`${where}.layout "${layout}" is not one of ${COSTUME_LAYOUTS.join(', ')}`)
-  return { name: str(v, 'name', where), shape: parseShape(v, where), picture: parsePicture(v.picture, `${where}.picture`), layout }
+  return { name: str(v, 'name', where), shape: parseShape(v, where), picture: parsePicture(v.picture, `${where}.picture`), layout, model: parseModel(v.model, `${where}.model`) }
+}
+
+/** Missing (older files) means none. */
+function parseModel(v: unknown, where: string): CostumeModel | null {
+  if (v === undefined || v === null) return null
+  if (!isObj(v)) fail(`${where} must be an object or null`)
+  const asset = parseAsset(v.asset, `${where}.asset`, ['glb']) ?? fail(`${where}.asset must be a model`)
+  const size = v.size
+  if (!Array.isArray(size) || size.length !== 3 || !size.every((n) => typeof n === 'number' && n > 0 && n <= 1)) {
+    fail(`${where}.size must be three fractions`)
+  }
+  return { asset, size: size as [number, number, number] }
 }
 
 /** The costumes, or for older files one plain costume of the sprite's shape. */
@@ -222,16 +237,18 @@ const color = (o: Record<string, unknown>, k: string, where: string): string => 
   return isColorString(c) ? c : fail(`${where}.${k} must be a color like #rrggbb`)
 }
 
-/** Missing (older files) means none. */
-function parsePicture(v: unknown, where: string): AssetRef | null {
+/** A reference to an asset of one of `formats`; missing (older files) means none. */
+function parseAsset(v: unknown, where: string, formats: readonly AssetFormat[]): AssetRef | null {
   if (v === undefined || v === null) return null
   if (!isObj(v)) fail(`${where} must be an object or null`)
   const assetId = str(v, 'assetId', where)
   if (!isAssetId(assetId)) fail(`${where}.assetId must be a SHA-256 in hex`)
   const dataFormat = str(v, 'dataFormat', where) as AssetFormat
-  if (!ASSET_FORMATS.includes(dataFormat)) fail(`${where}.dataFormat "${dataFormat}" is not one of ${ASSET_FORMATS.join(', ')}`)
+  if (!formats.includes(dataFormat)) fail(`${where}.dataFormat "${dataFormat}" is not one of ${formats.join(', ')}`)
   return { assetId, dataFormat }
 }
+
+const parsePicture = (v: unknown, where: string) => parseAsset(v, where, PICTURE_FORMATS)
 
 function parseBackdrop(v: unknown, where: string): BackdropData {
   if (!isObj(v)) fail(`${where} must be an object`)

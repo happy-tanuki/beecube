@@ -624,6 +624,11 @@ body,
   background-size: contain;
 }
 
+.costume-picture .costume-model-thumb {
+  width: 80px;
+  height: 60px;
+}
+
 .costume-note {
   max-width: 360px;
   margin: 0;
@@ -722,7 +727,9 @@ body,
   border-color: var(--menu-bar);
 }
 
-.library-item img {
+.library-item img,
+.library-item-blank {
+  display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;

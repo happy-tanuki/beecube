@@ -1,12 +1,14 @@
 /**
  * The moderation page (admin.html): reported and hidden shared projects,
- * the text and pictures in each, and buttons to hide, show again or delete them. It needs
+ * the text, pictures and 3D models in each, and buttons to hide, show again or delete them. It needs
  * the ADMIN_TOKEN secret, kept for the browser tab only.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { APP_ID, APP_NAME } from '../brand'
 import { t, type MessageKey } from '../i18n'
 import { ApiError, shareUrl } from '../share/client'
+import { assetFileName, Assets, parseAssetFileName, type AssetRef } from '../engine/assets'
+import { modelThumbnail } from '../ui/modelThumbnails'
 import { AdminApi, type ReviewDetail, type ReviewItem } from './api'
 import { projectTexts } from './texts'
 
@@ -62,6 +64,7 @@ function Detail({ api, id, onChanged }: { api: AdminApi; id: string; onChanged()
   const [detail, setDetail] = useState<ReviewDetail | null>(null)
   const [picture, setPicture] = useState<string | null>(null)
   const [assets, setAssets] = useState<string[]>([])
+  const [models, setModels] = useState<string[]>([])
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -76,6 +79,7 @@ function Detail({ api, id, onChanged }: { api: AdminApi; id: string; onChanged()
     setDetail(null)
     setPicture(null)
     setAssets([])
+    setModels([])
     setConfirmDelete(false)
     api.get(id).then(
       async (d) => {
@@ -85,8 +89,20 @@ function Detail({ api, id, onChanged }: { api: AdminApi; id: string; onChanged()
           const url = await fetched(() => api.thumbnailUrl(id))
           if (!cancelled) setPicture(url)
         }
-        const found = await Promise.all(d.assets.map((file) => fetched(() => api.assetUrl(id, file))))
+        const pictures = d.assets.filter((file) => !file.endsWith('.glb'))
+        const found = await Promise.all(pictures.map((file) => fetched(() => api.assetUrl(id, file))))
         if (!cancelled) setAssets(found.filter((url) => url !== null))
+        // Models are drawn, as the editor's costume lists draw them.
+        const store = new Assets()
+        store.loader = (ref) => api.assetBytes(id, assetFileName(ref))
+        const refs = d.assets.map(parseAssetFileName).filter((ref) => ref?.dataFormat === 'glb') as AssetRef[]
+        const draw = () => {
+          if (cancelled) return
+          const drawn = refs.map((ref) => modelThumbnail(store, ref))
+          setModels(drawn.filter((url) => url !== null))
+          if (drawn.includes(null)) setTimeout(draw, 300)
+        }
+        draw()
       },
       (err: unknown) => !cancelled && setError(failure(err)),
     )
@@ -138,6 +154,11 @@ function Detail({ api, id, onChanged }: { api: AdminApi; id: string; onChanged()
               <a href={url} target="_blank" rel="noopener">
                 <img src={url} alt="" />
               </a>
+            </li>
+          ))}
+          {models.map((url) => (
+            <li key={url}>
+              <img src={url} alt="" title={t('costume.model')} />
             </li>
           ))}
         </ul>

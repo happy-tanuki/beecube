@@ -432,3 +432,44 @@ export const MAPS = {
 export function drawCostume(key, images) {
   return COSTUMES[key].draw(images)
 }
+
+/** Kenney's kits (CC0) the library's 3D models come from. */
+export const KITS = {
+  'cube-pets': 'https://kenney.nl/media/pages/assets/cube-pets/44e58e945f-1774520254/kenney_cube-pets_1.0.zip',
+  'mini-characters': 'https://kenney.nl/media/pages/assets/mini-characters/bfc7e272b4-1774770718/kenney_mini-characters.zip',
+  'car-kit': 'https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip',
+  'space-kit': 'https://kenney.nl/media/pages/assets/space-kit/20874c75ac-1677698978/kenney_space-kit.zip',
+  'nature-kit': 'https://kenney.nl/media/pages/assets/nature-kit/37ac38a37b-1677698939/kenney_nature-kit.zip',
+  'food-kit': 'https://kenney.nl/media/pages/assets/food-kit/83086fa91c-1719418518/kenney_food-kit.zip',
+}
+
+/**
+ * The library's 3D models: key → the kit, the file in it, and whether it
+ * faces backwards (glTF's -z; the space kit's do), to be turned round.
+ */
+export const MODELS = {
+  cat: ['cube-pets', 'Models/GLB format/animal-cat.glb'],
+  dog: ['cube-pets', 'Models/GLB format/animal-dog.glb'],
+  bunny: ['cube-pets', 'Models/GLB format/animal-bunny.glb'],
+  panda: ['cube-pets', 'Models/GLB format/animal-panda.glb'],
+  penguin: ['cube-pets', 'Models/GLB format/animal-penguin.glb'],
+  chick: ['cube-pets', 'Models/GLB format/animal-chick.glb'],
+  girl: ['mini-characters', 'Models/GLB format/character-female-a.glb'],
+  boy: ['mini-characters', 'Models/GLB format/character-male-a.glb'],
+  car: ['car-kit', 'Models/GLB format/taxi.glb'],
+  police: ['car-kit', 'Models/GLB format/police.glb'],
+  fireTruck: ['car-kit', 'Models/GLB format/firetruck.glb'],
+  raceCar: ['car-kit', 'Models/GLB format/race.glb'],
+  spaceship: ['space-kit', 'Models/GLTF format/craft_speederA.glb', 'backwards'],
+  alien: ['space-kit', 'Models/GLTF format/alien.glb', 'backwards'],
+  astronaut: ['space-kit', 'Models/GLTF format/astronautA.glb', 'backwards'],
+  rover: ['space-kit', 'Models/GLTF format/rover.glb', 'backwards'],
+  tree: ['nature-kit', 'Models/GLTF format/tree_default.glb'],
+  pineTree: ['nature-kit', 'Models/GLTF format/tree_pineDefaultA.glb'],
+  flower: ['nature-kit', 'Models/GLTF format/flower_redA.glb'],
+  apple: ['food-kit', 'Models/GLB format/apple.glb'],
+  burger: ['food-kit', 'Models/GLB format/burger.glb'],
+  cake: ['food-kit', 'Models/GLB format/cake-birthday.glb'],
+  donut: ['food-kit', 'Models/GLB format/donut-sprinkles.glb'],
+  pizza: ['food-kit', 'Models/GLB format/pizza.glb'],
+}

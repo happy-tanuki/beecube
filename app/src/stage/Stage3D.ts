@@ -53,7 +53,8 @@ const VIEW_POSITIONS: Record<ViewName, [number, number, number]> = {
 }
 
 /** How far the top of an upright shape is above its center. */
-const topOf = (E: EntityStore, slot: number) => (BASE_SIZE / 2) * (E.size[slot] / 100) * (E.height[slot] / 100)
+const topOf = (E: EntityStore, slot: number) => (BASE_SIZE / 2) * (E.size[slot] / 100) * (E.height[slot] / 100) * E.extentZ[slot]
+const PICK_SCALE = new THREE.Matrix4()
 const DRAG_THRESHOLD_PX = 3
 /** Speech bubbles shown at once; the ones nearest the camera win. */
 const MAX_BUBBLES = 64
@@ -390,18 +391,18 @@ export class Stage3D {
     this.heightHandle.visible = slot >= 0
     if (slot < 0) return
     const E = this.rt.store
-    // The outline is stretched to the shape; the nose isn't.
+    // The outline is stretched to the shape (a model's box); the nose isn't.
     writeMatrix(E, slot, alpha, this.scratchMatrix, 0, false)
     this.selection.matrix.fromArray(this.scratchMatrix)
     this.selection.matrixWorldNeedsUpdate = true
     const [outline, nose] = this.selection.children
     const margin = 6 / (E.size[slot] / 100)
     outline.scale.set(
-      (BASE_SIZE * E.width[slot]) / 100 + margin,
-      (BASE_SIZE * E.depth[slot]) / 100 + margin,
-      (BASE_SIZE * E.height[slot]) / 100 + margin,
+      (BASE_SIZE * E.width[slot] * E.extentX[slot]) / 100 + margin,
+      (BASE_SIZE * E.depth[slot] * E.extentY[slot]) / 100 + margin,
+      (BASE_SIZE * E.height[slot] * E.extentZ[slot]) / 100 + margin,
     )
-    nose.position.x = (BASE_SIZE / 2) * (E.width[slot] / 100) + 5
+    nose.position.x = (BASE_SIZE / 2) * (E.width[slot] / 100) * E.extentX[slot] + 5
     const m = this.scratchMatrix
     this.heightHandle.position.set(m[12], m[13], m[14] + topOf(E, slot) + 18)
   }
@@ -506,7 +507,8 @@ export class Stage3D {
       if (best && t > best.distance) break
       this.pickMesh.geometry = this.instances.geometries[E.shape[slot]]
       writeMatrix(E, slot, 1, this.scratchMatrix, 0)
-      this.pickMesh.matrixWorld.fromArray(this.scratchMatrix)
+      // A model is picked by its box.
+      this.pickMesh.matrixWorld.fromArray(this.scratchMatrix).multiply(PICK_SCALE.makeScale(E.extentX[slot], E.extentY[slot], E.extentZ[slot]))
       const hit = this.raycaster.intersectObject(this.pickMesh, false)[0]
       if (hit && (!best || hit.distance < best.distance)) best = { slot, distance: hit.distance }
     }

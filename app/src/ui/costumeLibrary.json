@@ -106,5 +106,389 @@
       "dataFormat": "png"
     },
     "layout": "net"
+  },
+  {
+    "key": "cat",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "a45ceca5337f88ea1dd606e4597bd7e5c73e612afed33e7129eb451a5f9f4a39",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        0.692,
+        0.947
+      ]
+    }
+  },
+  {
+    "key": "dog",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "a88b375272a0ec69b40f8e996d584b3c08b9f6d554764dc3539248b4f9727e6d",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.947,
+        0.795,
+        1
+      ]
+    }
+  },
+  {
+    "key": "bunny",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "cab7303a3607c3dbc1cdd5075ecdc3f980130a3030f4e1fd55bf71848b18a79e",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.662,
+        0.622,
+        1
+      ]
+    }
+  },
+  {
+    "key": "panda",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "cfbc1033bb7cbcfa3209886032ee96ce2b7fa51218bbc998d66e54fcbbbccd87",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.959,
+        0.895,
+        1
+      ]
+    }
+  },
+  {
+    "key": "penguin",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "c8ed2f78acc3d33ae48ab9616e1c66f30bc63bd894cfa1035c389a5ca6d81ed5",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.617,
+        1,
+        0.728
+      ]
+    }
+  },
+  {
+    "key": "chick",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "f89472fbc57664cb5b9d6733c67d07f1fc1bc6f51603500d6fe581559093a126",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.615,
+        1,
+        0.726
+      ]
+    }
+  },
+  {
+    "key": "girl",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "db7ef43e2919d11265015946710523739fa29469f409229354c7ed0c99bcfdb2",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.455,
+        1,
+        0.706
+      ]
+    }
+  },
+  {
+    "key": "boy",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "3d20bb55d33743fb5d59fc03822c63245d10bf752c2b6fa273a0ddcb4ba79cf9",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.443,
+        1,
+        0.875
+      ]
+    }
+  },
+  {
+    "key": "car",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "949c8695ce5abccd18ccfc98d5089ccb98486faae269590c499c6675fb8aab75",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        0.545,
+        0.545
+      ]
+    }
+  },
+  {
+    "key": "police",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "fe89da8d419299837cfa91a1074871cf3225c7017ed0ab635ce4921dc0cbfa8d",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        0.484,
+        0.419
+      ]
+    }
+  },
+  {
+    "key": "fireTruck",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "2a954e76bb5a6db45aea3c9665dfb43672f6c6fd12a1f84f63dfcc9dd740fbd3",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        0.441,
+        0.5
+      ]
+    }
+  },
+  {
+    "key": "raceCar",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "354549d39acec5644208c270a1c4897142951005527df147cc01bf5812a6c772",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        0.508,
+        0.286
+      ]
+    }
+  },
+  {
+    "key": "spaceship",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "31d95a8e31ee33f64a50c3fa38d4924fb9e7d41478cf76fd2806031e44fd3018",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        0.952,
+        0.381
+      ]
+    }
+  },
+  {
+    "key": "alien",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "d49cd6f8aa0dca56efbea9c584b08b29885cdffb28d01110383114dcf0ec268d",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.391,
+        0.573,
+        1
+      ]
+    }
+  },
+  {
+    "key": "astronaut",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "d695590fda949f1dd1f9cb509838feba895516bc30ae5256022ebf14e063b13f",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.416,
+        0.609,
+        1
+      ]
+    }
+  },
+  {
+    "key": "rover",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "c0f143ae45edad1aeb3bd7a008d02ef20fa28b188f654d40e1591ecbe3bd8e04",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.908,
+        0.779,
+        1
+      ]
+    }
+  },
+  {
+    "key": "tree",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "204564c403665e1111993eea1417430ff199203cf00497cd458bfca9532c21ba",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.383,
+        0.442,
+        1
+      ]
+    }
+  },
+  {
+    "key": "pineTree",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "9ad4f999d6470039120012f6e3363859b1e12a8b451f2d589f8aa78c1c3e1de4",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.344,
+        0.344,
+        1
+      ]
+    }
+  },
+  {
+    "key": "flower",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "94b209140cef564c763d57174d51583f705efc95d9cc5786f782f3f3a1bbdca7",
+        "dataFormat": "glb"
+      },
+      "size": [
+        0.619,
+        0.544,
+        1
+      ]
+    }
+  },
+  {
+    "key": "apple",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "d1fa33d33f2301a3ea38d128645f883eccd5b896c3bf48b28f0db2dbc50d05f7",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        1,
+        0.972
+      ]
+    }
+  },
+  {
+    "key": "burger",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "c2e9ff269c2a54a8a02aea42ddd880e3b39bd018f1fd30f0ad8aa98df5e49105",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        1,
+        0.718
+      ]
+    }
+  },
+  {
+    "key": "cake",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "16abe8901b56bc1f1192e85b0fef00f62a55d0ffca2a67b2e51273d313837013",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        1,
+        0.569
+      ]
+    }
+  },
+  {
+    "key": "donut",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "a5567ddb13a5a41a3ca494eb451140a794d8daac5cdb1e836865136991ea1455",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        0.866,
+        0.336
+      ]
+    }
+  },
+  {
+    "key": "pizza",
+    "shape": "cube",
+    "layout": "same",
+    "model": {
+      "asset": {
+        "assetId": "0f2ca4462a772607f3b3333f959b73742cf0cee07d4ab06d96a5b791d5de2dc9",
+        "dataFormat": "glb"
+      },
+      "size": [
+        1,
+        1,
+        0.052
+      ]
+    }
   }
 ]

@@ -36,6 +36,7 @@ interface BodyState {
   mode: Exclude<PhysicsMode, 'none'>
   shape: number
   size: number
+  /** Width, depth and height times the look's extent: what the collider was made for. */
   width: number
   depth: number
   height: number
@@ -193,9 +194,9 @@ export class PhysicsWorld {
       mode,
       shape: E.shape[slot],
       size: E.size[slot],
-      width: E.width[slot],
-      depth: E.depth[slot],
-      height: E.height[slot],
+      width: E.width[slot] * E.extentX[slot],
+      depth: E.depth[slot] * E.extentY[slot],
+      height: E.height[slot] * E.extentZ[slot],
       wx: 0, wy: 0, wz: 0, wdirection: 0, wpitch: 0, wroll: 0,
       restitution: settings.restitution,
       friction: settings.friction,
@@ -210,9 +211,10 @@ export class PhysicsWorld {
     const R = this.R
     const E = this.rt.store
     const h = (BASE_SIZE / 2) * (E.size[slot] / 100)
-    const hx = (h * E.width[slot]) / 100
-    const hy = (h * E.depth[slot]) / 100
-    const hz = (h * E.height[slot]) / 100
+    // Stretched by width, depth and height, and by the look's extent (a model's box).
+    const hx = (h * E.width[slot] * E.extentX[slot]) / 100
+    const hy = (h * E.depth[slot] * E.extentY[slot]) / 100
+    const hz = (h * E.height[slot] * E.extentZ[slot]) / 100
     const shape = E.shape[slot]
     // Rapier's cylinders and cones run along local y; ours run along local z.
     const yToZ = { x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 }
@@ -314,16 +316,17 @@ export class PhysicsWorld {
       const b = this.bodies[slot]!
       if (
         b.shape !== E.shape[slot] || b.size !== E.size[slot] ||
-        b.width !== E.width[slot] || b.depth !== E.depth[slot] || b.height !== E.height[slot]
+        b.width !== E.width[slot] * E.extentX[slot] || b.depth !== E.depth[slot] * E.extentY[slot] ||
+        b.height !== E.height[slot] * E.extentZ[slot]
       ) {
         this.colliderOwner.delete(b.collider.handle)
         this.world.removeCollider(b.collider, false)
         b.collider = this.createCollider(slot, b.body, b.restitution, b.friction)
         b.shape = E.shape[slot]
         b.size = E.size[slot]
-        b.width = E.width[slot]
-        b.depth = E.depth[slot]
-        b.height = E.height[slot]
+        b.width = E.width[slot] * E.extentX[slot]
+        b.depth = E.depth[slot] * E.extentY[slot]
+        b.height = E.height[slot] * E.extentZ[slot]
         b.body.wakeUp()
       }
       if (movedByScript(b, E, slot)) {

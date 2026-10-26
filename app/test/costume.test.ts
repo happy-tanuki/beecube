@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 import type { AssetRef } from '../src/engine/assets'
 import { plainCostume, type Costume } from '../src/engine/costume'
+import { boundingRadius, shapesIntersect } from '../src/engine/collision'
 import { parseProject, projectAssets, serializeProject } from '../src/engine/project'
 import { SHAPES } from '../src/engine/types'
 import { EntityInstances } from '../src/stage/instances'
@@ -12,8 +13,8 @@ const switchToValue = (input: ReturnType<typeof num>) => blk('looks_switchcostum
 const costumeIs = (what: 'number' | 'name') => blk('looks_costumenumbername', { fields: { NUMBER_NAME: what } })
 
 const picture = (n: number): AssetRef => ({ assetId: String(n).repeat(64).slice(0, 64), dataFormat: 'png' })
-const ball: Costume = { name: 'ball', shape: 'sphere', picture: picture(1), layout: 'same' }
-const dice: Costume = { name: 'dice', shape: 'cube', picture: picture(2), layout: 'net' }
+const ball: Costume = { name: 'ball', shape: 'sphere', picture: picture(1), layout: 'same', model: null }
+const dice: Costume = { name: 'dice', shape: 'cube', picture: picture(2), layout: 'net', model: null }
 const costumes = [plainCostume('box', 'cube'), ball, dice]
 
 describe('costumes', () => {
@@ -45,7 +46,7 @@ describe('costumes', () => {
     ticks(1)
     expect(s.shape).toBe('sphere')
     const look = rt.looks.list[rt.store.look[s.slot]]
-    expect(look).toEqual({ shape: SHAPES.indexOf('sphere'), picture: ball.picture, layout: 'same' })
+    expect(look).toEqual({ shape: SHAPES.indexOf('sphere'), picture: ball.picture, layout: 'same', model: null, extent: [1, 1, 1] })
     // The same costume again is the same look.
     expect(rt.looks.of(ball)).toBe(rt.store.look[s.slot])
   })
@@ -123,5 +124,44 @@ describe('costumes', () => {
     // A textured cube has texture coordinates: the net's front is its second column, middle row.
     const g = inst.batches[rt.looks.of(dice)].mesh.geometry
     expect(g.getAttribute('uv').getX(0)).toBeCloseTo(0.25)
+  })
+
+  it('a model touches things as its box: the shapes stretched by its extent', () => {
+    const car: Costume = { ...plainCostume('car', 'sphere'), model: { asset: { assetId: 'a'.repeat(64), dataFormat: 'glb' }, size: [1, 0.5, 0.25] } }
+    const { rt, sprites: [a, b] } = setup([
+      makeSprite('a', [], { costumes: [car], x: 0 }),
+      makeSprite('b', [], { x: 0, y: 31 }),
+    ])
+    const E = rt.store
+    // A model is a box (a cube's collisions), whatever the costume's shape says.
+    expect(a.shape).toBe('cube')
+    expect([E.extentX[a.slot], E.extentY[a.slot], E.extentZ[a.slot]]).toEqual([1, 0.5, 0.25])
+    // Half as wide (across y) as a cube: it reaches 10 from its middle, and b (a cube of 40) from 11.
+    expect(shapesIntersect(E, a.slot, b.slot)).toBe(false)
+    b.y = 29
+    expect(shapesIntersect(E, a.slot, b.slot)).toBe(true)
+    expect(boundingRadius(E, a.slot)).toBeCloseTo(20 * Math.sqrt(3))
+    // Back in a plain costume, the extents are 1 again.
+    a.costumes = [plainCostume('box', 'cube')]
+    expect([E.extentX[a.slot], E.extentY[a.slot], E.extentZ[a.slot]]).toEqual([1, 1, 1])
+    // Clones copy the extents.
+    a.costumes = [car]
+    rt.createClone(a.slot, -1)
+    const [clone] = rt.clonesOf(a)
+    expect(E.extentZ[clone.slot]).toBe(0.25)
+  })
+
+  it('saves models, and rejects ones that are not binary glTF or have no size', () => {
+    const model = { asset: { assetId: 'b'.repeat(64), dataFormat: 'glb' as const }, size: [1, 0.5, 0.25] as [number, number, number] }
+    const { rt } = setup([makeSprite('a', [], { costumes: [{ ...plainCostume('m', 'cube'), model }] })])
+    const saved = serializeProject(rt)
+    expect(parseProject(saved).sprites[0].costumes[0].model).toEqual(model)
+    expect(projectAssets(saved)).toEqual([model.asset])
+    const withModel = (m: unknown) => ({ ...saved, sprites: [{ ...saved.sprites[0], costumes: [{ ...saved.sprites[0].costumes[0], model: m }] }] })
+    expect(() => parseProject(withModel({ ...model, asset: { ...model.asset, dataFormat: 'png' } }))).toThrow(/model\.asset\.dataFormat/)
+    expect(() => parseProject(withModel({ ...model, size: [1, 0, 1] }))).toThrow(/model\.size/)
+    // A picture can't be a model either.
+    const picture = { ...saved.sprites[0].costumes[0], model: null, picture: model.asset }
+    expect(() => parseProject({ ...saved, sprites: [{ ...saved.sprites[0], costumes: [picture] }] })).toThrow(/picture\.dataFormat/)
   })
 })

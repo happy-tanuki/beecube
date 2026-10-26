@@ -11,5 +11,5 @@ import sceneries from './sceneryLibrary.json'
 export const LIBRARY_FILES: ReadonlySet<string> = new Set([
   ...sceneries.map((s) => assetFileName(s.picture as AssetRef)),
   ...rooms.flatMap((r) => Object.values(r.faces).map((f) => assetFileName(f.picture as AssetRef))),
-  ...(costumes as { picture: AssetRef }[]).map((c) => assetFileName(c.picture)),
+  ...(costumes as { picture?: AssetRef; model?: { asset: AssetRef } }[]).flatMap((c) => [c.picture, c.model?.asset].filter((r) => r !== undefined).map(assetFileName)),
 ])

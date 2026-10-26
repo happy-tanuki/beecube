@@ -18,6 +18,11 @@
  * A sphere is always wrapped like a globe: the picture is equirectangular,
  * as 360° images are. The middle of a picture is on the front, the side
  * the sprite is heading to.
+ *
+ * A costume can be a 3D model instead (binary glTF), drawn with its own
+ * colors and scaled to fit the shapes' size: its longest side is as long as
+ * a cube's. Its front is glTF's (+z) and its up glTF's (+y). It touches
+ * things as a box around it (`size`), and the sprite's color doesn't show.
  */
 import { assetFileName, type AssetRef } from './assets'
 import type { Random } from './random'
@@ -27,12 +32,21 @@ export type CostumeLayout = 'same' | 'net'
 
 export const COSTUME_LAYOUTS: readonly CostumeLayout[] = ['same', 'net']
 
+export interface CostumeModel {
+  /** A binary glTF file. */
+  asset: AssetRef
+  /** The box around it along the sprite's x (front), y (left) and z (up), as fractions of the longest. */
+  size: [number, number, number]
+}
+
 export interface Costume {
   name: string
   shape: ShapeKind
   /** null for none: the shape shows the sprite's color. */
   picture: AssetRef | null
   layout: CostumeLayout
+  /** Drawn in place of the shape and its picture; null for none. */
+  model: CostumeModel | null
 }
 
 /** The grid a net is drawn on. */
@@ -44,7 +58,7 @@ export const NEXT_COSTUME = 'next costume'
 export const PREVIOUS_COSTUME = 'previous costume'
 export const RANDOM_COSTUME = 'random costume'
 
-export const plainCostume = (name: string, shape: ShapeKind): Costume => ({ name, shape, picture: null, layout: 'same' })
+export const plainCostume = (name: string, shape: ShapeKind): Costume => ({ name, shape, picture: null, layout: 'same', model: null })
 
 /**
  * The index "switch to (v)" picks in a list of names, or -1 for none: a name
@@ -79,12 +93,20 @@ export function resolveSwitch(
 
 export const COSTUME_MENU = { next: NEXT_COSTUME, previous: PREVIOUS_COSTUME, random: RANDOM_COSTUME }
 
-/** What the stage draws for an entity: a shape (index into SHAPES), and the picture on it. */
+/**
+ * What the stage draws for an entity: a shape (index into SHAPES) and the
+ * picture on it, or a model. `extent` is what it touches things with: the
+ * shape stretched by these fractions along its axes (a model's box in a cube).
+ */
 export interface Look {
   shape: number
   picture: AssetRef | null
   layout: CostumeLayout
+  model: AssetRef | null
+  extent: [number, number, number]
 }
+
+export const plainLook = (shape: number): Look => ({ shape, picture: null, layout: 'same', model: null, extent: [1, 1, 1] })
 
 /**
  * Every look in use, each once, so entities can name theirs by number (the
@@ -92,20 +114,29 @@ export interface Look {
  * Looks 0 to 3 are the plain shapes, in SHAPES order. The list only grows.
  */
 export class Looks {
-  readonly list: Look[] = SHAPES.map((_, shape) => ({ shape, picture: null, layout: 'same' }))
+  readonly list: Look[] = SHAPES.map((_, shape) => plainLook(shape))
   private readonly index = new Map<string, number>(SHAPES.map((_, shape) => [String(shape), shape]))
 
   /** The number of a costume's look, added if it is new. */
   of(costume: Costume): number {
+    if (costume.model) return this.intern(`model:${assetFileName(costume.model.asset)}`, () => ({
+      ...plainLook(0),
+      model: { ...costume.model!.asset },
+      extent: [...costume.model!.size],
+    }))
     const shape = Math.max(0, SHAPES.indexOf(costume.shape))
     if (!costume.picture) return shape
     // A sphere's picture wraps one way only.
     const layout: CostumeLayout = costume.shape === 'sphere' ? 'same' : costume.layout
-    const key = `${shape}:${assetFileName(costume.picture)}:${layout}`
+    const picture = costume.picture
+    return this.intern(`${shape}:${assetFileName(picture)}:${layout}`, () => ({ ...plainLook(shape), picture: { ...picture }, layout }))
+  }
+
+  private intern(key: string, make: () => Look): number {
     let look = this.index.get(key)
     if (look === undefined) {
       look = this.list.length
-      this.list.push({ shape, picture: { ...costume.picture }, layout })
+      this.list.push(make())
       this.index.set(key, look)
     }
     return look
