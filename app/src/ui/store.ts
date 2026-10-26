@@ -1,7 +1,7 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
 import { assetFileName, type AssetRef } from '../engine/assets'
-import { availableBackdropName, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
+import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
 import { findExtension } from '../extensions'
 import { Runtime } from '../engine/runtime'
@@ -10,7 +10,7 @@ import { STAGE_ID, type ShapeKind, type SpriteData } from '../engine/types'
 import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
 import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
-import { loadLibraryAsset, type LibraryScenery } from './sceneryLibrary'
+import { loadLibraryAsset, type LibraryRoom, type LibraryScenery } from './library'
 import { facePicture, panoramaPicture, type Picture } from './pictures'
 import { readProjectFile, writeProjectFile } from './projectFile'
 import { sampleScript } from './sample'
@@ -280,6 +280,13 @@ export class ProjectStore {
     this.updateBackdrop(index, (b) => {
       b.scenery = entry.scenery
       b.sceneryPicture = { ...entry.picture }
+    })
+  }
+
+  /** Dresses a backdrop's six faces as a room from the library; its scenery and grid stay. */
+  setLibraryRoom(index: number, entry: LibraryRoom): void {
+    this.updateBackdrop(index, (b) => {
+      for (const name of FACES) b.faces[name] = { color: entry.faces[name].color, picture: { ...entry.faces[name].picture! } }
     })
   }
 

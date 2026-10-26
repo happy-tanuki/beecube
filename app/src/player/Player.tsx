@@ -9,7 +9,7 @@ import { loadProject, parseProject, ProjectFormatError } from '../engine/project
 import { Runtime } from '../engine/runtime'
 import { findExtension } from '../extensions'
 import { t, type MessageKey } from '../i18n'
-import { loadLibraryAsset } from '../ui/sceneryLibrary'
+import { loadLibraryAsset } from '../ui/library'
 import { listenKeys } from '../ui/keys'
 import { StageView } from '../ui/StageView'
 import { isTouchDevice, TouchKeys, usedKeys } from '../ui/TouchKeys'

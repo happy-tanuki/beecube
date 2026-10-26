@@ -22,5 +22,13 @@
       "dataFormat": "jpg"
     },
     "scenery": "#43598a"
+  },
+  {
+    "key": "moon",
+    "picture": {
+      "assetId": "9fb57b397a7856736c7ccc7f95ca769a9680c244b4d7b754b93cb0c0daf9d254",
+      "dataFormat": "jpg"
+    },
+    "scenery": "#020308"
   }
 ]

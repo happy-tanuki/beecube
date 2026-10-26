@@ -1,14 +1,17 @@
-// Makes the scenery library from 360° images (equirectangular), with the
-// editor's own converter (src/ui/pictures.ts) running in a browser.
+// Makes entries of the scenery library from 360° images (equirectangular),
+// with the editor's own converter (src/ui/pictures.ts) running in a browser.
 //
 //   npm run dev   (in another terminal)
-//   node scripts/make-scenery-library.mjs http://localhost:5173 meadow=path/to/meadow.jpg ...
+//   node scripts/make-scenery-library.mjs http://localhost:5173 meadow=path/to/meadow.jpg moon=scripts/moon.js ...
 //
-// Writes each image to public/library/<sha-256>.jpg and the list to
-// src/ui/sceneryLibrary.json (keys are the entries' i18n names). The
-// images in the library are CC0 from Poly Haven (see public/library/README.md).
+// An image is a file, or a module in this app (a .js path from app/) whose
+// default export draws one on a canvas in the browser (as scripts/moon.js). Writes each image to
+// public/library/<sha-256>.jpg, and adds the entries to
+// src/ui/sceneryLibrary.json, in place of those with the same key (keys
+// are the entries' i18n names). The photographs in the library are CC0
+// from Poly Haven (see public/library/README.md).
 import { createHash } from 'node:crypto'
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
@@ -26,13 +29,22 @@ const page = await browser.newPage()
 await page.goto(server)
 mkdirSync(join(app, 'public/library'), { recursive: true })
 
-const library = []
+const listFile = join(app, 'src/ui/sceneryLibrary.json')
+const library = existsSync(listFile) ? JSON.parse(readFileSync(listFile, 'utf8')) : []
 for (const pair of pairs) {
   const [key, path] = pair.split('=')
-  await page.route('**/__panorama.jpg', (route) => route.fulfill({ body: readFileSync(path), contentType: 'image/jpeg' }))
-  const result = await page.evaluate(async () => {
+  const drawn = path.endsWith('.js')
+  if (!drawn) await page.route('**/__panorama.jpg', (route) => route.fulfill({ body: readFileSync(path), contentType: 'image/jpeg' }))
+  const result = await page.evaluate(async (module) => {
     const { panoramaPicture } = await import('/src/ui/pictures.ts')
-    const picture = await panoramaPicture(await (await fetch('/__panorama.jpg')).blob())
+    let file
+    if (module) {
+      const canvas = (await import(`/${module}`)).default()
+      file = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+    } else {
+      file = await (await fetch('/__panorama.jpg')).blob()
+    }
+    const picture = await panoramaPicture(file)
     const image = await createImageBitmap(new Blob([picture.data]))
     // The average color of a band of the image, from top to bottom (0 to 1).
     const average = (top, bottom) => {
@@ -44,14 +56,17 @@ for (const pair of pairs) {
       return '#' + [r, gr, b].map((n) => n.toString(16).padStart(2, '0')).join('')
     }
     return { format: picture.format, data: [...picture.data], scenery: average(0, 0.25) }
-  })
-  await page.unroute('**/__panorama.jpg')
+  }, drawn ? path : null)
+  if (!drawn) await page.unroute('**/__panorama.jpg')
   const bytes = Buffer.from(result.data)
   const assetId = createHash('sha256').update(bytes).digest('hex')
   writeFileSync(join(app, 'public/library', `${assetId}.${result.format}`), bytes)
-  library.push({ key, picture: { assetId, dataFormat: result.format }, scenery: result.scenery })
+  const entry = { key, picture: { assetId, dataFormat: result.format }, scenery: result.scenery }
+  const at = library.findIndex((e) => e.key === key)
+  if (at >= 0) library[at] = entry
+  else library.push(entry)
   console.log(key, result.scenery, `${Math.round(bytes.length / 1024)} KB`)
 }
 
-writeFileSync(join(app, 'src/ui/sceneryLibrary.json'), JSON.stringify(library, null, 2) + '\n')
+writeFileSync(listFile, JSON.stringify(library, null, 2) + '\n')
 await browser.close()

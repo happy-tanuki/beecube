@@ -1,0 +1,143 @@
+[
+  {
+    "key": "living",
+    "faces": {
+      "floor": {
+        "color": "#a8875f",
+        "picture": {
+          "assetId": "eb58ae1a64592039f7f6770bda275b11fdbabf1970568a92cf7e1bc22f62148f",
+          "dataFormat": "jpg"
+        }
+      },
+      "ceiling": {
+        "color": "#f8f5ef",
+        "picture": {
+          "assetId": "0eb0b305cf6c3390740e78061a1baa89543bd370710b1dc4e324b0c86319d217",
+          "dataFormat": "jpg"
+        }
+      },
+      "back": {
+        "color": null,
+        "picture": {
+          "assetId": "2bf45d959d6a2359138e1fea91c0a25134f76bad3ff9232a132bb25dfa5b4358",
+          "dataFormat": "png"
+        }
+      },
+      "front": {
+        "color": "#efe4d2",
+        "picture": {
+          "assetId": "2ce175048f2f39b83c79401185d9815ce51fb80e655b266f50c378ed2cfdf2cf",
+          "dataFormat": "jpg"
+        }
+      },
+      "left": {
+        "color": null,
+        "picture": {
+          "assetId": "2840aa73a90289c3e1cf8fec83e44c782e6a8b35b7ec3c82f00dae6e9a2f99ba",
+          "dataFormat": "png"
+        }
+      },
+      "right": {
+        "color": "#efe4d2",
+        "picture": {
+          "assetId": "b5fa430777007084093699a294703d39b19dd331134661c2f760e1140bd7e3a1",
+          "dataFormat": "jpg"
+        }
+      }
+    }
+  },
+  {
+    "key": "classroom",
+    "faces": {
+      "floor": {
+        "color": "#8d6a48",
+        "picture": {
+          "assetId": "d92bd02e0c5458c18a71f2c9f8788c3481b7a1ce13e69c941d43d988f5bce702",
+          "dataFormat": "jpg"
+        }
+      },
+      "ceiling": {
+        "color": "#f4f4ef",
+        "picture": {
+          "assetId": "996cbf1e2c7e8d373c5326980bfdd005207af2941702803ea2d746e1d9c8d31a",
+          "dataFormat": "jpg"
+        }
+      },
+      "back": {
+        "color": "#eef0e6",
+        "picture": {
+          "assetId": "cff19f1a0a108ba920820d7ec84e73b346422ee3153d6d4bb69d1ad5e4dd8607",
+          "dataFormat": "jpg"
+        }
+      },
+      "front": {
+        "color": "#eef0e6",
+        "picture": {
+          "assetId": "eab7dabf3574e915c7f298380c0f976cb083c0105c60d8ca3afb44d596103d3b",
+          "dataFormat": "jpg"
+        }
+      },
+      "left": {
+        "color": null,
+        "picture": {
+          "assetId": "9e7fd43b7d67ef9718aee95fbcc4275f29e45a49f5c3fc1980fb7d2248a864ae",
+          "dataFormat": "png"
+        }
+      },
+      "right": {
+        "color": "#eef0e6",
+        "picture": {
+          "assetId": "ac7b885cd6085db7fef0b77becb9472279f7c69c83307f9ae8f959979e5c0975",
+          "dataFormat": "jpg"
+        }
+      }
+    }
+  },
+  {
+    "key": "spaceship",
+    "faces": {
+      "floor": {
+        "color": "#4c5462",
+        "picture": {
+          "assetId": "a7f4d7270befc8616d837f9a49f42830a9ec1acc8b8a1e9bf6fd0de967a2c17b",
+          "dataFormat": "jpg"
+        }
+      },
+      "ceiling": {
+        "color": "#b9c1cd",
+        "picture": {
+          "assetId": "8f326f5e90f9b85e06d8280469a8e2d53ba4335e325f2c95d979d8bd49cef8b3",
+          "dataFormat": "jpg"
+        }
+      },
+      "back": {
+        "color": null,
+        "picture": {
+          "assetId": "615fd01832691bed2a8815796010808ff10e24332652fe288bdfc71b2595e1a9",
+          "dataFormat": "png"
+        }
+      },
+      "front": {
+        "color": "#d3d9e2",
+        "picture": {
+          "assetId": "b474a4c71a27e65310bb8a0e0d1b0b73586e28f32641a4fa1f9008a4a4680568",
+          "dataFormat": "jpg"
+        }
+      },
+      "left": {
+        "color": null,
+        "picture": {
+          "assetId": "d9a82c997c8f9e916fe0bab7767c25dd557750e5eedbba0f2122766b8cfb6c1e",
+          "dataFormat": "png"
+        }
+      },
+      "right": {
+        "color": null,
+        "picture": {
+          "assetId": "67322781a7d223bb1968d8788f8ad4afb842dfec0cffcb9f031c03764f201df1",
+          "dataFormat": "png"
+        }
+      }
+    }
+  }
+]

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FACES, type BackdropData, type FaceName } from '../engine/backdrop'
 import { t } from '../i18n'
 import { assetUrl } from './assetUrls'
-import { libraryAssetUrl, librarySceneryName, SCENERY_LIBRARY } from './sceneryLibrary'
+import { libraryAssetUrl, libraryRoomName, librarySceneryName, ROOM_LIBRARY, SCENERY_LIBRARY } from './library'
 import { showAlert } from './dialogs'
 import { backdropPreview } from './StagePane'
 import type { ProjectStore } from './store'
@@ -136,7 +136,7 @@ function SceneryRow({ store, index, backdrop, onChoose }: { store: ProjectStore;
           </>
         ) : (
           <>
-            <button onClick={onChoose}>{t('backdrop.chooseScenery')}</button>
+            <button onClick={onChoose}>{t('backdrop.choose')}</button>
             <button onClick={picker.pick}>{t('backdrop.uploadScenery')}</button>
           </>
         )}
@@ -145,14 +145,28 @@ function SceneryRow({ store, index, backdrop, onChoose }: { store: ProjectStore;
   )
 }
 
-function BackdropForm({ store, index, backdrop, onChooseScenery }: { store: ProjectStore; index: number; backdrop: BackdropData; onChooseScenery: () => void }) {
+/** Dressing the six faces as a room from the library. */
+function RoomRow({ onChoose }: { onChoose: () => void }) {
+  return (
+    <tr>
+      <th>{t('backdrop.room')}</th>
+      <td colSpan={2} />
+      <td className="face-picture">
+        <button onClick={onChoose}>{t('backdrop.choose')}</button>
+      </td>
+    </tr>
+  )
+}
+
+function BackdropForm({ store, index, backdrop, onChoose }: { store: ProjectStore; index: number; backdrop: BackdropData; onChoose: (library: LibraryKind) => void }) {
   const update = (change: (b: BackdropData) => void) => store.updateBackdrop(index, change)
   return (
     <div className="backdrop-form">
       <NameField key={backdrop.id} store={store} index={index} backdrop={backdrop} />
       <table className="backdrop-faces">
         <tbody>
-          <SceneryRow store={store} index={index} backdrop={backdrop} onChoose={onChooseScenery} />
+          <SceneryRow store={store} index={index} backdrop={backdrop} onChoose={() => onChoose('scenery')} />
+          <RoomRow onChoose={() => onChoose('room')} />
           {FACES.map((name) => (
             <FaceRow key={name} store={store} index={index} backdrop={backdrop} name={name} />
           ))}
@@ -166,33 +180,61 @@ function BackdropForm({ store, index, backdrop, onChooseScenery }: { store: Proj
   )
 }
 
-/** Choosing a backdrop's scenery from the library, laid out as Scratch's "Choose a Backdrop". */
-function SceneryLibrary({ store, index, onClose }: { store: ProjectStore; index: number; onClose: () => void }) {
+type LibraryKind = 'scenery' | 'room'
+
+interface LibraryItem {
+  key: string
+  name: string
+  picture: string
+  choose: () => void
+}
+
+/** Choosing a backdrop's scenery or room from a library, laid out as Scratch's "Choose a Backdrop". */
+function Library({ title, items, onClose }: { title: string; items: LibraryItem[]; onClose: () => void }) {
   return (
-    <div className="scenery-library">
-      <div className="scenery-library-header">
-        <span>{t('backdrop.sceneryLibrary')}</span>
+    <div className="library">
+      <div className="library-header">
+        <span>{title}</span>
         <button title={t('backdrop.closeLibrary')} onClick={onClose}>
           ×
         </button>
       </div>
-      <div className="scenery-library-items">
-        {SCENERY_LIBRARY.map((entry) => (
+      <div className="library-items">
+        {items.map((item) => (
           <button
-            key={entry.key}
-            className="scenery-library-item"
+            key={item.key}
+            className="library-item"
             onClick={() => {
-              store.setLibraryScenery(index, entry)
+              item.choose()
               onClose()
             }}
           >
-            <img src={libraryAssetUrl(entry.picture)} alt="" loading="lazy" />
-            <span>{librarySceneryName(entry)}</span>
+            <img src={item.picture} alt="" loading="lazy" />
+            <span>{item.name}</span>
           </button>
         ))}
       </div>
     </div>
   )
+}
+
+function BackdropLibrary({ store, index, kind, onClose }: { store: ProjectStore; index: number; kind: LibraryKind; onClose: () => void }) {
+  const items: LibraryItem[] =
+    kind === 'scenery'
+      ? SCENERY_LIBRARY.map((entry) => ({
+          key: entry.key,
+          name: librarySceneryName(entry),
+          picture: libraryAssetUrl(entry.picture),
+          choose: () => store.setLibraryScenery(index, entry),
+        }))
+      : ROOM_LIBRARY.map((entry) => ({
+          key: entry.key,
+          name: libraryRoomName(entry),
+          // The back wall, which the home view faces.
+          picture: libraryAssetUrl(entry.faces.back.picture!),
+          choose: () => store.setLibraryRoom(index, entry),
+        }))
+  return <Library title={t(kind === 'scenery' ? 'backdrop.sceneryLibrary' : 'backdrop.roomLibrary')} items={items} onClose={onClose} />
 }
 
 /** Re-renders periodically so a backdrop switched by a script shows up. */
@@ -208,7 +250,7 @@ function useTicker(ms: number): void {
 export function BackdropsTab({ store }: { store: ProjectStore }) {
   useTicker(250)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [libraryOpen, setLibraryOpen] = useState(false)
+  const [library, setLibrary] = useState<LibraryKind | null>(null)
   const upload = useImagePicker((file) => store.uploadBackdrop(file))
   const { list, current, backdrop } = store.rt.backdrops
   const choose = (open: () => void) => () => {
@@ -252,8 +294,8 @@ export function BackdropsTab({ store }: { store: ProjectStore }) {
           )}
         </div>
       </div>
-      <BackdropForm key={backdrop.id} store={store} index={current} backdrop={backdrop} onChooseScenery={() => setLibraryOpen(true)} />
-      {libraryOpen && <SceneryLibrary store={store} index={current} onClose={() => setLibraryOpen(false)} />}
+      <BackdropForm key={backdrop.id} store={store} index={current} backdrop={backdrop} onChoose={setLibrary} />
+      {library && <BackdropLibrary store={store} index={current} kind={library} onClose={() => setLibrary(null)} />}
     </div>
   )
 }

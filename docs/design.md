@@ -98,8 +98,10 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   photo had been taken from 150 above the stage's center, so the floor lies
   on the image's ground (as a mat, or not at all when transparent) and
   sprites cast shadows on it. The scenery library (`app/public/library/`)
-  is 360° images from Poly Haven (CC0) taken in the open: choosing one
-  changes only the current backdrop's scenery, not its faces or grid.
+  is 360° images from Poly Haven (CC0) taken in the open, and the moon's
+  surface, drawn for BeeCube (`app/scripts/moon.js`) as seen from the
+  same height, with no craters under the stage: choosing one changes only
+  the current backdrop's scenery, not its faces or grid.
   - Considered and dropped (2026-10-26): cutting a 360° image into the
     box's six faces (a cube panorama). It is right only from the box's
     center; from the usual view above the stage the walls and the floor
@@ -112,6 +114,17 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
     snowy park) don't suit
     a ground projection: the near things are smeared over the ground. The
     stage's box is the room; the scenery is what is outside it.
+- **Room library** (2026-10-26). Rooms dress the stage's box: a living
+  room, a classroom and the inside of a spaceship, each a picture for every
+  face (walls, floor and ceiling). Choosing one changes only the current
+  backdrop's six faces, not its scenery or grid, so any room can stand in
+  any scenery. Windows are transparent, and the scenery shows through them
+  (the spaceship's onto the moon). A room is drawn at a
+  centimeter a unit (a sprite of 100 is about a child's height), its
+  textures repeated at their real size and from Poly Haven (CC0), and its
+  walls darker towards the corners, as walls aren't lit. The pictures are
+  made by `app/scripts/make-room-library.mjs` and are ordinary face
+  pictures, so the user can change or remove each.
 - **Assets**, as in Scratch (`app/src/engine/assets.ts`). A picture is an
   asset: the project's JSON refers to it by the SHA-256 of its contents and
   its format, and the contents are kept apart, in memory while the project
@@ -195,7 +208,8 @@ sprites. Extension blocks are left out, as they act on sprites.
   list. Selecting the stage shows its scripts and a Backdrops tab, where
   backdrops are chosen (the chosen one becomes current, as in Scratch),
   added (uploaded or plain), renamed, deleted and changed, a picture at a
-  time, with a 360° image from the scenery library or uploaded. The editor is designed for computers
+  time, with a 360° image from the scenery library or uploaded, and a room
+  from the room library. The editor is designed for computers
   with a mouse and keyboard.
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
   plane. Drag the cone above the selected sprite to change its height.
