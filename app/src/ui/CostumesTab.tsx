@@ -2,10 +2,11 @@
  * A sprite's Costumes tab, as Scratch's: the list (choosing one puts it on
  * the sprite), adding one (from the library, uploaded, painted, a 3D model,
  * or without a picture), and the chosen one's name, shape, picture and how
- * the picture wraps the shape, or its model (engine/costume.ts).
+ * the picture wraps the shape, or its model and the model's pose
+ * (engine/costume.ts).
  */
-import { useRef, useState } from 'react'
-import type { Assets } from '../engine/assets'
+import { useEffect, useRef, useState } from 'react'
+import { assetFileName, type AssetRef, type Assets } from '../engine/assets'
 import { COSTUME_LAYOUTS, type Costume } from '../engine/costume'
 import type { ShapeKind } from '../engine/types'
 import { t, type MessageKey } from '../i18n'
@@ -15,13 +16,14 @@ import { COSTUME_LIBRARY, libraryAssetUrl, libraryCostumeName } from './library'
 import { costumeGuide, newCostumeSize } from './paint'
 import { PaintEditor } from './PaintEditor'
 import { showAlert } from './dialogs'
-import { modelThumbnail } from './modelThumbnails'
+import { loadModel, modelThumbnail } from './modelThumbnails'
+import { modelBones, modelClips, type Model } from '../stage/models'
 import { SHAPE_ICONS } from './SpritePane'
 import { ModelError, SHAPES, shapeName, type ProjectStore } from './store'
 
 /** A costume's picture for the page: its model drawn, or its picture; null if it has neither (or it isn't ready). */
 export function costumeThumbnail(assets: Assets, c: Costume): string | null {
-  if (c.model) return modelThumbnail(assets, c.model.asset)
+  if (c.model) return modelThumbnail(assets, c.model.asset, c.model.pose)
   return c.picture && assetUrl(assets, c.picture)
 }
 
@@ -90,9 +92,121 @@ function NetGuide({ shape }: { shape: Exclude<ShapeKind, 'sphere'> }) {
   )
 }
 
-/** A model costume's form: the model, which can be taken off to leave the shape. */
+/** A costume's model once it has been read; null until then, or if it can't be. */
+function useModel(assets: Assets, ref: AssetRef): Model | null {
+  const key = assetFileName(ref)
+  const [read, setRead] = useState<{ key: string; model: Model | null } | null>(null)
+  useEffect(() => {
+    let live = true
+    void loadModel(assets, ref).then((model) => live && setRead({ key, model }))
+    return () => {
+      live = false
+    }
+  }, [assets, key])
+  return read?.key === key ? read.model : null
+}
+
+/** The sliders' labels: turning about the sprite's x (front), y (left) and z (up), as a pose has them. */
+const TURNS: MessageKey[] = ['costume.turnSideways', 'costume.turnForward', 'costume.turnAround']
+
+/** Turning a model's bones, one at a time; the costume changes as a slider is let go. */
+function PoseEditor({ store, index, costume, bones }: { store: ProjectStore; index: number; costume: Costume; bones: string[] }) {
+  const [chosen, setChosen] = useState(bones[0])
+  const [draft, setDraft] = useState<[number, number, number] | null>(null)
+  // Read when the slider is let go, which may be after this render (see onPointerDown).
+  const latest = useRef(draft)
+  latest.current = draft
+  const pose = costume.model?.pose ?? {}
+  const bone = bones.includes(chosen) ? chosen : bones[0]
+  const angles = draft ?? pose[bone] ?? [0, 0, 0]
+  const commit = () => {
+    const turn = latest.current
+    if (!turn) return
+    const next = { ...pose }
+    if (turn.every((a) => a === 0)) delete next[bone]
+    else next[bone] = turn
+    latest.current = null
+    setDraft(null)
+    store.setModelPose(index, next)
+  }
+  return (
+    <>
+      <div className="field costume-pose">
+        <span>{t('costume.bone')}</span>
+        <select value={bone} onChange={(e) => setChosen(e.target.value)}>
+          {bones.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
+        <button disabled={Object.keys(pose).length === 0} onClick={() => store.setModelPose(index, {})}>
+          {t('costume.resetPose')}
+        </button>
+      </div>
+      {TURNS.map((label, k) => (
+        <label key={label} className="field costume-turn">
+          <span>{t(label)}</span>
+          <input
+            type="range"
+            min={-180}
+            max={180}
+            step={1}
+            value={angles[k]}
+            onChange={(e) => {
+              const next = [...angles] as [number, number, number]
+              next[k] = Number(e.target.value)
+              setDraft(next)
+            }}
+            // Let go anywhere, not only over the slider.
+            onPointerDown={() => window.addEventListener('pointerup', commit, { once: true })}
+            onKeyUp={commit}
+            onBlur={commit}
+          />
+          <output>{Math.round(angles[k])}°</output>
+        </label>
+      ))}
+    </>
+  )
+}
+
+const MIN_FRAMES = 2
+const MAX_FRAMES = 16
+
+/** Making costumes from moments of one of the model's animations. */
+function ClipCostumes({ store, index, clips }: { store: ProjectStore; index: number; clips: string[] }) {
+  const [chosen, setChosen] = useState(clips[0])
+  const [frames, setFrames] = useState(8)
+  const clip = clips.includes(chosen) ? chosen : clips[0]
+  return (
+    <div className="field costume-pose">
+      <span>{t('costume.fromClip')}</span>
+      <select value={clip} onChange={(e) => setChosen(e.target.value)}>
+        {clips.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+      <input
+        type="number"
+        min={MIN_FRAMES}
+        max={MAX_FRAMES}
+        value={frames}
+        onChange={(e) => setFrames(Math.min(MAX_FRAMES, Math.max(MIN_FRAMES, Math.round(Number(e.target.value)) || MIN_FRAMES)))}
+      />
+      <span>{t('costume.frames')}</span>
+      <button onClick={() => void store.addClipCostumes(index, clip, frames)}>{t('costume.makeFrames')}</button>
+    </div>
+  )
+}
+
+/** A model costume's form: the model, which can be taken off to leave the shape, and its pose if it has bones. */
 function ModelForm({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
   const url = costumeThumbnail(store.rt.assets, costume)
+  const model = useModel(store.rt.assets, costume.model!.asset)
+  const bones = model ? modelBones(model) : []
+  const clips = model ? modelClips(model).map((c) => c.name) : []
   return (
     <div className="backdrop-form costume-form">
       <NameField store={store} index={index} costume={costume} />
@@ -104,6 +218,13 @@ function ModelForm({ store, index, costume }: { store: ProjectStore; index: numb
         </button>
       </div>
       <p className="costume-note">{t('costume.modelNote')}</p>
+      {bones.length > 0 && (
+        <>
+          <PoseEditor key={index} store={store} index={index} costume={costume} bones={bones} />
+          {clips.length > 0 && <ClipCostumes store={store} index={index} clips={clips} />}
+          <p className="costume-note">{t('costume.poseNote')}</p>
+        </>
+      )}
     </div>
   )
 }

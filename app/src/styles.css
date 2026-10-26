@@ -231,7 +231,7 @@ body,
   gap: 4px;
 }
 
-.field input:not([type='checkbox']):not([type='radio']):not([type='color']),
+.field input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']),
 .field select {
   width: 56px;
   height: 26px;
@@ -574,7 +574,8 @@ body,
 }
 
 .face-picture button,
-.costume-picture button {
+.costume-picture button,
+.costume-pose button {
   height: 26px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -586,7 +587,8 @@ body,
 }
 
 .face-picture button:hover,
-.costume-picture button:hover {
+.costume-picture button:hover,
+.costume-pose button:hover:not(:disabled) {
   border-color: var(--menu-bar);
 }
 
@@ -627,6 +629,31 @@ body,
 .costume-picture .costume-model-thumb {
   width: 80px;
   height: 60px;
+}
+
+/* Bones' names and animations' are the model's own, and can be long. */
+.costume-pose select {
+  width: auto;
+  max-width: 160px;
+}
+
+.costume-pose button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.costume-turn span {
+  width: 96px;
+}
+
+.costume-turn input {
+  width: 180px;
+}
+
+.costume-turn output {
+  width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .costume-note {

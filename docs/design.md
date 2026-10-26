@@ -85,11 +85,23 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   things, bounces and takes part in physics as that box: the costume keeps
   the box's proportions, and the store an extent per axis that collisions
   multiply width, depth and height by. Skinned models are drawn as their
-  skeleton stands; animations are not played yet. The library adds 24
+  skeleton stands, in the costume's pose. The library adds 24
   models from Kenney's kits (CC0): animals, children, cars, space, trees
   and food, re-exported with their textures inside. Models are assets like
   pictures, so they are saved, shared and moderated the same way (the
   moderation page draws them).
+- **Poses.** A costume of a model with a skeleton keeps a pose: bones by
+  name, each turned by three angles in degrees about the sprite's front,
+  left and up axes (as seen with its parent bone at rest), so a slider
+  means the same on every bone. The Costumes tab turns the chosen bone with
+  three sliders, and makes costumes from one of the file's animations: a
+  number of moments evenly through it, each a costume with that pose (only
+  how bones turn is kept). Switching such costumes moves the model like a
+  flip book; animations are not played as they are, and blocks don't turn
+  bones. A pose is drawn by shaping the skinned meshes once, as a look of
+  its own; the box stays the model's at rest, so switching poses doesn't
+  change what it touches. The library's children keep their kit's
+  animations (walk, run, jump, sit and more).
 - **The picture editor** (`app/src/ui/PaintEditor.tsx`) paints a costume's
   picture or a backdrop face's, like Scratch's paint editor in bitmap mode
   (there is no vector mode): brush, eraser, fill, line, rectangle, ellipse,

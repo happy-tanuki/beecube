@@ -13,10 +13,10 @@
 import * as THREE from 'three'
 import { APP_ID } from '../brand'
 import { ASSET_MIME, assetFileName, type AssetRef, type Assets } from '../engine/assets'
-import { NET_COLUMNS, NET_ROWS, type CostumeLayout, type Look } from '../engine/costume'
+import { NET_COLUMNS, NET_ROWS, poseKey, type CostumeLayout, type Look } from '../engine/costume'
 import { BASE_SIZE, SHAPES } from '../engine/types'
 import type { BatchPart } from './instances'
-import { modelParts, readModel } from './models'
+import { modelParts, readModel, type Model } from './models'
 
 /** A part of the picture, in texture coordinates (v up): left, bottom, width, height. */
 type Region = [number, number, number, number]
@@ -156,7 +156,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb, pictureTexel.rgb, pictureTexel.a);
 
 /**
  * What to draw for each look (a batch's parts), made when first asked for
- * and kept: a plain shape, a shape with its picture, or a model's meshes.
+ * and kept: a plain shape, a shape with its picture, or a model's meshes
+ * in a pose (each model is read once, for all its poses).
  * `prepare` readies each material for how the caller draws (the pose
  * attributes).
  */
@@ -165,7 +166,8 @@ export class LookResources {
   private readonly geometries = new Map<string, THREE.BufferGeometry>()
   private readonly materials = new Map<string, THREE.MeshStandardMaterial>()
   private readonly textures = new Map<string, THREE.Texture>()
-  private readonly models = new Map<string, Promise<BatchPart[]>>()
+  private readonly models = new Map<string, Promise<Model | null>>()
+  private readonly posed = new Map<string, Promise<BatchPart[]>>()
 
   constructor(
     private readonly assets: Assets,
@@ -189,7 +191,7 @@ export class LookResources {
   /** A look's parts now; a model's are none until it has loaded, when `ready` gets them. */
   parts(look: Look, ready: (parts: BatchPart[]) => void): BatchPart[] {
     if (look.model) {
-      void this.model(look.model).then(ready)
+      void this.modelParts(look).then(ready)
       return []
     }
     return [{ geometry: this.geometry(look), material: this.pictureMaterial(look), tinted: true }]
@@ -221,22 +223,35 @@ export class LookResources {
     return m
   }
 
-  private model(ref: AssetRef): Promise<BatchPart[]> {
+  private model(ref: AssetRef): Promise<Model | null> {
     const key = assetFileName(ref)
-    let parts = this.models.get(key)
-    if (!parts) {
-      parts = (async () => {
+    let model = this.models.get(key)
+    if (!model) {
+      model = (async () => {
         const data = await this.assets.load(ref)
-        if (!data) return []
-        return modelParts(await readModel(data)).map(({ geometry, material }) => {
-          for (const m of Array.isArray(material) ? material : [material]) this.prepare(m)
-          return { geometry, material, tinted: false }
-        })
+        return data && (await readModel(data))
       })().catch((err) => {
         console.warn(`LookResources: the model ${key} could not be read`, err)
-        return []
+        return null
       })
-      this.models.set(key, parts)
+      this.models.set(key, model)
+    }
+    return model
+  }
+
+  private modelParts(look: Look): Promise<BatchPart[]> {
+    const key = `${assetFileName(look.model!)}:${poseKey(look.pose)}`
+    let parts = this.posed.get(key)
+    if (!parts) {
+      parts = this.model(look.model!).then((model) =>
+        model
+          ? modelParts(model, look.pose).map(({ geometry, material }) => {
+              for (const m of Array.isArray(material) ? material : [material]) this.prepare(m)
+              return { geometry, material, tinted: false }
+            })
+          : [],
+      )
+      this.posed.set(key, parts)
     }
     return parts
   }
@@ -266,7 +281,7 @@ export class LookResources {
     for (const g of this.geometries.values()) g.dispose()
     for (const m of this.materials.values()) m.dispose()
     for (const t of this.textures.values()) t.dispose()
-    for (const parts of this.models.values()) {
+    for (const parts of this.posed.values()) {
       void parts.then((ps) => {
         for (const p of ps) {
           p.geometry.dispose()

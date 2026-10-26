@@ -57,7 +57,8 @@ NASA's maps (public domain), scaled down:
 The 3D models are from [Kenney](https://kenney.nl)'s kits, released under
 [CC0](https://creativecommons.org/publicdomain/zero/1.0/), each re-exported
 as one binary glTF file with its textures inside (and the space kit's turned
-to face +z, as the others do):
+to face +z, as the others do; models with skeletons keep their animations,
+to make poses from):
 
 | Kit | Models |
 | --- | --- |

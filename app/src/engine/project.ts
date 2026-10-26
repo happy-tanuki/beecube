@@ -7,7 +7,7 @@
 import { APP_ID, APP_NAME } from '../brand'
 import { assetFileName, isAssetId, PICTURE_FORMATS, type AssetFormat, type AssetRef } from './assets'
 import { FACES, type BackdropData, type Face, type FaceName } from './backdrop'
-import { COSTUME_LAYOUTS, plainCostume, type Costume, type CostumeLayout, type CostumeModel } from './costume'
+import { COSTUME_LAYOUTS, plainCostume, type Costume, type CostumeLayout, type CostumeModel, type ModelPose } from './costume'
 import { isColorString } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
@@ -179,7 +179,25 @@ function parseModel(v: unknown, where: string): CostumeModel | null {
   if (!Array.isArray(size) || size.length !== 3 || !size.every((n) => typeof n === 'number' && n > 0 && n <= 1)) {
     fail(`${where}.size must be three fractions`)
   }
-  return { asset, size: size as [number, number, number] }
+  const pose = parsePose(v.pose, `${where}.pose`)
+  return { asset, size: size as [number, number, number], ...(pose && { pose }) }
+}
+
+/** The most bones a pose can name. */
+const MAX_POSE_BONES = 256
+
+/** Missing or empty means none. */
+function parsePose(v: unknown, where: string): ModelPose | undefined {
+  if (v === undefined || v === null) return undefined
+  if (!isObj(v)) fail(`${where} must be an object`)
+  const entries = Object.entries(v)
+  if (entries.length > MAX_POSE_BONES) fail(`${where} names more than ${MAX_POSE_BONES} bones`)
+  for (const [bone, turn] of entries) {
+    if (!Array.isArray(turn) || turn.length !== 3 || !turn.every((n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 360)) {
+      fail(`${where}["${bone}"] must be three angles`)
+    }
+  }
+  return entries.length > 0 ? (Object.fromEntries(entries) as ModelPose) : undefined
 }
 
 /** The costumes, or for older files one plain costume of the sprite's shape. */

@@ -1,7 +1,7 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
 import { ASSET_MIME, assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
-import { plainCostume, type Costume } from '../engine/costume'
+import { plainCostume, type Costume, type CostumeModel, type ModelPose } from '../engine/costume'
 import { availableName } from '../engine/rename'
 import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
@@ -13,7 +13,8 @@ import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
 import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
 import { isLibraryAsset, libraryCostumeName, loadLibraryAsset, type LibraryCostume, type LibraryRoom, type LibraryScenery } from './library'
-import { modelSize, readModel } from '../stage/models'
+import { clipPose, modelClips, modelSize, readModel } from '../stage/models'
+import { loadModel } from './modelThumbnails'
 import { costumePicture, facePicture, panoramaPicture, type Picture } from './pictures'
 import { readProjectFile, writeProjectFile } from './projectFile'
 import { sampleScript } from './sample'
@@ -49,6 +50,11 @@ const newId = () => `sprite-${Date.now().toString(36)}-${idCounter++}`
  * Project-level state shared by the UI: the runtime (which owns the sprites)
  * and which sprite is being edited. React subscribes via `subscribe`/`version`.
  */
+/** The model in a pose; an empty pose is left out, as the file has it. */
+function withPose({ asset, size }: CostumeModel, pose: ModelPose): CostumeModel {
+  return Object.keys(pose).length > 0 ? { asset, size, pose } : { asset, size }
+}
+
 export class ProjectStore {
   readonly rt = new Runtime()
   editingId = ''
@@ -395,6 +401,35 @@ export class ProjectStore {
     const asset = await this.rt.assets.add(data, 'glb')
     const name = file.name.replace(/\.[^.]*$/, '') || t('costume.model')
     this.pushCostume({ ...plainCostume(name, 'cube'), model: { asset, size } })
+  }
+
+  /** Stands a model costume in a pose (empty for as the file has it). */
+  setModelPose(index: number, pose: ModelPose): void {
+    const model = this.editing.costumes[index]?.model
+    if (!model) return
+    this.updateCostume(index, { model: withPose(model, pose) })
+  }
+
+  /**
+   * Adds costumes of a model costume's model in the poses of moments of one
+   * of its animations, evenly through it, and wears the first: switched one
+   * after another, they move as it does. Does nothing if the animation
+   * isn't found.
+   */
+  async addClipCostumes(index: number, clipName: string, frames: number): Promise<void> {
+    const sprite = this.editing
+    const model = sprite.costumes[index]?.model
+    const read = model && (await loadModel(this.rt.assets, model.asset))
+    const clip = read && modelClips(read).find((c) => c.name === clipName)
+    if (!model || !clip) return
+    const first = sprite.costumes.length
+    for (let i = 0; i < frames; i++) {
+      const pose = clipPose(read, clip, (clip.duration * i) / frames)
+      const name = availableName(`${clip.name}${i + 1}`, sprite.costumes.map((o) => o.name)) ?? clip.name
+      sprite.costumes = [...sprite.costumes, { ...plainCostume(name, 'cube'), model: withPose(model, pose) }]
+    }
+    sprite.costume = first
+    this.notify()
   }
 
   /** Takes the model off a costume: it is its shape again. */

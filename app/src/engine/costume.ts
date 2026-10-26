@@ -23,6 +23,11 @@
  * colors and scaled to fit the shapes' size: its longest side is as long as
  * a cube's. Its front is glTF's (+z) and its up glTF's (+y). It touches
  * things as a box around it (`size`), and the sprite's color doesn't show.
+ *
+ * A model with a skeleton can stand in a pose: its bones turned from how
+ * the file has them. Costumes of one model in different poses make it move
+ * as they are switched, as a flip book does; its box stays as the file has
+ * it, so switching doesn't change what it touches.
  */
 import { assetFileName, type AssetRef } from './assets'
 import type { Random } from './random'
@@ -37,6 +42,24 @@ export interface CostumeModel {
   asset: AssetRef
   /** The box around it along the sprite's x (front), y (left) and z (up), as fractions of the longest. */
   size: [number, number, number]
+  /** Its bones turned from how the file has them; missing or empty for none. */
+  pose?: ModelPose
+}
+
+/**
+ * Bones by name, each turned by angles in degrees about the sprite's x
+ * (front), y (left) and z (up) axes, in that order (as seen with its parent
+ * bone as the file has it). A bone not named stays as it is.
+ */
+export type ModelPose = Record<string, [number, number, number]>
+
+/** A pose as text, the same for the same pose (bones in name order). */
+export function poseKey(pose: ModelPose | undefined): string {
+  if (!pose) return ''
+  return Object.keys(pose)
+    .sort()
+    .map((bone) => `${bone}:${pose[bone].join(',')}`)
+    .join(';')
 }
 
 export interface Costume {
@@ -103,10 +126,12 @@ export interface Look {
   picture: AssetRef | null
   layout: CostumeLayout
   model: AssetRef | null
+  /** The model's pose. */
+  pose: ModelPose
   extent: [number, number, number]
 }
 
-export const plainLook = (shape: number): Look => ({ shape, picture: null, layout: 'same', model: null, extent: [1, 1, 1] })
+export const plainLook = (shape: number): Look => ({ shape, picture: null, layout: 'same', model: null, pose: {}, extent: [1, 1, 1] })
 
 /**
  * Every look in use, each once, so entities can name theirs by number (the
@@ -119,10 +144,12 @@ export class Looks {
 
   /** The number of a costume's look, added if it is new. */
   of(costume: Costume): number {
-    if (costume.model) return this.intern(`model:${assetFileName(costume.model.asset)}`, () => ({
+    const model = costume.model
+    if (model) return this.intern(`model:${assetFileName(model.asset)}:${poseKey(model.pose)}`, () => ({
       ...plainLook(0),
-      model: { ...costume.model!.asset },
-      extent: [...costume.model!.size],
+      model: { ...model.asset },
+      pose: structuredClone(model.pose ?? {}),
+      extent: [...model.size],
     }))
     const shape = Math.max(0, SHAPES.indexOf(costume.shape))
     if (!costume.picture) return shape

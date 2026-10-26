@@ -3,7 +3,8 @@
 // (src/ui/pictures.ts), as a picture a user uploads for a costume; then
 // adds the 3D models from Kenney's kits (CC0), each re-exported as one
 // binary glTF file with its textures inside (the kits' files refer to
-// textures beside them).
+// textures beside them). Models with skeletons keep their animations, to
+// make poses from.
 //
 //   npm run dev   (in another terminal)
 //   node scripts/make-costume-library.mjs http://localhost:5173
@@ -89,7 +90,10 @@ for (const [key, [kit, file, facing]] of Object.entries(MODELS)) {
       const gltf = await new GLTFLoader().loadAsync(url)
       // Turned about glTF's up (y), so it faces +z as the others do.
       if (backwards) gltf.scene.rotation.y += Math.PI
-      const glb = new Uint8Array(await new GLTFExporter().parseAsync(gltf.scene, { binary: true }))
+      let skinned = false
+      gltf.scene.traverse((o) => (skinned ||= o.isSkinnedMesh))
+      const animations = skinned ? gltf.animations : []
+      const glb = new Uint8Array(await new GLTFExporter().parseAsync(gltf.scene, { binary: true, animations }))
       return { data: [...glb], size: modelSize(await readModel(glb)) }
     },
     { url: `/__kit/${kit}/${encodeURIComponent(file).replace(/%2F/g, '/')}`, backwards: facing === 'backwards' },

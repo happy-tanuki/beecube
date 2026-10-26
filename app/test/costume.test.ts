@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 import type { AssetRef } from '../src/engine/assets'
-import { plainCostume, type Costume } from '../src/engine/costume'
+import { Looks, plainCostume, type Costume } from '../src/engine/costume'
 import { boundingRadius, shapesIntersect } from '../src/engine/collision'
 import { parseProject, projectAssets, serializeProject } from '../src/engine/project'
 import { SHAPES } from '../src/engine/types'
@@ -46,7 +46,7 @@ describe('costumes', () => {
     ticks(1)
     expect(s.shape).toBe('sphere')
     const look = rt.looks.list[rt.store.look[s.slot]]
-    expect(look).toEqual({ shape: SHAPES.indexOf('sphere'), picture: ball.picture, layout: 'same', model: null, extent: [1, 1, 1] })
+    expect(look).toEqual({ shape: SHAPES.indexOf('sphere'), picture: ball.picture, layout: 'same', model: null, pose: {}, extent: [1, 1, 1] })
     // The same costume again is the same look.
     expect(rt.looks.of(ball)).toBe(rt.store.look[s.slot])
   })
@@ -151,6 +151,18 @@ describe('costumes', () => {
     expect(E.extentZ[clone.slot]).toBe(0.25)
   })
 
+  it('makes a look for each pose of a model, the same for the same pose', () => {
+    const asset = { assetId: 'c'.repeat(64), dataFormat: 'glb' as const }
+    const model = (pose?: Record<string, [number, number, number]>): Costume => ({ ...plainCostume('m', 'cube'), model: { asset, size: [1, 1, 1], pose } })
+    const looks = new Looks()
+    const still = looks.of(model())
+    const nod = looks.of(model({ head: [0, 20, 0], arm: [10, 0, 0] }))
+    expect(nod).not.toBe(still)
+    expect(looks.of(model({ arm: [10, 0, 0], head: [0, 20, 0] }))).toBe(nod)
+    expect(looks.of(model({}))).toBe(still)
+    expect(looks.list[nod].pose).toEqual({ head: [0, 20, 0], arm: [10, 0, 0] })
+  })
+
   it('saves models, and rejects ones that are not binary glTF or have no size', () => {
     const model = { asset: { assetId: 'b'.repeat(64), dataFormat: 'glb' as const }, size: [1, 0.5, 0.25] as [number, number, number] }
     const { rt } = setup([makeSprite('a', [], { costumes: [{ ...plainCostume('m', 'cube'), model }] })])
@@ -160,6 +172,12 @@ describe('costumes', () => {
     const withModel = (m: unknown) => ({ ...saved, sprites: [{ ...saved.sprites[0], costumes: [{ ...saved.sprites[0].costumes[0], model: m }] }] })
     expect(() => parseProject(withModel({ ...model, asset: { ...model.asset, dataFormat: 'png' } }))).toThrow(/model\.asset\.dataFormat/)
     expect(() => parseProject(withModel({ ...model, size: [1, 0, 1] }))).toThrow(/model\.size/)
+    // A pose is saved, and is three angles for each bone.
+    const posed = { ...model, pose: { head: [0, 30, -10] as [number, number, number] } }
+    expect(parseProject(withModel(posed)).sprites[0].costumes[0].model).toEqual(posed)
+    expect(parseProject(withModel({ ...model, pose: {} })).sprites[0].costumes[0].model).toEqual(model)
+    expect(() => parseProject(withModel({ ...model, pose: { head: [0, 30] } }))).toThrow(/pose\["head"\]/)
+    expect(() => parseProject(withModel({ ...model, pose: { head: [0, 'x', 0] } }))).toThrow(/pose\["head"\]/)
     // A picture can't be a model either.
     const picture = { ...saved.sprites[0].costumes[0], model: null, picture: model.asset }
     expect(() => parseProject({ ...saved, sprites: [{ ...saved.sprites[0], costumes: [picture] }] })).toThrow(/picture\.dataFormat/)
