@@ -17,7 +17,7 @@ const HEADER = 8
 const TICK = 0, TIME = 1, HIGH_WATER = 2, COUNT = 3, LOGIC_MS = 4, WRITE_MS = 5
 
 export function snapshotBytes(capacity: number): number {
-  const bytes = HEADER * 8 + FLOATS.length * 8 * capacity + 4 * capacity + 2 * capacity
+  const bytes = HEADER * 8 + FLOATS.length * 8 * capacity + 4 * capacity + 2 * capacity + capacity
   return Math.ceil(bytes / 8) * 8
 }
 
@@ -41,7 +41,7 @@ export class Snapshot implements RenderColumns {
   depth!: Float64Array
   height!: Float64Array
   readonly color: Uint32Array
-  readonly shape: Uint8Array
+  readonly look: Uint16Array
   readonly flags: Uint8Array
 
   constructor(
@@ -56,8 +56,9 @@ export class Snapshot implements RenderColumns {
     }
     this.color = new Uint32Array(buffer, at, capacity)
     at += 4 * capacity
-    this.shape = new Uint8Array(buffer, at, capacity)
-    this.flags = new Uint8Array(buffer, at + capacity, capacity)
+    this.look = new Uint16Array(buffer, at, capacity)
+    at += 2 * capacity
+    this.flags = new Uint8Array(buffer, at, capacity)
   }
 
   get tick(): number { return this.header[TICK] }
@@ -73,7 +74,7 @@ export class Snapshot implements RenderColumns {
     const n = E.highWater
     for (const name of FLOATS) this[name].set(E[name].subarray(0, n))
     this.color.set(E.color.subarray(0, n))
-    this.shape.set(E.shape.subarray(0, n))
+    this.look.set(E.look.subarray(0, n))
     this.flags.set(E.flags.subarray(0, n))
     const h = this.header
     h[TICK] = tick

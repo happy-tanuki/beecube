@@ -37,3 +37,19 @@ map of each):
 | [Laminate Floor 02](https://polyhaven.com/a/laminate_floor_02) | Charlotte Baglioni, Dario Barresi | the living room's floor, the doors and the cubbies |
 | [Wood Floor](https://polyhaven.com/a/wood_floor) | Dimitrios Savva | the classroom's floor |
 | [Plastered Wall 04](https://polyhaven.com/a/plastered_wall_04) | Rob Tuytel | the grain of painted walls and ceilings |
+
+## Costumes
+
+Each entry in the costume library is a picture on one of the shapes, drawn
+by `scripts/make-costume-library.mjs` (the drawing is in
+`scripts/costumes.js`) and re-encoded as the editor re-encodes a picture a
+user uploads for a costume. The list, with each one's shape and how its
+picture wraps it, is in `src/ui/costumeLibrary.json`.
+
+The costumes are drawn for BeeCube, except the Earth and the Moon, which are
+NASA's maps (public domain), scaled down:
+
+| Costume | Map |
+| --- | --- |
+| earth | [Blue Marble: Land Surface, Shallow Water, and Shaded Topography](https://visibleearth.nasa.gov/images/57752/blue-marble-land-surface-shallow-water-and-shaded-topography) (NASA Earth Observatory) |
+| moon | [CGI Moon Kit](https://svs.gsfc.nasa.gov/4720) color map (NASA's Scientific Visualization Studio, from the Lunar Reconnaissance Orbiter) |

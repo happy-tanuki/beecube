@@ -1,6 +1,7 @@
 import { Runtime, type RuntimeSettings } from '../src/engine/runtime'
 import type { Sprite } from '../src/engine/sprite'
-import type { BlockJson, SpriteData } from '../src/engine/types'
+import { plainCostume } from '../src/engine/costume'
+import type { BlockJson, ShapeKind, SpriteData } from '../src/engine/types'
 
 let nextId = 0
 export function blk(type: string, opts: Partial<BlockJson> = {}): BlockJson {
@@ -40,7 +41,9 @@ export const changeVar = (id: string, n: number) =>
   blk('data_changevariableby', { fields: { VARIABLE: { id } }, inputs: { VALUE: num(n) } })
 export const getVar = (id: string) => blk('data_variable', { fields: { VARIABLE: { id } } })
 
-export function makeSprite(name: string, scripts: BlockJson[], patch: Partial<SpriteData> = {}): SpriteData {
+/** A sprite; `shape` stands for one plain costume of that shape. */
+export function makeSprite(name: string, scripts: BlockJson[], patch: Partial<SpriteData> & { shape?: ShapeKind } = {}): SpriteData {
+  const { shape = 'cube', ...rest } = patch
   return {
     id: name,
     name,
@@ -52,13 +55,14 @@ export function makeSprite(name: string, scripts: BlockJson[], patch: Partial<Sp
     roll: 0,
     size: 100,
     color: '#ffffff',
-    shape: 'cube',
+    costumes: [plainCostume(shape, shape)],
+    costume: 0,
     visible: true,
     pen: { down: false, color: '#000000' },
     blocks: { blocks: { languageVersion: 0, blocks: scripts } },
     variables: {},
     lists: {},
-    ...patch,
+    ...rest,
   }
 }
 

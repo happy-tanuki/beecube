@@ -410,7 +410,7 @@ describe('pen', () => {
     ticks(1)
     expect(rt.pen.stampCount).toBe(2)
     expect(rt.pen.stampPoses[STAMP_POSE + 2]).toBe(30)
-    expect(rt.pen.stampShapes[0]).toBe(1)
+    expect(rt.pen.stampLooks[0]).toBe(1)
     expect(rt.pen.stampColors[0]).toBe(0x336699)
     rt.stopAll()
     rt.getSprite('a')!.blocks = { blocks: { languageVersion: 0, blocks: [flag(blk('pen_clear'))] } }
@@ -668,7 +668,10 @@ describe('project files', () => {
     const { rt } = setup([makeSprite('a', [])])
     const good = serializeProject(rt)
     expect(() => parseProject({ hello: 1 })).toThrow(ProjectFormatError)
-    expect(() => parseProject({ ...good, sprites: [{ ...good.sprites[0], shape: 'teapot' }] })).toThrow(/sprites\[0\]\.shape/)
+    const teapot = [{ ...good.sprites[0].costumes[0], shape: 'teapot' }]
+    expect(() => parseProject({ ...good, sprites: [{ ...good.sprites[0], costumes: teapot }] })).toThrow(/sprites\[0\]\.costumes\[0\]\.shape/)
+    expect(() => parseProject({ ...good, sprites: [{ ...good.sprites[0], costumes: [] }] })).toThrow(/sprites\[0\]\.costumes/)
+    expect(() => parseProject({ ...good, sprites: [{ ...good.sprites[0], costume: 1 }] })).toThrow(/sprites\[0\]\.costume/)
     expect(() => parseProject({ ...good, sprites: [{ ...good.sprites[0], x: 'left' }] })).toThrow(/sprites\[0\]\.x/)
     expect(() => parseProject({ ...good, version: 99 })).toThrow(/newer/)
     expect(() => parseProject({ ...good, settings: { cloneLimit: -1 } })).toThrow(/cloneLimit/)

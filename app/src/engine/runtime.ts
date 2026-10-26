@@ -15,6 +15,7 @@ import { inferLayout, KindFacts, join, typeOfValue, type KindLayout, type Layout
 import { Assets } from './assets'
 import { availableBackdropName, Backdrops } from './backdrop'
 import { Camera } from './camera'
+import { COSTUME_MENU, Looks, plainCostume, resolveSwitch } from './costume'
 import { generateKind, type ModulePlan } from './codegen'
 import type { ExtensionSpec } from './extension'
 import { FramePool, Kind, ScriptRun, type SystemFn } from './instances'
@@ -24,11 +25,11 @@ import { clampDimension, clampPenSize, clampPercent, colorToInt, toNumber, wrapD
 import { PenBuffer } from './pen'
 import { Random } from './random'
 import { EntityRef } from './ref'
-import { availableSpriteName, BACKDROP_MENUS, renameSpriteReferences } from './rename'
+import { availableName, availableSpriteName, BACKDROP_MENUS, COSTUME_MENUS, renameSpriteReferences } from './rename'
 import { EntityView, Sprite } from './sprite'
 import { EntityStore, F_ALIVE, F_CLONE, F_DYING, F_PEN, F_VISIBLE } from './store'
 import { TouchWatcher } from './touch'
-import { DEFAULT_CLONE_LIMIT, EDGE, MYSELF, SHAPES, STAGE_ID, TICKS_PER_SECOND, type BlockJson, type LocalList, type LocalVariable, type SpriteData, type Value, type VariableDef } from './types'
+import { DEFAULT_CLONE_LIMIT, EDGE, MYSELF, STAGE_ID, TICKS_PER_SECOND, type BlockJson, type LocalList, type LocalVariable, type SpriteData, type Value, type VariableDef } from './types'
 
 export { DEFAULT_CLONE_LIMIT, EDGE, MOUSE, MYSELF } from './types'
 export { wrapDirection }
@@ -97,7 +98,9 @@ export class Runtime {
   readonly pen = new PenBuffer()
   readonly camera = new Camera()
   readonly backdrops = new Backdrops()
-  /** The pictures the backdrops show (their contents; the backdrops refer to them). */
+  /** What entities look like, by the store's `look` column. */
+  readonly looks = new Looks()
+  /** The pictures the backdrops and costumes show (their contents; the project refers to them). */
   readonly assets = new Assets()
   readonly keysDown = new Set<string>()
   /** Mouse position projected onto the workplane (z = 0). */
@@ -269,7 +272,7 @@ export class Runtime {
     s.setPenRgb(slot, colorToInt(data.pen.color))
     s.penTransparency[slot] = clampPercent(data.pen.transparency ?? 0)
     s.penSize[slot] = clampPenSize(data.pen.size ?? 1)
-    s.shape[slot] = Math.max(0, SHAPES.indexOf(data.shape))
+    s.costume[slot] = 0
     s.flags[slot] = F_ALIVE | (data.visible ? F_VISIBLE : 0) | (data.pen.down ? F_PEN : 0)
     const sprite = new Sprite(this, slot, data.id, data.name, structuredClone(data.blocks))
     const kind = new Kind(this.kinds.length - 1, sprite)
@@ -277,6 +280,8 @@ export class Runtime {
     kind.addMember(slot, this.memberPos)
     this.kinds.splice(kind.index, 0, kind)
     this.reindexKinds()
+    sprite.costumes = data.costumes.length > 0 ? data.costumes : [plainCostume('cube', 'cube')]
+    this.wearCostume(slot, data.costume)
     this.localDefs.set(kind, {
       vars: new Map(Object.entries(data.variables).map(([id, v]) => [id, { name: v.name, value: v.value }])),
       lists: new Map(Object.entries(data.lists).map(([id, l]) => [id, { name: l.name, items: [...l.items] }])),
@@ -368,6 +373,61 @@ export class Runtime {
     }
     this.backdrops.changed()
     this.everythingChanged()
+    return name
+  }
+
+  /** A sprite's costumes changed: works out their looks, and dresses its entities again. */
+  costumesChanged(sprite: Sprite): void {
+    sprite.lookOf = sprite.costumes.map((c) => this.looks.of(c))
+    const kind = this.kinds.find((k) => k.sprite === sprite)
+    if (!kind) return
+    for (let m = 0; m < kind.count; m++) {
+      const slot = kind.members[m]
+      this.wearCostume(slot, this.store.costume[slot])
+    }
+  }
+
+  /** Puts costume `index` (clamped to the costumes there are) on an entity. */
+  wearCostume(slot: number, index: number): void {
+    const s = this.store
+    const sprite = this.kinds[s.kind[slot]].sprite
+    const n = sprite.costumes.length
+    if (n === 0) return
+    const costume = Math.min(Math.max(0, Math.floor(index) || 0), n - 1)
+    const look = sprite.lookOf[costume]
+    const shape = this.looks.list[look].shape
+    s.costume[slot] = costume
+    s.look[slot] = look
+    if (s.shape[slot] !== shape) {
+      s.shape[slot] = shape
+      this.posesChanged(slot)
+    }
+  }
+
+  /** "Switch costume to (v)": by name, next / previous / random, or number (see resolveSwitch). */
+  switchCostume(slot: number, v: Value): void {
+    const sprite = this.kinds[this.store.kind[slot]].sprite
+    const names = sprite.costumes.map((c) => c.name)
+    const index = resolveSwitch(names, this.store.costume[slot], v, this.random, COSTUME_MENU)
+    if (index >= 0) this.wearCostume(slot, index)
+  }
+
+  /** The name of the costume an entity wears. */
+  costumeName(slot: number): string {
+    return this.kinds[this.store.kind[slot]].sprite.costumes[this.store.costume[slot]]?.name ?? ''
+  }
+
+  /**
+   * Renames one of a sprite's costumes and updates its blocks that refer to
+   * it. Returns the name it got (see availableName), or null if nothing changed.
+   */
+  renameCostume(sprite: Sprite, index: number, wanted: string): string | null {
+    const from = sprite.costumes[index]?.name
+    if (from === undefined) return null
+    const name = availableName(wanted, sprite.costumes.filter((_, i) => i !== index).map((c) => c.name))
+    if (name === null || name === from) return null
+    sprite.costumes = sprite.costumes.map((c, i) => (i === index ? { ...c, name } : c))
+    if (renameSpriteReferences(sprite.blocks, from, name, COSTUME_MENUS)) sprite.blocks = sprite.blocks
     return name
   }
 

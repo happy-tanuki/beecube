@@ -1,35 +1,54 @@
 /**
- * The pen's stamps: copies of shapes left on the stage, one InstancedMesh per
- * shape. Stamps are only appended until the pen is cleared, so each frame
+ * The pen's stamps: copies of entities left on the stage, one InstancedMesh
+ * per look. Stamps are only appended until the pen is cleared, so each frame
  * writes and uploads just the new ones.
  */
 import * as THREE from 'three'
+import { Assets } from '../engine/assets'
+import type { Look } from '../engine/costume'
 import { STAMP_POSE, type PenBuffer } from '../engine/pen'
 import { SHAPES } from '../engine/types'
 import { makeGeometry, poseMatrix, SHADOW_LIMIT } from './instances'
+import { LookResources } from './looks'
 
 const COLOR = new THREE.Color()
 
 export class StampInstances {
   private readonly geometries = SHAPES.map(makeGeometry)
   private readonly material = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55 })
-  private readonly meshes: THREE.InstancedMesh[]
+  private readonly resources: LookResources
+  /** By look; made when first needed. */
+  private readonly meshes: THREE.InstancedMesh[] = []
   /** Stamps of the pen already written. */
   private drawn = 0
   private clears = -1
 
-  constructor(private readonly scene: THREE.Scene) {
-    this.meshes = this.geometries.map((g) => this.makeMesh(g, 16))
+  /** `assets` has the costumes' pictures. */
+  constructor(
+    private readonly scene: THREE.Scene,
+    assets = new Assets(),
+  ) {
+    this.resources = new LookResources(assets, this.geometries, this.material, () => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55 }))
   }
 
   dispose(): void {
     for (const m of this.meshes) m.dispose()
     for (const g of this.geometries) g.dispose()
+    this.resources.dispose()
     this.material.dispose()
   }
 
-  private makeMesh(geometry: THREE.BufferGeometry, capacity: number): THREE.InstancedMesh {
-    const mesh = new THREE.InstancedMesh(geometry, this.material, capacity)
+  /** The mesh of a look, made (with those before it) when first needed. */
+  private mesh(look: number, looks: readonly Look[]): THREE.InstancedMesh {
+    while (this.meshes.length <= look) {
+      const l = looks[this.meshes.length] ?? looks[0]
+      this.meshes.push(this.makeMesh(this.resources.geometry(l), this.resources.material(l), 16))
+    }
+    return this.meshes[look]
+  }
+
+  private makeMesh(geometry: THREE.BufferGeometry, material: THREE.Material, capacity: number): THREE.InstancedMesh {
+    const mesh = new THREE.InstancedMesh(geometry, material, capacity)
     mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3)
     mesh.count = 0
     mesh.castShadow = true
@@ -38,8 +57,8 @@ export class StampInstances {
     return mesh
   }
 
-  /** Called every frame. */
-  sync(pen: PenBuffer): void {
+  /** Called every frame, with the runtime's looks. */
+  sync(pen: PenBuffer, looks: readonly Look[]): void {
     if (pen.clears !== this.clears) {
       this.clears = pen.clears
       this.drawn = 0
@@ -50,9 +69,10 @@ export class StampInstances {
     const firstNew = this.meshes.map((m) => m.count)
     const p = pen.stampPoses
     for (let k = this.drawn; k < n; k++) {
-      const shape = pen.stampShapes[k]
-      let mesh = this.meshes[shape]
-      if (mesh.count === mesh.instanceMatrix.count) mesh = this.grow(shape)
+      const look = pen.stampLooks[k]
+      let mesh = this.mesh(look, looks)
+      if (firstNew[look] === undefined) firstNew[look] = mesh.count
+      if (mesh.count === mesh.instanceMatrix.count) mesh = this.grow(look)
       const o = k * STAMP_POSE
       const index = mesh.count++
       poseMatrix(
@@ -64,9 +84,9 @@ export class StampInstances {
       mesh.setColorAt(index, COLOR)
     }
     this.drawn = n
-    this.meshes.forEach((mesh, shape) => {
-      const from = firstNew[shape]
-      if (mesh.count === from) return
+    this.meshes.forEach((mesh, look) => {
+      const from = firstNew[look]
+      if (from === undefined || mesh.count === from) return
       mesh.instanceMatrix.clearUpdateRanges()
       mesh.instanceMatrix.addUpdateRange(from * 16, (mesh.count - from) * 16)
       mesh.instanceMatrix.needsUpdate = true
@@ -78,16 +98,16 @@ export class StampInstances {
     for (const m of this.meshes) m.castShadow = total <= SHADOW_LIMIT
   }
 
-  /** Replaces a shape's mesh with one of twice the capacity, keeping its stamps. */
-  private grow(shape: number): THREE.InstancedMesh {
-    const old = this.meshes[shape]
-    const mesh = this.makeMesh(this.geometries[shape], old.instanceMatrix.count * 2)
+  /** Replaces a look's mesh with one of twice the capacity, keeping its stamps. */
+  private grow(look: number): THREE.InstancedMesh {
+    const old = this.meshes[look]
+    const mesh = this.makeMesh(old.geometry, old.material as THREE.Material, old.instanceMatrix.count * 2)
     ;(mesh.instanceMatrix.array as Float32Array).set(old.instanceMatrix.array)
     ;(mesh.instanceColor!.array as Float32Array).set(old.instanceColor!.array as Float32Array)
     mesh.count = old.count
     this.scene.remove(old)
     old.dispose()
-    this.meshes[shape] = mesh
+    this.meshes[look] = mesh
     return mesh
   }
 }

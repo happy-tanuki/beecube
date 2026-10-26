@@ -7,13 +7,15 @@
 import { APP_ID, APP_NAME } from '../brand'
 import { ASSET_FORMATS, assetFileName, isAssetId, type AssetFormat, type AssetRef } from './assets'
 import { FACES, type BackdropData, type Face, type FaceName } from './backdrop'
+import { COSTUME_LAYOUTS, plainCostume, type Costume, type CostumeLayout } from './costume'
 import { isColorString } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
 import { DEFAULT_CLONE_LIMIT, type BlockJson, type ShapeKind, type SpriteData, type Value, type VariableDef, type WorkspaceJson } from './types'
 
 export const PROJECT_FORMAT = `${APP_ID}-project`
-export const PROJECT_VERSION = 1
+/** 2: sprites have costumes (version 1 files have one shape each, and still open). */
+export const PROJECT_VERSION = 2
 
 export type SavedSprite = SpriteData
 
@@ -64,6 +66,9 @@ export function serializeProject(rt: Runtime): ProjectFile {
 /** The assets a project refers to, each once. */
 export function projectAssets(project: ProjectFile): AssetRef[] {
   const found = new Map<string, AssetRef>()
+  for (const s of project.sprites) {
+    for (const c of s.costumes) if (c.picture) found.set(assetFileName(c.picture), c.picture)
+  }
   for (const b of project.backdrops) {
     if (b.sceneryPicture) found.set(assetFileName(b.sceneryPicture), b.sceneryPicture)
     for (const name of FACES) {
@@ -150,10 +155,33 @@ function normalizeBlock(b: BlockJson | undefined): void {
   normalizeBlock(b.next?.block)
 }
 
+function parseShape(v: Record<string, unknown>, where: string): ShapeKind {
+  const shape = str(v, 'shape', where) as ShapeKind
+  return SHAPES.includes(shape) ? shape : fail(`${where}.shape "${shape}" is not one of ${SHAPES.join(', ')}`)
+}
+
+function parseCostume(v: unknown, where: string): Costume {
+  if (!isObj(v)) fail(`${where} must be an object`)
+  const layout = (v.layout ?? 'same') as CostumeLayout
+  if (!COSTUME_LAYOUTS.includes(layout)) fail(`${where}.layout "${layout}" is not one of ${COSTUME_LAYOUTS.join(', ')}`)
+  return { name: str(v, 'name', where), shape: parseShape(v, where), picture: parsePicture(v.picture, `${where}.picture`), layout }
+}
+
+/** The costumes, or for older files one plain costume of the sprite's shape. */
+function parseCostumes(v: Record<string, unknown>, where: string): { costumes: Costume[]; costume: number } {
+  if (v.costumes === undefined) {
+    const shape = parseShape(v, where)
+    return { costumes: [plainCostume(shape, shape)], costume: 0 }
+  }
+  if (!Array.isArray(v.costumes) || v.costumes.length === 0) fail(`${where}.costumes must be a list of at least one costume`)
+  const costumes = v.costumes.map((c, i) => parseCostume(c, `${where}.costumes[${i}]`))
+  const costume = v.costume === undefined ? 0 : num(v, 'costume', where)
+  if (!(Number.isInteger(costume) && costume >= 0 && costume < costumes.length)) fail(`${where}.costume must be the index of a costume`)
+  return { costumes, costume }
+}
+
 function parseSprite(v: unknown, where: string): SavedSprite {
   if (!isObj(v)) fail(`${where} must be an object`)
-  const shape = str(v, 'shape', where) as ShapeKind
-  if (!SHAPES.includes(shape)) fail(`${where}.shape "${shape}" is not one of ${SHAPES.join(', ')}`)
   const pen = isObj(v.pen) ? v.pen : fail(`${where}.pen must be an object`)
   if (v.blocks !== null && !isObj(v.blocks)) fail(`${where}.blocks must be an object or null`)
   const tops = (v.blocks as WorkspaceJson | null)?.blocks?.blocks
@@ -172,7 +200,7 @@ function parseSprite(v: unknown, where: string): SavedSprite {
     ...(v.depth === undefined ? {} : { depth: num(v, 'depth', where) }),
     ...(v.height === undefined ? {} : { height: num(v, 'height', where) }),
     color: str(v, 'color', where),
-    shape,
+    ...parseCostumes(v, where),
     visible: v.visible !== false,
     pen: {
       down: pen.down === true,

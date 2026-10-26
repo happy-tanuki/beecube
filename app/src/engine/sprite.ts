@@ -7,6 +7,7 @@ import { clampDimension, clampPenSize, clampPercent, intToColor, colorToInt } fr
 import { savable } from './ref'
 import type { Runtime } from './runtime'
 import { F_CLONE, F_PEN, F_VISIBLE, type Dimension, type PoseColumn } from './store'
+import type { Costume } from './costume'
 import { SHAPES, type LocalList, type LocalVariable, type PenState, type ShapeKind, type SpriteData, type WorkspaceJson } from './types'
 
 export class EntityView {
@@ -44,13 +45,24 @@ export class EntityView {
     this.rt.store.color[this.slot] = colorToInt(c)
   }
 
+  /** The shape of the costume worn. Setting it changes that costume, for every entity wearing it. */
   get shape(): ShapeKind {
     return SHAPES[this.rt.store.shape[this.slot]]
   }
 
-  set shape(s: ShapeKind) {
-    this.rt.store.shape[this.slot] = Math.max(0, SHAPES.indexOf(s))
-    this.rt.posesChanged(this.slot)
+  set shape(shape: ShapeKind) {
+    const costumes = this.original.costumes
+    const i = this.costume
+    this.original.costumes = costumes.map((c, k) => (k === i ? { ...c, shape } : c))
+  }
+
+  /** Index of the costume worn, in the original's costumes. */
+  get costume(): number {
+    return this.rt.store.costume[this.slot]
+  }
+
+  set costume(index: number) {
+    this.rt.wearCostume(this.slot, index)
   }
 
   get visible(): boolean {
@@ -124,6 +136,9 @@ export class EntityView {
 export class Sprite extends EntityView {
   private _name: string
   private _blocks: WorkspaceJson | null
+  private _costumes: Costume[] = []
+  /** Each costume's look (costume.ts), in the runtime's looks. */
+  lookOf: number[] = []
 
   constructor(
     rt: Runtime,
@@ -154,6 +169,17 @@ export class Sprite extends EntityView {
   set blocks(ws: WorkspaceJson | null) {
     this._blocks = ws
     this.rt.blocksChanged(this)
+  }
+
+  /** Don't change the list in place: set a new one. */
+  get costumes(): readonly Costume[] {
+    return this._costumes
+  }
+
+  /** Replaces the costumes; entities wearing one past the end wear the last. */
+  set costumes(list: readonly Costume[]) {
+    this._costumes = list.map((c) => ({ ...c, picture: c.picture && { ...c.picture } }))
+    this.rt.costumesChanged(this)
   }
 
   /** Own variables with this sprite's current values. A new object on every read. */
@@ -190,7 +216,8 @@ export class Sprite extends EntityView {
       depth: this.depth,
       height: this.height,
       color: this.color,
-      shape: this.shape,
+      costumes: structuredClone(this._costumes),
+      costume: this.costume,
       visible: this.visible,
       pen: this.pen,
       blocks: structuredClone(this.blocks),

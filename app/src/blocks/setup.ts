@@ -86,6 +86,13 @@ export function setBackdropNameSource(fn: () => string[]): void {
   backdropNames = fn
 }
 
+/** The editing sprite's costume names, for the costume menu. Set by the editor. */
+let costumeNames: () => string[] = () => []
+
+export function setCostumeNameSource(fn: () => string[]): void {
+  costumeNames = fn
+}
+
 type MenuOption = [string, string]
 
 /** Shown when a sprite menu has nothing to offer (a dropdown can't be empty). */
@@ -110,6 +117,30 @@ function defineObjectMenu(type: string, fieldName: string, style: string, fixed:
           },
         ],
         extensions: [`colours_${style}`, 'output_string'],
+      })
+    },
+  }
+}
+
+/** "Switch costume to"'s menu: the editing sprite's costumes, as in Scratch. */
+function defineCostumeMenu(): void {
+  ScratchBlocks.Blocks.looks_costume = {
+    init(this: ScratchBlocks.Block) {
+      this.jsonInit({
+        message0: '%1',
+        args0: [
+          {
+            type: 'field_dropdown',
+            name: 'COSTUME',
+            options: (): MenuOption[] => {
+              const options = costumeNames().map((n): MenuOption => [n, n])
+              const current = this.getFieldValue('COSTUME') as string | null
+              if (current && !options.some((o) => o[1] === current)) options.push([current, current])
+              return options.length > 0 ? options : [NO_SPRITE]
+            },
+          },
+        ],
+        extensions: ['colours_looks', 'output_string'],
       })
     },
   }
@@ -352,7 +383,8 @@ export function defineCustomBlocks(): void {
   defineReporter('looks_width', 'LOOKS_WIDTH', 'looks')
   defineReporter('looks_depth', 'LOOKS_DEPTH', 'looks')
   defineReporter('looks_height', 'LOOKS_HEIGHT', 'looks')
-  // scratch-blocks defines the backdrop blocks but leaves their menus to the editor.
+  // scratch-blocks defines the costume and backdrop blocks but leaves their menus to the editor.
+  defineCostumeMenu()
   defineBackdropMenus()
 
   defineStatement('pen_clear', 'PEN_CLEAR', [], 'pen')

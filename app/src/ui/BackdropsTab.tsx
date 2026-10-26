@@ -20,7 +20,7 @@ const OPAQUE: Record<FaceName, string> = {
 const IMAGE_TYPES = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml'
 
 /** A hidden file input: `pick` opens the browser's file chooser, and `onFile` gets the chosen image. */
-function useImagePicker(onFile: (file: File) => Promise<void>) {
+export function useImagePicker(onFile: (file: File) => Promise<void>) {
   const input = useRef<HTMLInputElement>(null)
   const element = (
     <input
@@ -182,15 +182,15 @@ function BackdropForm({ store, index, backdrop, onChoose }: { store: ProjectStor
 
 type LibraryKind = 'scenery' | 'room'
 
-interface LibraryItem {
+export interface LibraryItem {
   key: string
   name: string
   picture: string
   choose: () => void
 }
 
-/** Choosing a backdrop's scenery or room from a library, laid out as Scratch's "Choose a Backdrop". */
-function Library({ title, items, onClose }: { title: string; items: LibraryItem[]; onClose: () => void }) {
+/** Choosing from a library (a backdrop's scenery or room, a costume), laid out as Scratch's "Choose a Backdrop". */
+export function Library({ title, items, onClose }: { title: string; items: LibraryItem[]; onClose: () => void }) {
   return (
     <div className="library">
       <div className="library-header">
@@ -238,7 +238,7 @@ function BackdropLibrary({ store, index, kind, onClose }: { store: ProjectStore;
 }
 
 /** Re-renders periodically so a backdrop switched by a script shows up. */
-function useTicker(ms: number): void {
+export function useTicker(ms: number): void {
   const [, setTick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), ms)

@@ -1,6 +1,8 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
 import { assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
+import { plainCostume, type Costume } from '../engine/costume'
+import { availableName } from '../engine/rename'
 import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
 import { findExtension } from '../extensions'
@@ -10,8 +12,8 @@ import { STAGE_ID, type ShapeKind, type SpriteData } from '../engine/types'
 import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
 import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
-import { isLibraryAsset, loadLibraryAsset, type LibraryRoom, type LibraryScenery } from './library'
-import { facePicture, panoramaPicture, type Picture } from './pictures'
+import { isLibraryAsset, libraryCostumeName, loadLibraryAsset, type LibraryCostume, type LibraryRoom, type LibraryScenery } from './library'
+import { costumePicture, facePicture, panoramaPicture, type Picture } from './pictures'
 import { readProjectFile, writeProjectFile } from './projectFile'
 import { sampleScript } from './sample'
 
@@ -325,6 +327,70 @@ export class ProjectStore {
     this.notify()
   }
 
+  // ---- costumes ---------------------------------------------------------
+
+  /** Puts a costume on the editing sprite, as clicking it in Scratch's list does. */
+  selectCostume(index: number): void {
+    this.editing.costume = index
+    this.notify()
+  }
+
+  /** Changes one of the editing sprite's costumes (not its name: see renameCostume). */
+  updateCostume(index: number, change: Partial<Omit<Costume, 'name'>>): void {
+    const sprite = this.editing
+    sprite.costumes = sprite.costumes.map((c, i) => (i === index ? { ...c, ...change } : c))
+    this.notify()
+  }
+
+  /** Renames a costume of the editing sprite; its blocks that refer to it follow. Returns its name. */
+  renameCostume(index: number, wanted: string): string {
+    const sprite = this.editing
+    if (this.rt.renameCostume(sprite, index, wanted) !== null) this.blocksRevision++
+    this.notify()
+    return sprite.costumes[index].name
+  }
+
+  /** Adds a costume without a picture, of the shape of the one worn, and wears it. */
+  addCostume(): void {
+    this.pushCostume(plainCostume(shapeName(this.editing.shape), this.editing.shape))
+  }
+
+  /** Adds a costume with an uploaded picture, on the shape of the one worn, and wears it. */
+  async uploadCostume(file: File): Promise<void> {
+    const picture = await this.storePicture(await costumePicture(file))
+    const name = file.name.replace(/\.[^.]*$/, '') || shapeName(this.editing.shape)
+    this.pushCostume({ name, shape: this.editing.shape, picture, layout: 'same' })
+  }
+
+  /** Adds a costume from the library and wears it. */
+  addLibraryCostume(entry: LibraryCostume): void {
+    this.pushCostume({ name: libraryCostumeName(entry), shape: entry.shape, picture: { ...entry.picture }, layout: entry.layout })
+  }
+
+  /** Puts a picture on a costume (null takes it off). */
+  async setCostumePicture(index: number, file: File | null): Promise<void> {
+    const picture = file ? await this.storePicture(await costumePicture(file)) : null
+    this.updateCostume(index, { picture })
+  }
+
+  /** Removes a costume; there is always at least one. Blocks keep its name, as in Scratch. */
+  removeCostume(index: number): void {
+    const sprite = this.editing
+    if (sprite.costumes.length <= 1) return
+    const worn = sprite.costume
+    sprite.costumes = sprite.costumes.filter((_, i) => i !== index)
+    sprite.costume = worn > index ? worn - 1 : Math.min(worn, sprite.costumes.length - 1)
+    this.notify()
+  }
+
+  private pushCostume(c: Costume): void {
+    const sprite = this.editing
+    const name = availableName(c.name, sprite.costumes.map((o) => o.name)) ?? c.name
+    sprite.costumes = [...sprite.costumes, { ...c, name }]
+    sprite.costume = sprite.costumes.length - 1
+    this.notify()
+  }
+
   private makeSprite(shape: ShapeKind, existing: { name: string }[] = this.rt.sprites): SpriteData {
     const base = shapeName(shape)
     let n = 1
@@ -340,7 +406,8 @@ export class ProjectStore {
       roll: 0,
       size: 100,
       color: PALETTE[existing.length % PALETTE.length],
-      shape,
+      costumes: [plainCostume(base, shape)],
+      costume: 0,
       visible: true,
       pen: { down: false, color: '#0fbd8c' },
       blocks: null,

@@ -7,6 +7,7 @@
  * turns the sprite about its heading. Orientation = yaw, then pitch, then roll.
  */
 
+import type { Costume } from './costume'
 import type { EntityRef } from './ref'
 
 export type ShapeKind = 'cube' | 'sphere' | 'cone' | 'cylinder'
@@ -67,9 +68,12 @@ export interface SpriteData {
   width?: number
   depth?: number
   height?: number
-  /** `#rrggbb` */
+  /** `#rrggbb`: the shape's, under its costume's picture. */
   color: string
-  shape: ShapeKind
+  /** At least one. Clones wear the same costumes. */
+  costumes: Costume[]
+  /** Index of the costume the sprite wears. */
+  costume: number
   visible: boolean
   pen: PenState
   blocks: WorkspaceJson | null

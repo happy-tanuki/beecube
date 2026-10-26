@@ -67,12 +67,16 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = [], stage = false):
   ].join('')
 
   const backdropMenu = '<value name="BACKDROP"><shadow type="looks_backdrops"></shadow></value>'
+  const costumeMenu = '<value name="COSTUME"><shadow type="looks_costume"></shadow></value>'
   const looks = [
     ...sprite(
       block('looks_sayforsecs', txt('MESSAGE', t('default.hello')) + num('SECS', 2)),
       block('looks_say', txt('MESSAGE', t('default.hello'))),
       sep(),
       block('looks_setcolorto', colour('COLOR', '#ff8c1a')),
+      sep(),
+      block('looks_switchcostumeto', costumeMenu),
+      block('looks_nextcostume'),
     ),
     block('looks_switchbackdropto', backdropMenu),
     ...(stage ? [block('looks_switchbackdroptoandwait', backdropMenu)] : []),
@@ -88,6 +92,7 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = [], stage = false):
       block('looks_hide'),
       sep(),
     ),
+    ...sprite(block('looks_costumenumbername')),
     block('looks_backdropnumbername'),
     ...sprite(block('looks_size'), block('looks_width'), block('looks_depth'), block('looks_height')),
   ].join('')

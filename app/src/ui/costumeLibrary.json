@@ -1,0 +1,110 @@
+[
+  {
+    "key": "dice",
+    "shape": "cube",
+    "picture": {
+      "assetId": "6c5503438f0168481a90defa9649ce73ee8fde8affbe0cba79ec92af81cdd726",
+      "dataFormat": "png"
+    },
+    "layout": "net"
+  },
+  {
+    "key": "bee",
+    "shape": "cube",
+    "picture": {
+      "assetId": "70965acbe647fc29b78732f3ae965ebe0dc674df36e2d83d884afd57edd937e0",
+      "dataFormat": "png"
+    },
+    "layout": "net"
+  },
+  {
+    "key": "present",
+    "shape": "cube",
+    "picture": {
+      "assetId": "8310582789bf04d79b61691110b69d88ed443f0dbcec971f4ebdb4f3ba5d4cb9",
+      "dataFormat": "jpg"
+    },
+    "layout": "same"
+  },
+  {
+    "key": "crate",
+    "shape": "cube",
+    "picture": {
+      "assetId": "bbf5eff173788ec8fc96d2cd18950d346b284ab694d96ff8254c6636066232a0",
+      "dataFormat": "jpg"
+    },
+    "layout": "same"
+  },
+  {
+    "key": "bricks",
+    "shape": "cube",
+    "picture": {
+      "assetId": "41179498f43e210feaed54b585c00e6a55984e0e54d4b66315e9f8b7178a8320",
+      "dataFormat": "jpg"
+    },
+    "layout": "same"
+  },
+  {
+    "key": "grass",
+    "shape": "cube",
+    "picture": {
+      "assetId": "412908b061f8ed6559af643134f291dffd53c2b2a46ba0d9d7cc146106bff6b9",
+      "dataFormat": "png"
+    },
+    "layout": "net"
+  },
+  {
+    "key": "earth",
+    "shape": "sphere",
+    "picture": {
+      "assetId": "db51a461db38b67ebc790d774b7a1921cf6c44a82a2dab9ce87d8b55f790cbcc",
+      "dataFormat": "jpg"
+    },
+    "layout": "same"
+  },
+  {
+    "key": "moon",
+    "shape": "sphere",
+    "picture": {
+      "assetId": "99abfdefce4058d260e8cd61d844dbe69f2cb08dd2221ed18ae59206d73e20db",
+      "dataFormat": "jpg"
+    },
+    "layout": "same"
+  },
+  {
+    "key": "beachBall",
+    "shape": "sphere",
+    "picture": {
+      "assetId": "a7f2196a1385fc7d72be4db55cb33abcdcf784fb58510150f2b3c491a4cbf6c0",
+      "dataFormat": "jpg"
+    },
+    "layout": "same"
+  },
+  {
+    "key": "watermelon",
+    "shape": "sphere",
+    "picture": {
+      "assetId": "7ec4df263d333a12eff7375a1b663f8cc34ee616dd1b180be3a291dcb30c9cd0",
+      "dataFormat": "jpg"
+    },
+    "layout": "same"
+  },
+  {
+    "key": "can",
+    "shape": "cylinder",
+    "picture": {
+      "assetId": "b0d57761c44d12047a0f6fbb815cb5d9fad8efcc52adb3b5dd4fe5da6635ea7f",
+      "dataFormat": "png"
+    },
+    "layout": "net"
+  },
+  {
+    "key": "trafficCone",
+    "shape": "cone",
+    "picture": {
+      "assetId": "56ddbc5b2629e3923927a62cb6b2401229c92a9305135ef79c936fea133cb566",
+      "dataFormat": "png"
+    },
+    "layout": "net"
+  }
+]

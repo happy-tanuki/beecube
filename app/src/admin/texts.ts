@@ -6,7 +6,7 @@
  */
 
 /** Keys whose strings are machine data, not typed text. */
-const SKIP_KEYS = new Set(['id', 'type', 'format', 'shape', 'color', 'languageVersion', 'argumentids', 'argumentdefaults', 'assetId', 'dataFormat'])
+const SKIP_KEYS = new Set(['id', 'type', 'format', 'shape', 'color', 'languageVersion', 'argumentids', 'argumentdefaults', 'assetId', 'dataFormat', 'layout'])
 
 const isMachineText = (s: string) => /^#[0-9a-f]{6}$/i.test(s) || /^-?\d+(\.\d+)?$/.test(s) || s.trim() === ''
 

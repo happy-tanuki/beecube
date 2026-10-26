@@ -7,7 +7,9 @@
  * them.
  */
 import type { AssetRef } from './assets'
+import { resolveSwitch } from './costume'
 import type { Random } from './random'
+import { availableName } from './rename'
 import { STAGE_HEIGHT, STAGE_WIDTH, type Value } from './types'
 
 /** The box's faces: back is +y (away from the home view), left is -x. */
@@ -61,20 +63,8 @@ export function plainBackdrop(name: string): BackdropData {
   return { id: newBackdropId(), name, scenery: '#f4f7fb', sceneryPicture: null, faces, grid: true }
 }
 
-/**
- * The name a backdrop gets when the user asks for `wanted`: null if empty,
- * otherwise `wanted`, or, if another backdrop has it, the same name with the
- * first free number.
- */
-export function availableBackdropName(wanted: string, others: string[]): string | null {
-  const name = wanted.trim()
-  if (name === '') return null
-  if (!others.includes(name)) return name
-  const base = name.replace(/\d+$/, '')
-  let n = 2
-  while (others.includes(`${base}${n}`)) n++
-  return `${base}${n}`
-}
+/** The name a backdrop gets when the user asks for `wanted` (see availableName). */
+export const availableBackdropName = availableName
 
 export class Backdrops {
   list: BackdropData[]
@@ -106,27 +96,14 @@ export class Backdrops {
     this.changed()
   }
 
-  /**
-   * The index "switch backdrop to (v)" picks, or -1 for none: a backdrop's
-   * name first, then next / previous / random, then a number (1 is the
-   * first; numbers wrap around).
-   */
+  /** The index "switch backdrop to (v)" picks, or -1 for none (see resolveSwitch). */
   resolve(v: Value, random: Random): number {
-    const n = this.list.length
-    const text = String(v)
-    const named = this.list.findIndex((b) => b.name === text)
-    if (named >= 0) return named
-    if (text === NEXT_BACKDROP) return (this.current + 1) % n
-    if (text === PREVIOUS_BACKDROP) return (this.current + n - 1) % n
-    if (text === RANDOM_BACKDROP) {
-      if (n < 2) return this.current
-      // Another one than the current.
-      const pick = Math.floor(random.next() * (n - 1))
-      return pick >= this.current ? pick + 1 : pick
-    }
-    if (typeof v === 'boolean' || text.trim() === '') return -1
-    const num = Number(text)
-    if (!Number.isFinite(num)) return -1
-    return (((Math.round(num) - 1) % n) + n) % n
+    return resolveSwitch(
+      this.list.map((b) => b.name),
+      this.current,
+      v,
+      random,
+      { next: NEXT_BACKDROP, previous: PREVIOUS_BACKDROP, random: RANDOM_BACKDROP },
+    )
   }
 }

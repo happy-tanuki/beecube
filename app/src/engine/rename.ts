@@ -1,5 +1,5 @@
 /**
- * Renaming sprites and backdrops. Blocks refer to them by name (in their
+ * Renaming sprites, backdrops and costumes. Blocks refer to them by name (in their
  * menus), so a rename rewrites those references in every sprite's workspace.
  */
 import { EDGE, MOUSE, MYSELF, RANDOM, type BlockJson, type WorkspaceJson } from './types'
@@ -20,6 +20,26 @@ export const SPRITE_MENUS: Record<string, string> = {
 export const BACKDROP_MENUS: Record<string, string> = {
   looks_backdrops: 'BACKDROP',
   event_whenbackdropswitchesto: 'BACKDROP',
+}
+
+/** Blocks whose field holds a costume name, by block type → field name. */
+export const COSTUME_MENUS: Record<string, string> = {
+  looks_costume: 'COSTUME',
+}
+
+/**
+ * The name a backdrop or a costume gets when the user asks for `wanted`:
+ * null if empty, otherwise `wanted`, or, if another one has it, the same
+ * name with the first free number.
+ */
+export function availableName(wanted: string, others: string[]): string | null {
+  const name = wanted.trim()
+  if (name === '') return null
+  if (!others.includes(name)) return name
+  const base = name.replace(/\d+$/, '')
+  let n = 2
+  while (others.includes(`${base}${n}`)) n++
+  return `${base}${n}`
 }
 
 /** Menu values that are not sprite names, so no sprite may take them. */

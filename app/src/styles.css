@@ -231,7 +231,7 @@ body,
   gap: 4px;
 }
 
-.field input:not([type='checkbox']):not([type='color']),
+.field input:not([type='checkbox']):not([type='radio']):not([type='color']),
 .field select {
   width: 56px;
   height: 26px;
@@ -297,6 +297,13 @@ body,
 .sprite-thumb {
   font-size: 30px;
   line-height: 1;
+}
+
+/* A costume with a picture shows it. */
+.sprite-thumb.picture {
+  width: 40px;
+  height: 30px;
+  background: center / contain no-repeat;
 }
 
 .sprite-name {
@@ -566,7 +573,8 @@ body,
   min-height: 32px;
 }
 
-.face-picture button {
+.face-picture button,
+.costume-picture button {
   height: 26px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -577,7 +585,8 @@ body,
   cursor: pointer;
 }
 
-.face-picture button:hover {
+.face-picture button:hover,
+.costume-picture button:hover {
   border-color: var(--menu-bar);
 }
 
@@ -594,13 +603,65 @@ body,
   width: 60px;
 }
 
-.face-picture button.face-picture-remove {
+.face-picture button.face-picture-remove,
+.costume-picture button.face-picture-remove {
   width: 22px;
   height: 22px;
   padding: 0;
   border-radius: 50%;
 }
 
+/* A costume without a picture shows its shape in the sprite's color. */
+.costume-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2f8 center / contain no-repeat;
+  font-size: 22px;
+}
+
+.costume-picture .face-picture-thumb {
+  background-size: contain;
+}
+
+.costume-note {
+  max-width: 360px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* A net's grid of 4 × 3 squares, with each part named where it goes. */
+.costume-net {
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  height: 180px;
+  border: 1px solid var(--border);
+}
+
+.costume-net-row {
+  display: flex;
+  flex: 1;
+}
+
+.costume-net.cone .costume-net-row:first-child {
+  flex: 2;
+}
+
+.costume-net-part,
+.costume-net-empty {
+  display: flex;
+  flex-basis: 0;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  text-align: center;
+}
+
+.costume-net-part {
+  outline: 1px dashed #9aa8bd;
+  background: #eef4ff;
+}
 
 /* Over the whole tab, as Scratch's library fills the editor. */
 .library {

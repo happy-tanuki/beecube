@@ -31,7 +31,8 @@ function movingEntities(): EntityStore {
   for (let k = 0; k < 12; k++) {
     const i = E.alloc()
     E.flags[i] = F_ALIVE | F_VISIBLE
-    E.shape[i] = k % SHAPES.length
+    // A plain shape's look is numbered as the shape.
+    E.shape[i] = E.look[i] = k % SHAPES.length
     E.color[i] = 0xffffff
     E.x[i] = -150 + 100 * (k % 4)
     E.y[i] = -100 + 100 * Math.floor(k / 4)
@@ -150,6 +151,25 @@ describe('Stage3D', () => {
     expect(reddish(floor) || bluish(floor)).toBe(false)
     expect(errors).not.toHaveBeenCalled()
     errors.mockRestore()
+  })
+
+  it("draws a costume's picture, with the sprite's color showing through its transparent parts", async () => {
+    // Green, with a transparent hole in the middle.
+    const picture = document.createElement('canvas')
+    picture.width = picture.height = 64
+    const g = picture.getContext('2d')!
+    g.fillStyle = '#20c020'
+    g.fillRect(0, 0, 64, 64)
+    g.clearRect(16, 16, 32, 32)
+    const png = new Uint8Array(await (await new Promise<Blob>((resolve) => picture.toBlob((b) => resolve(b!), 'image/png'))).arrayBuffer())
+    const rt = new Runtime({ randomSeed: 1 })
+    const ref = await rt.assets.add(png, 'png')
+    const costume = { name: 'hole', shape: 'cube' as const, picture: ref, layout: 'same' as const }
+    rt.addSprite(makeSprite('red', [], { z: 40, size: 200, color: '#e02020', costumes: [costume] }))
+    const { colorAt } = open(rt)
+    // The top face, 80 up: its middle shows the sprite's color, its corners the picture.
+    await vi.waitFor(() => expect(greenish(colorAt(30, 30, 80))).toBe(true))
+    expect(reddish(colorAt(0, 0, 80))).toBe(true)
   })
 
   it('interpolates between the start and end of the last tick', () => {

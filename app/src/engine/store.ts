@@ -69,8 +69,12 @@ export class EntityStore {
   penBrightness = new Float64Array(0)
   penTransparency = new Float64Array(0)
   penSize = new Float64Array(0)
-  /** Index into SHAPES. */
+  /** Index into SHAPES: the shape of the look (kept with it, for collisions). */
   shape = new Uint8Array(0)
+  /** Index of the costume worn, in the kind's (the original sprite's) costumes. */
+  costume = new Uint16Array(0)
+  /** What the stage draws: index into the runtime's looks (costume.ts), set with the costume. */
+  look = new Uint16Array(0)
   flags = new Uint8Array(0)
   /** Index of the kind (original sprite) whose scripts the entity runs. */
   kind = new Uint16Array(0)
@@ -121,6 +125,8 @@ export class EntityStore {
     this.penTransparency = grow(this.penTransparency, f64)
     this.penSize = grow(this.penSize, f64)
     this.shape = grow(this.shape, (n) => new Uint8Array(n))
+    this.costume = grow(this.costume, (n) => new Uint16Array(n))
+    this.look = grow(this.look, (n) => new Uint16Array(n))
     this.flags = grow(this.flags, (n) => new Uint8Array(n))
     this.kind = grow(this.kind, (n) => new Uint16Array(n))
     this.generation = grow(this.generation, (n) => new Uint32Array(n))
@@ -208,6 +214,8 @@ export class EntityStore {
     this.penTransparency[to] = this.penTransparency[from]
     this.penSize[to] = this.penSize[from]
     this.shape[to] = this.shape[from]
+    this.costume[to] = this.costume[from]
+    this.look[to] = this.look[from]
   }
 
   /** Sets the pen color from 0xRRGGBB; as in Scratch, the pen becomes opaque. */

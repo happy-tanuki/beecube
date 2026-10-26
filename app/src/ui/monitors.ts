@@ -25,6 +25,9 @@ const SPRITE_REPORTERS: Record<string, { msg: string; value: (s: Sprite) => Valu
   looks_width: { msg: 'LOOKS_WIDTH', value: (s) => Math.round(s.width) },
   looks_depth: { msg: 'LOOKS_DEPTH', value: (s) => Math.round(s.depth) },
   looks_height: { msg: 'LOOKS_HEIGHT', value: (s) => Math.round(s.height) },
+  // "costume (number / name)", by its menu value.
+  looks_costumenumber: { msg: 'SENSING_OF_COSTUMENUMBER', value: (s) => s.costume + 1 },
+  looks_costumename: { msg: 'SENSING_OF_COSTUMENAME', value: (s) => s.costumes[s.costume]?.name ?? '' },
 }
 
 /**
@@ -50,6 +53,7 @@ export function monitorKeyOf(block: ScratchBlocks.Block, spriteId: string): stri
     return id ? `list:${id}` : null
   }
   if (SPRITE_REPORTERS[block.type]) return `${block.type}:${spriteId}`
+  if (block.type === 'looks_costumenumbername') return `looks_costume${block.getFieldValue('NUMBER_NAME') as string}:${spriteId}`
   if (block.type === 'looks_backdropnumbername') return `${block.type}:${block.getFieldValue('NUMBER_NAME') as string}`
   if (GLOBAL_REPORTERS[block.type]) return block.type
   return null

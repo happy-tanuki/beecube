@@ -11,7 +11,10 @@ import * as THREE from 'three'
 import { APP_ID } from '../brand'
 import { wrapDirection } from '../engine/ops'
 import { F_ALIVE, F_VISIBLE } from '../engine/store'
+import { Assets } from '../engine/assets'
+import type { Look } from '../engine/costume'
 import { BASE_SIZE, SHAPES, type ShapeKind } from '../engine/types'
+import { LookResources } from './looks'
 
 type Floats = Float64Array<ArrayBufferLike>
 
@@ -20,7 +23,8 @@ export interface RenderColumns {
   readonly capacity: number
   readonly highWater: number
   readonly flags: Uint8Array<ArrayBufferLike>
-  readonly shape: Uint8Array<ArrayBufferLike>
+  /** Index into the runtime's looks (costume.ts). */
+  readonly look: Uint16Array<ArrayBufferLike>
   readonly color: Uint32Array<ArrayBufferLike>
   readonly x: Floats
   readonly y: Floats
@@ -48,6 +52,9 @@ const POSE_VALUES = 10
 export const SHADOW_LIMIT = 2000
 const COLOR = new THREE.Color()
 const DEG = Math.PI / 180
+
+/** The plain shapes' looks, as the runtime numbers them (Looks in costume.ts). */
+const PLAIN_LOOKS: Look[] = SHAPES.map((_, shape) => ({ shape, picture: null, layout: 'same' }))
 
 export function makeGeometry(shape: ShapeKind): THREE.BufferGeometry {
   const s = BASE_SIZE
@@ -316,23 +323,26 @@ export class ShapeBatch {
   }
 }
 
-/** What EntityInstances reads: the columns and the tick their poses belong to. */
+/** What EntityInstances reads: the columns, the tick their poses belong to, and the looks they name (only the plain shapes without). */
 export interface PoseSource {
   readonly store: RenderColumns
   readonly tick: number
+  readonly looks?: { readonly list: readonly Look[] }
 }
 
-/** The instanced meshes for every shape, and which instance draws which slot. */
+/** The instanced meshes for every look (batches[look]), and which instance draws which slot. */
 export class EntityInstances {
+  /** The plain shapes' geometries, by index in SHAPES. */
   readonly geometries: THREE.BufferGeometry[]
   readonly material: THREE.MeshStandardMaterial
   readonly depthMaterial: THREE.MeshDepthMaterial
   readonly batches: ShapeBatch[]
+  private readonly resources: LookResources
   /** Shared by the instanced materials. */
   readonly poseAlpha = { value: 1 }
   /** Per slot: instance index in its shape's batch (-1 if not drawn), and which batch. */
   instanceOf = new Int32Array(0)
-  batchOf = new Uint8Array(0)
+  batchOf = new Uint16Array(0)
   /**
    * Per slot: the pose (POSE_VALUES) last written without interpolation, or NaN.
    * Compared with the store each tick, so edits made between ticks (dragging,
@@ -348,12 +358,21 @@ export class EntityInstances {
   private syncedHidden = -1
   private visibleCount = 0
 
-  constructor(scene: THREE.Scene) {
-    this.material = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55 })
-    usePoseAttributes(this.material, this.poseAlpha)
+  /** `assets` has the costumes' pictures. */
+  constructor(
+    private readonly scene: THREE.Scene,
+    assets = new Assets(),
+  ) {
+    const makeMaterial = () => {
+      const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55 })
+      usePoseAttributes(m, this.poseAlpha)
+      return m
+    }
+    this.material = makeMaterial()
     this.depthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking })
     usePoseAttributes(this.depthMaterial, this.poseAlpha)
     this.geometries = SHAPES.map(makeGeometry)
+    this.resources = new LookResources(assets, this.geometries, this.material, makeMaterial)
     this.batches = this.geometries.map((g) => new ShapeBatch(scene, g, this.material, this.depthMaterial))
     for (const b of this.batches) scene.add(b.mesh)
   }
@@ -361,8 +380,20 @@ export class EntityInstances {
   dispose(): void {
     for (const b of this.batches) b.mesh.dispose()
     for (const g of this.geometries) g.dispose()
+    this.resources.dispose()
     this.material.dispose()
     this.depthMaterial.dispose()
+  }
+
+  /** The batch of a look, made (with those before it) when first needed. */
+  private batch(look: number, looks: readonly Look[]): ShapeBatch {
+    while (this.batches.length <= look) {
+      const l = looks[this.batches.length] ?? looks[0]
+      const b = new ShapeBatch(this.scene, this.resources.geometry(l), this.resources.material(l), this.depthMaterial)
+      this.scene.add(b.mesh)
+      this.batches.push(b)
+    }
+    return this.batches[look]
   }
 
   private ensureSlots(capacity: number): void {
@@ -370,7 +401,7 @@ export class EntityInstances {
     const inst = new Int32Array(capacity).fill(-1)
     inst.set(this.instanceOf)
     this.instanceOf = inst
-    const batch = new Uint8Array(capacity)
+    const batch = new Uint16Array(capacity)
     batch.set(this.batchOf)
     this.batchOf = batch
     const drawn = new Float64Array(capacity * POSE_VALUES).fill(NaN)
@@ -402,6 +433,7 @@ export class EntityInstances {
     this.syncedTick = source.tick
     this.syncedHidden = hidden
     const E = source.store
+    const looks = source.looks?.list ?? PLAIN_LOOKS
     this.ensureSlots(E.capacity)
     const end = Math.max(E.highWater, this.drawnHighWater)
     const flags = E.flags
@@ -414,12 +446,13 @@ export class EntityInstances {
         continue
       }
       visible++
-      const shape = E.shape[i]
+      // Without the looks (a snapshot without them), only the plain shapes.
+      const look = E.look[i] < looks.length ? E.look[i] : 0
       let changed = E.color[i] !== this.drawnColor[i]
-      if (inst[i] >= 0 && this.batchOf[i] !== shape) this.removeInstance(i)
+      if (inst[i] >= 0 && this.batchOf[i] !== look) this.removeInstance(i)
       if (inst[i] < 0) {
-        inst[i] = this.batches[shape].add(i)
-        this.batchOf[i] = shape
+        inst[i] = this.batch(look, looks).add(i)
+        this.batchOf[i] = look
         changed = true
       }
       const moving =
@@ -433,7 +466,7 @@ export class EntityInstances {
         d[o + 4] === E.pitch[i] && d[o + 5] === E.roll[i] && d[o + 6] === E.size[i] &&
         d[o + 7] === E.width[i] && d[o + 8] === E.depth[i] && d[o + 9] === E.height[i]
       ) continue
-      const batch = this.batches[shape]
+      const batch = this.batches[look]
       batch.writePose(inst[i], E, i, moving)
       if (changed) {
         // setHex converts the sprite's sRGB color to the linear values instance colors hold.

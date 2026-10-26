@@ -9,6 +9,7 @@
  *
  * Used by `npm run bench` and by the app with `?bench=A` (etc.) in the URL.
  */
+import { plainCostume } from '../engine/costume'
 import { PROJECT_FORMAT, type ProjectFile } from '../engine/project'
 import { DEFAULT_CLONE_LIMIT } from '../engine/runtime'
 import type { BlockJson, ShapeKind, SpriteData } from '../engine/types'
@@ -60,7 +61,8 @@ function sprite(name: string, shape: ShapeKind, size: number, color: string, scr
     roll: 0,
     size,
     color,
-    shape,
+    costumes: [plainCostume(shape, shape)],
+    costume: 0,
     visible: true,
     pen: { down: false, color: '#000000' },
     blocks: { blocks: { languageVersion: 0, blocks: scripts } },

@@ -73,7 +73,9 @@ class EntityStore {
   penColor: Uint32Array
   // the pen color's parts (0–100) and the pen size
   penHue, penSaturation, penBrightness, penTransparency, penSize: Float64Array
-  shape: Uint8Array        // ShapeKind index
+  shape: Uint8Array        // ShapeKind index, of the costume worn (for collisions)
+  costume: Uint16Array     // index of the costume worn, in the original sprite's costumes
+  look: Uint16Array        // what the stage draws: index into the runtime's looks (shape + picture)
   flags: Uint8Array        // alive, visible, pen down, clone, dying
   kind: Uint16Array        // the original sprite whose scripts the entity runs
   generation: Uint32Array
@@ -453,8 +455,10 @@ collision, determinism in stage 8), not for the compiler.
 
 ## 8. Rendering
 
-- **Instanced rendering**: one `InstancedMesh` per shape. 30,000 entities
-  take as many draw calls as there are shapes. Instances do not use matrices
+- **Instanced rendering**: one `InstancedMesh` per look: a shape, with a
+  costume's picture or none (the runtime numbers looks as costumes first
+  use them, the plain shapes being 0–3). 30,000 entities take as many draw
+  calls as there are looks in use. Instances do not use matrices
   built on the CPU: each has its pose at the start and end of the last tick
   (position and size, then direction, pitch and roll; 14 floats) and its
   width, depth and height (3 floats, not interpolated), and the vertex
@@ -465,7 +469,7 @@ collision, determinism in stage 8), not for the compiler.
   first frame after a tick; other frames only update the interpolation
   uniform. An entity whose pose did not change in the last tick and was
   already written at that pose is skipped. The renderer only reads the
-  store: it notices changed colors and shapes by comparing them with what it
+  store: it notices changed colors and looks by comparing them with what it
   last wrote, so it can draw from a snapshot as well (10). Edits between
   ticks (dragging, the sprite pane) show at the next tick.
 - **Selection outline and direction marker**: only on the selected sprite.
@@ -475,7 +479,7 @@ collision, determinism in stage 8), not for the compiler.
   considered later.
 - **Pen**: segments (with their size and opacity) and stamps are appended
   to typed arrays and the drawn range grows; line geometry is not rebuilt.
-  Stamps are instanced shapes, one InstancedMesh per shape.
+  Stamps are instanced too, one InstancedMesh per look.
 - **Interpolation**: each frame draws the pose interpolated between the
   start and end of the last tick (on the GPU, see above).
 - **Camera**: the runtime holds the camera blocks' state: zoom (with its
@@ -515,8 +519,8 @@ collision, determinism in stage 8), not for the compiler.
 - **Trial** (`?bench=A&logic=main|worker|post`, `src/bench/logicTrial.ts`):
   a page that draws a benchmark scenario alone, with its logic on the main
   thread or in `src/worker/logic.worker.ts`. After each tick the worker
-  copies the columns drawing reads (pose, previous pose, color, shape,
-  flags; 118 bytes per slot) into a snapshot (`src/worker/snapshot.ts`).
+  copies the columns drawing reads (pose, previous pose, color, look,
+  flags; 143 bytes per slot) into a snapshot (`src/worker/snapshot.ts`).
   - `worker`: three shared snapshots (triple buffering with one atomic
     exchange per hand-over): the worker writes one, the page reads one, and
     the third holds the newest finished one.

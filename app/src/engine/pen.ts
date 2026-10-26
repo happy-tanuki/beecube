@@ -25,8 +25,8 @@ export class PenBuffer {
 
   /** x, y, z, direction, pitch, roll, size, width, depth and height of each stamp. */
   stampPoses = new Float32Array(STAMP_POSE * 64)
-  /** Index into SHAPES. */
-  stampShapes = new Uint8Array(64)
+  /** Index into the runtime's looks (costume.ts); a plain shape's is its index in SHAPES. */
+  stampLooks = new Uint16Array(64)
   /** 0xRRGGBB */
   stampColors = new Uint32Array(64)
   stampCount = 0
@@ -71,9 +71,9 @@ export class PenBuffer {
     }
   }
 
-  /** Leaves a copy of entity `i`'s shape where it is. */
+  /** Leaves a copy of entity `i`'s look where it is. */
   stamp(E: EntityStore, i: number): void {
-    if (this.stampCount === this.stampShapes.length) this.growStamps()
+    if (this.stampCount === this.stampLooks.length) this.growStamps()
     const n = this.stampCount++
     const p = this.stampPoses
     const o = n * STAMP_POSE
@@ -87,7 +87,7 @@ export class PenBuffer {
     p[o + 7] = E.width[i]
     p[o + 8] = E.depth[i]
     p[o + 9] = E.height[i]
-    this.stampShapes[n] = E.shape[i]
+    this.stampLooks[n] = E.look[i]
     this.stampColors[n] = E.color[i]
   }
 
@@ -113,9 +113,9 @@ export class PenBuffer {
     const poses = new Float32Array(this.stampPoses.length * 2)
     poses.set(this.stampPoses)
     this.stampPoses = poses
-    const shapes = new Uint8Array(this.stampShapes.length * 2)
-    shapes.set(this.stampShapes)
-    this.stampShapes = shapes
+    const looks = new Uint16Array(this.stampLooks.length * 2)
+    looks.set(this.stampLooks)
+    this.stampLooks = looks
     const colors = new Uint32Array(this.stampColors.length * 2)
     colors.set(this.stampColors)
     this.stampColors = colors

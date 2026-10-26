@@ -13,6 +13,7 @@
  */
 import { BUILTIN_PROPERTIES, paramKey, type KindFacts, type Layout, type ProjectInput, type Ty, typeOfValue } from './analyze'
 import { NEXT_BACKDROP } from './backdrop'
+import { NEXT_COSTUME } from './costume'
 import { VIEWS } from './camera'
 import type { CommandBlock, ExtensionBlock } from './extension'
 import type { Expr, ProcIR, ScriptIR, Stmt } from './ir'
@@ -127,7 +128,7 @@ const num = (v: V) => (v.k !== undefined ? toNumber(v.k) : undefined)
 const COLUMNS: Record<string, string> = {
   x: 'X', y: 'Y', z: 'Z', direction: 'D', pitch: 'PT', roll: 'RL', size: 'SZ',
   width: 'WD', depth: 'DP', height: 'HT',
-  color: 'CO', penSize: 'PSZ', flags: 'FL',
+  color: 'CO', penSize: 'PSZ', flags: 'FL', costume: 'CS',
 }
 
 /** Flag bits, as in store.ts. */
@@ -653,6 +654,12 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
         emit(ctx, `${col}[i] = L.clampDimension(${v});`)
       }
       break
+    case 'looks_switchcostumeto':
+      emit(ctx, `rt.switchCostume(i, ${e('COSTUME').c});`)
+      break
+    case 'looks_nextcostume':
+      emit(ctx, `rt.switchCostume(i, ${lit(NEXT_COSTUME)});`)
+      break
     case 'looks_switchbackdropto':
       emit(ctx, `rt.switchBackdrop(${e('BACKDROP').c});`)
       break
@@ -1114,6 +1121,8 @@ function expr(e: Expr, ctx: Ctx, m: ModuleGen): V {
     case 'looks_depth':
     case 'looks_height':
       return { c: `Math.round(${f.col(e.op.slice('looks_'.length))}[i])`, t: 'num' }
+    case 'looks_costumenumbername':
+      return e.f.NUMBER_NAME === 'name' ? { c: 'rt.costumeName(i)', t: 'str' } : { c: `(${f.col('costume')}[i] + 1)`, t: 'num' }
     case 'looks_backdropnumbername':
       return e.f.NUMBER_NAME === 'name' ? { c: 'rt.backdrops.backdrop.name', t: 'str' } : { c: '(rt.backdrops.current + 1)', t: 'num' }
 

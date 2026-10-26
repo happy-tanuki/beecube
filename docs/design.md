@@ -56,8 +56,27 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
     themselves (relative to the world).
   - Turning about one axis while moving draws a circle (also when pitched or
     banked); turning about two at once (up and roll) draws a helix.
-- **Shapes instead of costumes.** A sprite is a cube, sphere, cone or
-  cylinder with a color and a size. Costumes, and sounds, are not done yet.
+- **Costumes**, as in Scratch (`app/src/engine/costume.ts`): a sprite has
+  one or more, and wears one (each clone its own). A costume is a cube,
+  sphere, cone or cylinder with a picture wrapped around it, or none; the
+  picture's transparent parts show the sprite's color, and "set color"
+  still sets that color. A picture wraps a shape in one of two ways: the
+  same picture on every side (a cylinder's or a cone's side is wrapped once
+  round with it, and its ends show it cut round), or a net on a grid of
+  4 × 3 squares (a cube's is a cross; a cylinder's side is the middle row,
+  with its ends above and below; a cone's side is the top two rows, its
+  base below). A sphere's picture is always wrapped like a globe
+  (equirectangular, as 360° images are). The middle of a picture is on the
+  front, the side the sprite heads to. The Costumes tab, beside a sprite's
+  code as in Scratch, lists them and edits the chosen one's name, shape,
+  picture and wrapping; the sprite's "shape" field changes the costume
+  worn. Uploaded pictures are scaled down to 1024 pixels at most. The
+  costume library (dice, a bee, a present, a crate, bricks, a grass block,
+  the Earth, the Moon, a beach ball, a watermelon, a can and a traffic
+  cone) is made by `app/scripts/make-costume-library.mjs`; the Earth and the
+  Moon are NASA's maps. Files from before costumes open with one costume of
+  their sprite's shape. Sounds are not done yet; 3D models and a picture
+  editor are planned as costumes' next steps.
 - **Width, depth and height** stretch a shape along its own axes, in
   percent of its size (1–2000%, 100% each by default): width along its
   heading (x at direction 90), depth across it, height up its local z axis.
@@ -139,7 +158,7 @@ or changed:
 | Category | Blocks |
 |---|---|
 | Motion | go to (random position, mouse pointer, a sprite: in 3D); point towards (a sprite: direction and pitch; the mouse pointer or a random direction: direction only); go to x/y/z; glide to (the same targets as go to, where the target is when the glide starts) and glide to x/y/z; set z / change z / z position; turn up / turn down, roll right / roll left (about the own axes; turn right/left too); set pitch / pitch; set roll / roll |
-| Looks | set color to (in place of costumes); set / change (width, depth, height); width / depth / height; switch backdrop to, next backdrop, backdrop (number / name), and on the stage switch backdrop to and wait, as in Scratch |
+| Looks | set color to; switch costume to, next costume, costume (number / name), as in Scratch; set / change (width, depth, height); width / depth / height; switch backdrop to, next backdrop, backdrop (number / name), and on the stage switch backdrop to and wait, as in Scratch |
 | Camera (new) | make this sprite the camera; set view to (home, top, front, side); set / change camera zoom |
 | Events | when I touch (a sprite, or my own clones); when backdrop switches to, and on the stage when stage clicked (a click where there is no sprite), as in Scratch |
 | Sensing | touched sprite (a sprite reference); "of" for another sprite's properties and sprite-only variables |
@@ -154,7 +173,7 @@ Changed meanings:
   shapes around them. They stay at least 1.5 pixels wide on the screen so
   they don't vanish. The pen color's parts (color, saturation, brightness,
   transparency) are as in Scratch.
-- **"stamp"** leaves a copy of the sprite's shape, color and pose, even when
+- **"stamp"** leaves a copy of the sprite's costume, color and pose, even when
   the sprite is hidden (so a hidden sprite can stamp). Stamps are not
   sprites: they don't move, aren't touched, and "erase all" removes them.
 - **"touching"** tests the real shapes in 3D, and **"distance to"** measures
@@ -209,8 +228,9 @@ sprites. Extension blocks are left out, as they act on sprites.
   backdrops are chosen (the chosen one becomes current, as in Scratch),
   added (uploaded or plain), renamed, deleted and changed, a picture at a
   time, with a 360° image from the scenery library or uploaded, and a room
-  from the room library. The editor is designed for computers
-  with a mouse and keyboard.
+  from the room library. Selecting a sprite shows its scripts and a
+  Costumes tab, which does the same for its costumes. The editor is
+  designed for computers with a mouse and keyboard.
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
   plane. Drag the cone above the selected sprite to change its height.
   Dragging empty space orbits the camera, Shift+drag pans and the wheel zooms.

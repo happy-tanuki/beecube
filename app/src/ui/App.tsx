@@ -9,6 +9,7 @@ import type { Stage3D } from '../stage/Stage3D'
 import { DialogHost, showAlert, showConfirm } from './dialogs'
 import { listenKeys } from './keys'
 import { BackdropsTab } from './BackdropsTab'
+import { CostumesTab } from './CostumesTab'
 import { BlocksEditor } from './BlocksEditor'
 import { SpritePane } from './SpritePane'
 import { StagePane } from './StagePane'
@@ -147,8 +148,9 @@ export function App() {
   useSyncExternalStore(store.subscribe, store.getVersion)
   const [sharing, setSharing] = useState(false)
   // Only the stage has a second tab (its backdrops).
-  const [tab, setTab] = useState<'code' | 'backdrops'>('code')
-  const showBackdrops = tab === 'backdrops' && store.editingStage
+  // The second tab: the stage's backdrops, or a sprite's costumes.
+  const [tab, setTab] = useState<'code' | 'looks'>('code')
+  const showLooks = tab === 'looks'
   const stageRef = useRef<Stage3D | null>(null)
 
   useEffect(() => listenKeys(store.rt), [])
@@ -174,16 +176,14 @@ export function App() {
       <main className="workspace-area">
         <section className="code-area">
           <div className="code-tabs" role="tablist">
-            <button role="tab" aria-selected={!showBackdrops} className={showBackdrops ? '' : 'selected'} onClick={() => setTab('code')}>
+            <button role="tab" aria-selected={!showLooks} className={showLooks ? '' : 'selected'} onClick={() => setTab('code')}>
               {t('tab.code')}
             </button>
-            {store.editingStage && (
-              <button role="tab" aria-selected={showBackdrops} className={showBackdrops ? 'selected' : ''} onClick={() => setTab('backdrops')}>
-                {t('tab.backdrops')}
-              </button>
-            )}
+            <button role="tab" aria-selected={showLooks} className={showLooks ? 'selected' : ''} onClick={() => setTab('looks')}>
+              {t(store.editingStage ? 'tab.backdrops' : 'tab.costumes')}
+            </button>
           </div>
-          <div className={`code-content${showBackdrops ? ' backdrops' : ''}`}>
+          <div className={`code-content${showLooks ? ' backdrops' : ''}`}>
             <BlocksEditor
               key={store.projectId}
               store={store}
@@ -193,7 +193,7 @@ export function App() {
               backdropKey={store.rt.backdrops.list.map((b) => b.name).join('\n')}
               stage={store.editingStage}
             />
-            {showBackdrops && <BackdropsTab store={store} />}
+            {showLooks && (store.editingStage ? <BackdropsTab store={store} /> : <CostumesTab store={store} />)}
           </div>
         </section>
         <aside className="right-column">

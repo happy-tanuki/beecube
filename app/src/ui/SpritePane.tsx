@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Sprite } from '../engine/sprite'
 import type { ShapeKind } from '../engine/types'
 import { t } from '../i18n'
+import { assetUrl } from './assetUrls'
 import { SHAPES, shapeName, type ProjectStore } from './store'
 
 interface Props {
@@ -9,11 +10,23 @@ interface Props {
   editingId: string
 }
 
-const SHAPE_ICONS: Record<ShapeKind, string> = {
+export const SHAPE_ICONS: Record<ShapeKind, string> = {
   cube: '■',
   sphere: '●',
   cone: '▲',
   cylinder: '▮',
+}
+
+/** The costume worn: its picture, or its shape in the sprite's color. */
+function SpriteThumb({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
+  const picture = sprite.costumes[sprite.costume]?.picture
+  const url = picture && assetUrl(store.rt.assets, picture)
+  if (url) return <div className="sprite-thumb picture" style={{ backgroundImage: `url("${url}")` }} />
+  return (
+    <div className="sprite-thumb" style={{ color: sprite.color }}>
+      {SHAPE_ICONS[sprite.shape]}
+    </div>
+  )
 }
 
 /** Re-renders periodically so values changed by running scripts show up. */
@@ -114,6 +127,8 @@ function SpriteInfo({ store, sprite }: { store: ProjectStore; sprite: Sprite }) 
 }
 
 export function SpritePane({ store, editingId }: Props) {
+  // Thumbnails show the costume worn, which scripts change, and pictures that arrive later.
+  useTicker(250)
   const [menuOpen, setMenuOpen] = useState(false)
   const editing = store.rt.getSprite(editingId)
   return (
@@ -126,9 +141,7 @@ export function SpritePane({ store, editingId }: Props) {
             className={`sprite-tile${s.id === editingId ? ' selected' : ''}`}
             onClick={() => store.select(s.id)}
           >
-            <div className="sprite-thumb" style={{ color: s.color }}>
-              {SHAPE_ICONS[s.shape]}
-            </div>
+            <SpriteThumb store={store} sprite={s} />
             <div className="sprite-name">{s.name}</div>
             {s.id === editingId && store.rt.sprites.length > 1 && (
               <button

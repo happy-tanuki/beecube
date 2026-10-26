@@ -1,8 +1,8 @@
 /**
- * Turning image files into backdrop pictures: a picture for one face, or a
- * 360° image for the scenery. Pictures are re-encoded in the browser
- * (which also drops a photo's location and other metadata): JPEG, or PNG
- * when they have transparent parts.
+ * Turning image files into pictures: a picture for one face of a backdrop,
+ * a 360° image for the scenery, or a costume's picture. Pictures are
+ * re-encoded in the browser (which also drops a photo's location and other
+ * metadata): JPEG, or PNG when they have transparent parts.
  */
 import type { AssetFormat } from '../engine/assets'
 import { FACE_SIZE, type FaceName } from '../engine/backdrop'
@@ -13,6 +13,9 @@ const RESOLUTION = 2
 /** 360° images are scaled down to this width (a common size limit for textures). */
 const PANORAMA_WIDTH = 4096
 const PANORAMA_QUALITY = 0.7
+
+/** Costumes' pictures are scaled down to fit this many pixels across and down (a sprite is small on the stage). */
+const COSTUME_SIZE = 1024
 
 export interface Picture {
   data: Uint8Array
@@ -61,4 +64,17 @@ export async function panoramaPicture(file: Blob): Promise<Picture> {
   image.close()
   // A lower quality: 360° images are big, and show only a part at a time.
   return encode(c, g, PANORAMA_QUALITY)
+}
+
+/** A costume's picture: the image as it is, scaled down to fit COSTUME_SIZE. */
+export async function costumePicture(file: Blob): Promise<Picture> {
+  const image = await createImageBitmap(file)
+  const scale = Math.min(1, COSTUME_SIZE / Math.max(image.width, image.height))
+  const width = Math.max(1, Math.round(image.width * scale))
+  const height = Math.max(1, Math.round(image.height * scale))
+  const [c, g] = canvas(width, height)
+  g.imageSmoothingQuality = 'high'
+  g.drawImage(image, 0, 0, width, height)
+  image.close()
+  return encode(c, g)
 }

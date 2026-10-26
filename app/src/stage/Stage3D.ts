@@ -181,7 +181,7 @@ export class Stage3D {
 
     this.environment = new Environment(this.scene)
 
-    this.instances = new EntityInstances(this.scene)
+    this.instances = new EntityInstances(this.scene, this.rt.assets)
     this.pickMesh = new THREE.Mesh(this.instances.geometries[0], this.instances.material)
     this.pickMesh.matrixAutoUpdate = false
 
@@ -191,7 +191,7 @@ export class Stage3D {
     this.penLines.frustumCulled = false
     this.penLines.visible = false
     this.scene.add(this.penLines)
-    this.stamps = new StampInstances(this.scene)
+    this.stamps = new StampInstances(this.scene, this.rt.assets)
 
     this.selection = this.buildSelection()
     this.scene.add(this.selection)
@@ -322,7 +322,7 @@ export class Stage3D {
     this.syncSelection(alpha)
     this.syncBubbles(alpha, eyes)
     this.syncPen()
-    this.stamps.sync(this.rt.pen)
+    this.stamps.sync(this.rt.pen, this.rt.looks.list)
     const prepared = performance.now()
     this.renderer.render(this.scene, this.camera)
     this.labels.render(this.scene, this.camera)

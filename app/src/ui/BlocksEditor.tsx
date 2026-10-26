@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as ScratchBlocks from 'scratch-blocks'
 import { defineExtensionBlocks, extensionStyle } from '../blocks/extensions'
-import { createTheme, defineCustomBlocks, setBackdropNameSource, setSpriteNameSource, setSpriteVariableSource, setStageSource } from '../blocks/setup'
+import { createTheme, defineCustomBlocks, setBackdropNameSource, setCostumeNameSource, setSpriteNameSource, setSpriteVariableSource, setStageSource } from '../blocks/setup'
 import { makeToolboxXml } from '../blocks/toolbox'
 import { BUILTIN_EXTENSIONS } from '../extensions'
 import type { BlockJson, WorkspaceJson } from '../engine/types'
@@ -129,6 +129,7 @@ export function BlocksEditor({ store, editingId, blocksRevision, extensionKey, b
     defineCustomBlocks()
     setSpriteNameSource(() => store.rt.sprites.filter((s) => s.id !== store.editingId).map((s) => s.name))
     setBackdropNameSource(() => store.rt.backdrops.list.map((b) => b.name))
+    setCostumeNameSource(() => (store.editingStage ? [] : store.editing.costumes.map((c) => c.name)))
     setStageSource(() => store.editingStage)
     setSpriteVariableSource((name) => {
       const sprite = store.rt.sprites.find((s) => s.name === name)

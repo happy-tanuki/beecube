@@ -39,6 +39,7 @@ function isExternalReporter(e: Expr): boolean {
     e.op.startsWith('sensing_') ||
     e.op.startsWith('motion_') ||
     e.op === 'looks_size' ||
+    e.op === 'looks_costumenumbername' ||
     e.op === 'looks_backdropnumbername'
   )
 }
@@ -297,6 +298,7 @@ export function typeOfExpr(e: Expr, p: ProjectInput, k: number, proc: ProcIR | n
     }
     case 'sensing_touchedsprite':
       return 'any'
+    case 'looks_costumenumbername':
     case 'looks_backdropnumbername':
       return e.f.NUMBER_NAME === 'name' ? 'str' : 'num'
     case 'event_broadcast_menu':
