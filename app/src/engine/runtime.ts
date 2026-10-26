@@ -12,6 +12,7 @@
  * See docs/vm-design.md.
  */
 import { inferLayout, KindFacts, join, typeOfValue, type KindLayout, type Layout, type ProjectInput, type Ty } from './analyze'
+import { Assets } from './assets'
 import { availableBackdropName, Backdrops } from './backdrop'
 import { Camera } from './camera'
 import { generateKind, type ModulePlan } from './codegen'
@@ -96,6 +97,8 @@ export class Runtime {
   readonly pen = new PenBuffer()
   readonly camera = new Camera()
   readonly backdrops = new Backdrops()
+  /** The pictures the backdrops show (their contents; the backdrops refer to them). */
+  readonly assets = new Assets()
   readonly keysDown = new Set<string>()
   /** Mouse position projected onto the workplane (z = 0). */
   readonly mouse = { x: 0, y: 0, down: false }

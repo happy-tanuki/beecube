@@ -288,4 +288,71 @@ describe('Stage3D', () => {
     rt.backdrops.changed()
     expect(reddish(colorAt(0, 180, 20))).toBe(false)
   })
+
+  it('draws a face\'s picture once it is decoded, and the scenery through its transparent parts', async () => {
+    const rt = new Runtime({ randomSeed: 1 })
+    rt.addSprite(makeSprite('a', [], { visible: false }))
+    // The left half green, the right half transparent.
+    const canvas = new OffscreenCanvas(960, 720)
+    const g = canvas.getContext('2d')!
+    g.fillStyle = '#20c040'
+    g.fillRect(0, 0, 480, 720)
+    const picture = await rt.assets.add(new Uint8Array(await (await canvas.convertToBlob()).arrayBuffer()), 'png')
+    const b = plainBackdrop('test')
+    b.scenery = '#2040e0'
+    b.faces.back.picture = picture
+    b.grid = false
+    rt.backdrops.set([b], 0)
+    const { colorAt } = open(rt)
+    await vi.waitFor(() => expect(greenish(colorAt(-100, 180, 40))).toBe(true))
+    expect(bluish(colorAt(100, 180, 40))).toBe(true)
+    // Over a color, the transparent parts show the color.
+    b.faces.back.color = '#e02020'
+    rt.backdrops.changed()
+    expect(reddish(colorAt(100, 180, 40))).toBe(true)
+    expect(greenish(colorAt(-100, 180, 40))).toBe(true)
+  })
+
+  it('shows a 360° scenery image all round, its ground on the floor: its middle ahead, its right to the right, its top above', async () => {
+    const rt = new Runtime({ randomSeed: 1 })
+    const eye = rt.addSprite(makeSprite('eye', [], { z: 30, direction: 0, visible: false }))
+    // Ahead red, to the right green, to the left blue, the sky white, the ground black.
+    const canvas = new OffscreenCanvas(512, 256)
+    const g = canvas.getContext('2d')!
+    const band = (color: string, u0: number, u1: number, v0 = 0, v1 = 1) => {
+      g.fillStyle = color
+      g.fillRect(u0 * 512, v0 * 256, (u1 - u0) * 512, (v1 - v0) * 256)
+    }
+    band('#808080', 0, 1)
+    band('#e02020', 0.4, 0.6)
+    band('#20c040', 0.65, 0.85)
+    band('#2040e0', 0.15, 0.35)
+    band('#ffffff', 0, 1, 0, 0.15)
+    band('#000000', 0, 1, 0.85, 1)
+    const picture = await rt.assets.add(new Uint8Array(await (await canvas.convertToBlob({ type: 'image/jpeg', quality: 1 })).arrayBuffer()), 'jpg')
+    const b = plainBackdrop('test')
+    b.faces.floor.color = null
+    b.sceneryPicture = picture
+    b.grid = false
+    rt.backdrops.set([b], 0)
+    const { colorAt } = open(rt)
+    // The image's ground lies on the floor: from the home view, through the
+    // transparent floor, the middle of the stage shows what is straight down.
+    await vi.waitFor(() => expect(Math.max(...colorAt(0, 0, 0))).toBeLessThan(50))
+    rt.camera.sprite = rt.store.handle(eye.slot)
+    const look = (direction: number, pitch: number) => {
+      eye.direction = direction
+      eye.pitch = pitch
+      rt.store.snapPose(eye.slot)
+      rt.step()
+      const rad = (d: number) => (d * Math.PI) / 180
+      const far = 1000
+      return colorAt(far * Math.sin(rad(direction)) * Math.cos(rad(pitch)), far * Math.cos(rad(direction)) * Math.cos(rad(pitch)), 30 + far * Math.sin(rad(pitch)))
+    }
+    await vi.waitFor(() => expect(reddish(look(0, 0))).toBe(true))
+    expect(greenish(look(90, 0))).toBe(true)
+    expect(bluish(look(-90, 0))).toBe(true)
+    expect(Math.min(...look(0, 80))).toBeGreaterThan(200)
+    expect(Math.max(...look(0, -80))).toBeLessThan(50)
+  })
 })

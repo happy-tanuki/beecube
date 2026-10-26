@@ -22,8 +22,15 @@ const store = new ProjectStore()
 function FileMenu() {
   const fileInput = useRef<HTMLInputElement>(null)
 
-  const save = () => {
-    const url = URL.createObjectURL(new Blob([store.toJson()], { type: 'application/json' }))
+  const save = async () => {
+    let data: Uint8Array
+    try {
+      data = await store.toFile()
+    } catch (err) {
+      await showAlert(t('menu.saveFailed', { reason: err instanceof Error ? err.message : String(err) }))
+      return
+    }
+    const url = URL.createObjectURL(new Blob([data as Uint8Array<ArrayBuffer>], { type: 'application/zip' }))
     const a = document.createElement('a')
     a.href = url
     a.download = `project${PROJECT_FILE_EXTENSION}`
@@ -33,7 +40,7 @@ function FileMenu() {
 
   const open = async (file: File) => {
     try {
-      store.openProject(await file.text())
+      await store.openFile(new Uint8Array(await file.arrayBuffer()))
     } catch (err) {
       const reason = err instanceof ProjectFormatError || err instanceof SyntaxError ? err.message : String(err)
       await showAlert(t('menu.openFailed', { name: file.name, reason }))
@@ -50,11 +57,11 @@ function FileMenu() {
         {t('menu.new')}
       </button>
       <button onClick={() => fileInput.current?.click()}>{t('menu.open')}</button>
-      <button onClick={save}>{t('menu.save')}</button>
+      <button onClick={() => void save()}>{t('menu.save')}</button>
       <input
         ref={fileInput}
         type="file"
-        accept=".json,application/json"
+        accept={`${PROJECT_FILE_EXTENSION},.json,application/json,application/zip`}
         hidden
         onChange={(e) => {
           const file = e.target.files?.[0]

@@ -6,8 +6,8 @@ export const APP_NAME = 'BeeCube'
 /** Lower-case id for storage keys, the project file format and other internal names. */
 export const APP_ID = 'beecube'
 
-/** Extension of saved project files. */
-export const PROJECT_FILE_EXTENSION = '.beecube.json'
+/** Extension of saved project files (a zip; older files were the JSON alone, named .beecube.json). */
+export const PROJECT_FILE_EXTENSION = '.beecube'
 
 /** The public source repository, which the app links to; null to leave the link out. */
 export const SOURCE_URL: string | null = 'https://github.com/happy-tanuki/beecube'

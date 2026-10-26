@@ -1,13 +1,18 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
-import { availableBackdropName, plainBackdrop, type BackdropData } from '../engine/backdrop'
-import { emptyProject, loadProject, parseProject, serializeProject, type ProjectFile } from '../engine/project'
+import { assetFileName, type AssetRef } from '../engine/assets'
+import { availableBackdropName, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
+import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
 import { findExtension } from '../extensions'
 import { Runtime } from '../engine/runtime'
 import type { Sprite } from '../engine/sprite'
 import { STAGE_ID, type ShapeKind, type SpriteData } from '../engine/types'
 import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
+import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
+import { loadLibraryAsset, type LibraryScenery } from './sceneryLibrary'
+import { facePicture, panoramaPicture, type Picture } from './pictures'
+import { readProjectFile, writeProjectFile } from './projectFile'
 import { sampleScript } from './sample'
 
 export const SHAPES: ShapeKind[] = ['cube', 'sphere', 'cone', 'cylinder']
@@ -45,6 +50,8 @@ export class ProjectStore {
   readonly bench: ScenarioName | null = benchFromUrl()
 
   constructor() {
+    // Assets not in memory: the autosaved ones, then the library's.
+    this.rt.assets.loader = async (ref) => (await loadStoredAsset(ref).catch(() => null)) ?? loadLibraryAsset(ref)
     if (this.bench) this.replace(scenarioProject(this.bench))
     else if (!this.restoreAutosave()) this.newProject()
     this.rt.start()
@@ -67,8 +74,26 @@ export class ProjectStore {
     this.replace(parseProject(JSON.parse(json)))
   }
 
+  /** Opens a project file (see projectFile.ts). Throws ProjectFormatError or SyntaxError if it isn't valid. */
+  async openFile(bytes: Uint8Array): Promise<void> {
+    const { project, assets } = await readProjectFile(bytes)
+    for (const [ref, data] of assets) this.rt.assets.put(ref, data)
+    this.replace(project)
+  }
+
   toJson(): string {
     return JSON.stringify(serializeProject(this.rt))
+  }
+
+  /** The project file's contents, with the assets it uses (waiting for any still being loaded). */
+  async toFile(): Promise<Uint8Array> {
+    const project = serializeProject(this.rt)
+    const assets = new Map<string, Uint8Array>()
+    for (const ref of projectAssets(project)) {
+      const data = await this.rt.assets.load(ref)
+      if (data) assets.set(assetFileName(ref), data)
+    }
+    return writeProjectFile(project, assets)
   }
 
   /** Adds a built-in extension to the project. Extensions can't be removed (as in Scratch); start a new project instead. */
@@ -105,11 +130,17 @@ export class ProjectStore {
   /** Saves to browser storage now (also done every few seconds and on page hide). */
   autosave(): void {
     if (this.bench) return
+    const project = serializeProject(this.rt)
     try {
-      localStorage.setItem(AUTOSAVE_KEY, this.toJson())
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(project))
     } catch (err) {
       console.warn('ProjectStore: autosave failed', err)
     }
+    const assets = projectAssets(project).flatMap((ref) => {
+      const data = this.rt.assets.get(ref)
+      return data ? [[assetFileName(ref), data] as [string, Uint8Array]] : []
+    })
+    storeAssets(assets).catch((err) => console.warn('ProjectStore: saving pictures failed', err))
   }
 
   private restoreAutosave(): boolean {
@@ -122,6 +153,8 @@ export class ProjectStore {
     if (!saved) return false
     try {
       this.openProject(saved)
+      const used = new Set(projectAssets(serializeProject(this.rt)).map(assetFileName))
+      pruneStoredAssets(used).catch((err) => console.warn('ProjectStore: tidying saved pictures failed', err))
       return true
     } catch (err) {
       console.warn('ProjectStore: ignoring unreadable autosave', err)
@@ -198,12 +231,7 @@ export class ProjectStore {
 
   /** Adds a plain backdrop and makes it the current one, as Scratch's "paint" does. */
   addBackdrop(): void {
-    const backdrops = this.rt.backdrops
-    const b = plainBackdrop(t('backdrop.defaultName'))
-    b.name = availableBackdropName(b.name, backdrops.list.map((o) => o.name)) ?? b.name
-    backdrops.list.push(b)
-    backdrops.select(backdrops.list.length - 1)
-    this.notify()
+    this.pushBackdrop(plainBackdrop(t('backdrop.defaultName')))
   }
 
   selectBackdrop(index: number): void {
@@ -225,6 +253,46 @@ export class ProjectStore {
     if (JSON.stringify(this.editing.blocks) !== before) this.blocksRevision++
     this.notify()
     return this.rt.backdrops.list[index].name
+  }
+
+  /** Adds a backdrop with a picture on its back wall, as Scratch's upload puts one on the stage. */
+  async uploadBackdrop(file: File): Promise<void> {
+    const picture = await this.storePicture(await facePicture(file, 'back'))
+    const b = plainBackdrop(file.name.replace(/\.[^.]*$/, '') || t('backdrop.defaultName'))
+    b.faces.back.picture = picture
+    this.pushBackdrop(b)
+  }
+
+  /** Puts a picture on a face of a backdrop (null takes it off). */
+  async setFacePicture(index: number, face: FaceName, file: File | null): Promise<void> {
+    const picture = file ? await this.storePicture(await facePicture(file, face)) : null
+    this.updateBackdrop(index, (b) => (b.faces[face].picture = picture))
+  }
+
+  /** Makes a 360° image a backdrop's scenery (null takes it off). */
+  async setSceneryPicture(index: number, file: File | null): Promise<void> {
+    const picture = file ? await this.storePicture(await panoramaPicture(file)) : null
+    this.updateBackdrop(index, (b) => (b.sceneryPicture = picture))
+  }
+
+  /** Makes a 360° image from the library a backdrop's scenery. */
+  setLibraryScenery(index: number, entry: LibraryScenery): void {
+    this.updateBackdrop(index, (b) => {
+      b.scenery = entry.scenery
+      b.sceneryPicture = { ...entry.picture }
+    })
+  }
+
+  private storePicture(p: Picture): Promise<AssetRef> {
+    return this.rt.assets.add(p.data, p.format)
+  }
+
+  private pushBackdrop(b: BackdropData): void {
+    const backdrops = this.rt.backdrops
+    b.name = availableBackdropName(b.name, backdrops.list.map((o) => o.name)) ?? b.name
+    backdrops.list.push(b)
+    backdrops.select(backdrops.list.length - 1)
+    this.notify()
   }
 
   /** Removes a backdrop; there is always at least one. Blocks keep its name, as in Scratch. */

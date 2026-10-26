@@ -1,0 +1,26 @@
+[
+  {
+    "key": "meadow",
+    "picture": {
+      "assetId": "1649bbb24ced16dd9391d5d622a48802c83bd0963dc033f1a254f9e1de819307",
+      "dataFormat": "jpg"
+    },
+    "scenery": "#84acd4"
+  },
+  {
+    "key": "beach",
+    "picture": {
+      "assetId": "33459c9c8d3c2ecbaf38be9f30a24a1c78e973fc864ec556b2b09dcf87317bb0",
+      "dataFormat": "jpg"
+    },
+    "scenery": "#45689c"
+  },
+  {
+    "key": "desert",
+    "picture": {
+      "assetId": "38e474caa85bcd1904c065887b57a4ba71fcd138b758f8e786134c180fd61d9d",
+      "dataFormat": "jpg"
+    },
+    "scenery": "#43598a"
+  }
+]

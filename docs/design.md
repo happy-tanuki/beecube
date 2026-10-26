@@ -72,21 +72,51 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   is only a picture: a sprite above 360 shows above it.
 - **Backdrops** (`app/src/engine/backdrop.ts`) dress the box, as Scratch's
   backdrops dress its stage (decided on 2026-10-25). A backdrop has the
-  scenery (the color outside the box), each face's color or transparent,
-  and whether the grid shows (with the axes and the border). The walls and
-  the ceiling show their color as it is, like a picture; the floor is lit
-  and takes shadows (a transparent floor has none). A new project's
-  backdrop looks as the stage did before backdrops: transparent walls, a
-  pale floor and the grid. A project has one or more backdrops, one is
-  current, and it is saved with the project; stopping doesn't change it.
-  - Next: pictures on the faces. A Scratch-sized picture goes on the back
-    wall, and a 360° picture is projected from the box's center onto the
-    six faces when it is added (a cube panorama), so from the center it
-    looks as the original. Pictures need the assets that saving and sharing
-    can carry.
+  scenery (outside the box: a color, or a 360° image all round, its ground
+  on the floor's level),
+  each face's color or transparent with a picture over it, and whether the
+  grid shows (with the axes and the border). The walls and the ceiling show their color and picture as they
+  are; the floor is lit and takes shadows (a transparent floor has none,
+  except on a 360° image's ground), and a picture's transparent parts show the color, or the scenery on a
+  transparent face. A new project's backdrop looks as the stage did before
+  backdrops: transparent walls, a pale floor and the grid. A project has one
+  or more backdrops, one is current, and it is saved with the project;
+  stopping doesn't change it.
   - Considered and dropped (2026-10-24): a sky with a gradient and stars,
     and a brightness, made by blending colors. They didn't match Scratch's
     backdrops, and a sky at infinity left the floor floating.
+- **Backdrop pictures** (2026-10-26). A picture covers its face, scaled to
+  fill it and cut off evenly where it is longer, with twice as many pixels
+  as the face is long (as Scratch's bitmaps have twice the stage's).
+  Uploading a backdrop puts the picture on the back wall, as Scratch puts it
+  on the stage. Pictures are re-encoded in the browser, as JPEG or, with
+  transparent parts, PNG, which also drops a photo's location.
+- **360° scenery** (2026-10-26). A 360° image (equirectangular, at most 4096
+  pixels wide) is the scenery's, its middle ahead (towards the back wall).
+  It is shown ground-projected (three.js's `GroundedSkybox`): the lower half
+  of the image is laid flat as a ground at the floor's level, as if the
+  photo had been taken from 150 above the stage's center, so the floor lies
+  on the image's ground (as a mat, or not at all when transparent) and
+  sprites cast shadows on it. The scenery library (`app/public/library/`)
+  is 360° images from Poly Haven (CC0) taken in the open: choosing one
+  changes only the current backdrop's scenery, not its faces or grid.
+  - Considered and dropped (2026-10-26): cutting a 360° image into the
+    box's six faces (a cube panorama). It is right only from the box's
+    center; from the usual view above the stage the walls and the floor
+    looked badly distorted.
+  - Considered and dropped (2026-10-26): the image at infinity, as a
+    background. The stage's floor floated above the image's ground. A
+    library entry was also a whole backdrop, so choosing scenery added a
+    backdrop and changed the floor, which mixed the two up.
+  - Images with things near the camera (a room, a forest trail, trees in a
+    snowy park) don't suit
+    a ground projection: the near things are smeared over the ground. The
+    stage's box is the room; the scenery is what is outside it.
+- **Assets**, as in Scratch (`app/src/engine/assets.ts`). A picture is an
+  asset: the project's JSON refers to it by the SHA-256 of its contents and
+  its format, and the contents are kept apart, in memory while the project
+  is open. The library refers to its pictures the same way, and they are
+  fetched when shown.
 
 ## 4. Blocks
 
@@ -164,7 +194,8 @@ sprites. Extension blocks are left out, as they act on sprites.
   the stage and sprite list on the right, with the stage beside the sprite
   list. Selecting the stage shows its scripts and a Backdrops tab, where
   backdrops are chosen (the chosen one becomes current, as in Scratch),
-  added, renamed, deleted and changed. The editor is designed for computers
+  added (uploaded or plain), renamed, deleted and changed, a picture at a
+  time, with a 360° image from the scenery library or uploaded. The editor is designed for computers
   with a mouse and keyboard.
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
   plane. Drag the cone above the selected sprite to change its height.
@@ -173,8 +204,15 @@ sprites. Extension blocks are left out, as they act on sprites.
 - **Full screen** fills the window like Scratch's, keeping the stage's aspect
   ratio. It is for playing: sprites can be clicked but not moved, while the
   camera still orbits.
-- **Saving.** The project is autosaved in the browser and can be saved to
-  and opened from a JSON file (format in `app/src/engine/project.ts`).
+- **Saving.** The project is autosaved in the browser: its JSON in
+  localStorage and its assets in IndexedDB (Scratch keeps assets only in
+  memory until saving; this editor saves as you go). It can be saved to and
+  opened from a `.beecube` file, a zip as Scratch's: `project.json` (format
+  in `app/src/engine/project.ts`) and each asset it uses, named
+  `<sha-256>.<format>` (`app/src/ui/projectFile.ts`). Older files, the JSON
+  alone, still open. Shared projects don't carry their own pictures yet:
+  only the library's show; whether shared assets are kept per project or
+  for everyone, as Scratch's asset server does, is still to decide.
 
 ## 6. Extensions
 

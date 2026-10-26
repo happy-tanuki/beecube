@@ -6,6 +6,7 @@
  * `logic=post` (snapshots transferred by postMessage).
  */
 import * as THREE from 'three'
+import { Assets } from '../engine/assets'
 import { plainBackdrop } from '../engine/backdrop'
 import { loadProject } from '../engine/project'
 import { Runtime, TICK_MS } from '../engine/runtime'
@@ -115,7 +116,7 @@ export async function runLogicTrial(root: HTMLElement, scenario: ScenarioName, p
   root.appendChild(overlay)
 
   const scene = new THREE.Scene()
-  new Environment(scene).apply(plainBackdrop(''))
+  new Environment(scene).apply(plainBackdrop(''), new Assets())
   const instances = new EntityInstances(scene)
   const camera = new THREE.PerspectiveCamera(45, 1, 1, 5000)
   camera.up.set(0, 0, 1)

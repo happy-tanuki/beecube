@@ -17,11 +17,12 @@ npm run build
 | Path | Role |
 |---|---|
 | `src/engine/` | Runtime, independent of the DOM; see [docs/vm-design.md](../docs/vm-design.md). `store.ts` keeps every entity (sprite or clone) in typed-array columns; `ir.ts` → `analyze.ts` → `codegen.ts` compile Blockly JSON to JavaScript source; `runtime.ts` runs fixed 60 Hz ticks. |
-| `src/stage/` | Three.js view of the entity store. `instances.ts` draws entities (one `InstancedMesh` per shape, matrices built in the vertex shader) and only reads the store's columns; `environment.ts` draws the current backdrop (the scenery, the stage's box and the grid) and the lights; `Stage3D.ts` adds the scene, pen, bubbles and Tinkercad-style manipulation. Blocks never call into it. |
+| `src/stage/` | Three.js view of the entity store. `instances.ts` draws entities (one `InstancedMesh` per shape, matrices built in the vertex shader) and only reads the store's columns; `environment.ts` draws the current backdrop (the scenery, a color or a 360° image; the stage's box with its pictures; and the grid) and the lights; `Stage3D.ts` adds the scene, pen, bubbles and Tinkercad-style manipulation. Blocks never call into it. |
 | `src/bench/` | Benchmark projects for the performance scenarios A–E, and trials: `?bench=A&logic=main\|worker\|post` draws a scenario with its logic on the main thread or in a Web Worker (`src/worker/`); `touchingTrial.ts` compares "touching" in JS and wasm. |
 | `wasm/collision/` | Trial: "touching" in Rust compiled to wasm. `collision.wasm` is committed; `build.sh` rebuilds it (Rust with the `wasm32-unknown-unknown` target). |
 | `src/blocks/` | scratch-blocks setup: theme, locale, the added 3D blocks, toolbox. |
-| `src/ui/` | React UI (editor, stage panel, sprite pane). `StageView.tsx` is the stage with its buttons, shared with the player. |
+| `src/ui/` | React UI (editor, stage panel, sprite pane). `StageView.tsx` is the stage with its buttons, shared with the player. `pictures.ts` turns image files into backdrop pictures and 360° scenery; `projectFile.ts` reads and writes `.beecube` files; `assetStorage.ts` keeps the autosaved project's pictures in IndexedDB. |
+| `public/library/` | The scenery library's 360° images (CC0), re-encoded by `scripts/make-scenery-library.mjs` (see its README). |
 | `src/admin/` | The moderation page (`admin.html`) for reported and hidden shared projects. |
 | `src/player/` | The share page (`play.html`): a project's stage, title and notes, for phones too, without loading scratch-blocks. `play.html?sample=<id>` opens `public/samples/<id>.json`. |
 | `src/i18n/` | UI languages. `en.ts` defines the message keys; each other locale (`ja.ts`, ...) must translate all of them. The language follows the browser and can be changed from the menu bar. |

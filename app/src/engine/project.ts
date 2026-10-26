@@ -1,9 +1,11 @@
 /**
  * Project files: the stage (its block workspace and backdrops), the sprites
  * (with their block workspaces), variables with their current values, lists with their items, broadcast
- * messages and settings, as plain JSON.
+ * messages and settings, as plain JSON. Pictures are assets (see assets.ts):
+ * the JSON only refers to them.
  */
 import { APP_ID, APP_NAME } from '../brand'
+import { ASSET_FORMATS, assetFileName, isAssetId, type AssetFormat, type AssetRef } from './assets'
 import { FACES, type BackdropData, type Face, type FaceName } from './backdrop'
 import { isColorString } from './ops'
 import { savable } from './ref'
@@ -57,6 +59,19 @@ export function serializeProject(rt: Runtime): ProjectFile {
     monitors: [...rt.monitors],
     settings: { cloneLimit: rt.settings.cloneLimit, randomSeed: rt.settings.randomSeed },
   }
+}
+
+/** The assets a project refers to, each once. */
+export function projectAssets(project: ProjectFile): AssetRef[] {
+  const found = new Map<string, AssetRef>()
+  for (const b of project.backdrops) {
+    if (b.sceneryPicture) found.set(assetFileName(b.sceneryPicture), b.sceneryPicture)
+    for (const name of FACES) {
+      const picture = b.faces[name].picture
+      if (picture) found.set(assetFileName(picture), picture)
+    }
+  }
+  return [...found.values()]
 }
 
 /** A project with nothing in it (callers add at least one sprite before use). */
@@ -179,17 +194,30 @@ const color = (o: Record<string, unknown>, k: string, where: string): string => 
   return isColorString(c) ? c : fail(`${where}.${k} must be a color like #rrggbb`)
 }
 
+/** Missing (older files) means none. */
+function parsePicture(v: unknown, where: string): AssetRef | null {
+  if (v === undefined || v === null) return null
+  if (!isObj(v)) fail(`${where} must be an object or null`)
+  const assetId = str(v, 'assetId', where)
+  if (!isAssetId(assetId)) fail(`${where}.assetId must be a SHA-256 in hex`)
+  const dataFormat = str(v, 'dataFormat', where) as AssetFormat
+  if (!ASSET_FORMATS.includes(dataFormat)) fail(`${where}.dataFormat "${dataFormat}" is not one of ${ASSET_FORMATS.join(', ')}`)
+  return { assetId, dataFormat }
+}
+
 function parseBackdrop(v: unknown, where: string): BackdropData {
   if (!isObj(v)) fail(`${where} must be an object`)
   const faces = isObj(v.faces) ? v.faces : fail(`${where}.faces must be an object`)
   const face = (name: FaceName): Face => {
-    const f = isObj(faces[name]) ? faces[name] : fail(`${where}.faces.${name} must be an object`)
-    return { color: f.color === null ? null : color(f, 'color', `${where}.faces.${name}`) }
+    const at = `${where}.faces.${name}`
+    const f = isObj(faces[name]) ? faces[name] : fail(`${at} must be an object`)
+    return { color: f.color === null ? null : color(f, 'color', at), picture: parsePicture(f.picture, `${at}.picture`) }
   }
   return {
     id: str(v, 'id', where),
     name: str(v, 'name', where),
     scenery: color(v, 'scenery', where),
+    sceneryPicture: parsePicture(v.sceneryPicture, `${where}.sceneryPicture`),
     faces: Object.fromEntries(FACES.map((f) => [f, face(f)])) as Record<FaceName, Face>,
     grid: v.grid !== false,
   }

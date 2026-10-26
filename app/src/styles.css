@@ -470,17 +470,25 @@ body,
   background: var(--panel);
 }
 
-.backdrop-list {
+/* The list scrolls; the add button stays below it, where its menu isn't clipped. */
+.backdrop-column {
   width: 120px;
   flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: #f9fbfe;
+}
+
+.backdrop-list {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
   padding: 12px 0;
   overflow: auto;
-  border-right: 1px solid var(--border);
-  background: #f9fbfe;
 }
 
 .backdrop-tile {
@@ -518,7 +526,18 @@ body,
 }
 
 .backdrop-add {
+  position: relative;
   flex: none;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 14px;
+}
+
+.backdrop-add-menu {
+  bottom: 14px;
+  left: 82px;
+  right: auto;
+  min-width: 170px;
 }
 
 .backdrop-form {
@@ -538,6 +557,115 @@ body,
 
 .backdrop-faces td {
   padding: 3px 8px 3px 0;
+}
+
+.face-picture {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.face-picture button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.face-picture button:hover {
+  border-color: var(--menu-bar);
+}
+
+.face-picture-thumb {
+  width: 40px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #eef2f8 center / cover no-repeat;
+}
+
+/* A 360° image is twice as wide as tall. */
+.face-picture-thumb.panorama {
+  width: 60px;
+}
+
+.face-picture button.face-picture-remove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+
+/* Over the whole tab, as Scratch's library fills the editor. */
+.scenery-library {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg);
+}
+
+.scenery-library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 12px 0 20px;
+  background: var(--menu-bar);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.scenery-library-header button {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.scenery-library-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  padding: 16px 20px;
+  overflow: auto;
+}
+
+.scenery-library-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.scenery-library-item:hover {
+  border-color: var(--menu-bar);
+}
+
+.scenery-library-item img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 4px;
 }
 
 .field input[type='color'].transparent {

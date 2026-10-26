@@ -315,7 +315,7 @@ export class Stage3D {
     const alpha = this.rt.alpha(start)
     if (this.rt.backdrops.revision !== this.backdropRevision) {
       this.backdropRevision = this.rt.backdrops.revision
-      this.environment.apply(this.rt.backdrops.backdrop)
+      this.environment.apply(this.rt.backdrops.backdrop, this.rt.assets)
     }
     const eyes = this.syncCamera(alpha)
     this.instances.sync(this.rt, alpha, eyes)
