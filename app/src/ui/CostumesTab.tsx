@@ -11,21 +11,16 @@ import { COSTUME_LAYOUTS, type Costume } from '../engine/costume'
 import type { ShapeKind } from '../engine/types'
 import { t, type MessageKey } from '../i18n'
 import { assetUrl } from './assetUrls'
-import { Library, useImagePicker, useTicker } from './BackdropsTab'
-import { COSTUME_LIBRARY, libraryAssetUrl, libraryCostumeName } from './library'
+import { COSTUME_FILE_TYPES, Library, useImagePicker, useTicker } from './BackdropsTab'
+import { AddMenu } from './AddMenu'
+import { COSTUME_LIBRARY, libraryCostumeName } from './library'
 import { costumeGuide, newCostumeSize } from './paint'
 import { PaintEditor } from './PaintEditor'
-import { showAlert } from './dialogs'
-import { loadModel, modelThumbnail } from './modelThumbnails'
+import { costumeThumbnail, libraryThumbnail, loadModel } from './costumeThumbnails'
 import { modelBones, modelClips, type Model } from '../stage/models'
 import { SHAPE_ICONS } from './SpritePane'
-import { ModelError, SHAPES, shapeName, type ProjectStore } from './store'
-
-/** A costume's picture for the page: its model drawn, or its picture; null if it has neither (or it isn't ready). */
-export function costumeThumbnail(assets: Assets, c: Costume): string | null {
-  if (c.model) return modelThumbnail(assets, c.model.asset, c.model.pose)
-  return c.picture && assetUrl(assets, c.picture)
-}
+import { SHAPES, shapeName, type ProjectStore } from './store'
+import { boneLabel, clipLabel } from './modelNames'
 
 /** Applied on Enter or leaving the field, so blocks that refer to the costume follow once. */
 function NameField({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
@@ -136,7 +131,7 @@ function PoseEditor({ store, index, costume, bones }: { store: ProjectStore; ind
         <select value={bone} onChange={(e) => setChosen(e.target.value)}>
           {bones.map((b) => (
             <option key={b} value={b}>
-              {b}
+              {boneLabel(b)}
             </option>
           ))}
         </select>
@@ -175,7 +170,8 @@ const MAX_FRAMES = 16
 
 /** Making costumes from moments of one of the model's animations. */
 function ClipCostumes({ store, index, clips }: { store: ProjectStore; index: number; clips: string[] }) {
-  const [chosen, setChosen] = useState(clips[0])
+  // Walking first, if the model can.
+  const [chosen, setChosen] = useState(clips.includes('walk') ? 'walk' : clips[0])
   const [frames, setFrames] = useState(8)
   const clip = clips.includes(chosen) ? chosen : clips[0]
   return (
@@ -184,7 +180,7 @@ function ClipCostumes({ store, index, clips }: { store: ProjectStore; index: num
       <select value={clip} onChange={(e) => setChosen(e.target.value)}>
         {clips.map((c) => (
           <option key={c} value={c}>
-            {c}
+            {clipLabel(c)}
           </option>
         ))}
       </select>
@@ -203,7 +199,7 @@ function ClipCostumes({ store, index, clips }: { store: ProjectStore; index: num
 
 /** A model costume's form: the model, which can be taken off to leave the shape, and its pose if it has bones. */
 function ModelForm({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
-  const url = costumeThumbnail(store.rt.assets, costume)
+  const url = costumeThumbnail(store.rt.assets, costume, store.editing.color)
   const model = useModel(store.rt.assets, costume.model!.asset)
   const bones = model ? modelBones(model) : []
   const clips = model ? modelClips(model).map((c) => c.name) : []
@@ -286,12 +282,10 @@ function CostumeForm({ store, index, costume, onPaint }: { store: ProjectStore; 
 
 export function CostumesTab({ store }: { store: ProjectStore }) {
   useTicker(250)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [library, setLibrary] = useState(false)
   /** The costume whose picture is being painted (null for a new one), and the picture to start from. */
   const [painting, setPainting] = useState<{ index: number | null; source: Blob | null } | null>(null)
-  const upload = useImagePicker((file) => store.uploadCostume(file))
-  const modelInput = useRef<HTMLInputElement>(null)
+  const upload = useImagePicker((file) => store.uploadCostume(file), COSTUME_FILE_TYPES)
   const sprite = store.editing
   const current = sprite.costume
   const paint = async (index: number | null) => {
@@ -300,21 +294,17 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
   }
   // A new costume is painted for the shape worn, with its whole picture on every side.
   const painted = painting && (painting.index === null ? { ...sprite.costumes[current], layout: 'same' as const } : sprite.costumes[painting.index])
-  const choose = (open: () => void) => () => {
-    setMenuOpen(false)
-    open()
-  }
   return (
     <div className="backdrops-tab costumes-tab">
       <div className="backdrop-column">
         <div className="backdrop-list">
           {sprite.costumes.map((c, i) => {
-            const url = costumeThumbnail(store.rt.assets, c)
+            const url = costumeThumbnail(store.rt.assets, c, sprite.color)
             return (
               <div key={i} className={`backdrop-tile${i === current ? ' selected' : ''}`} onClick={() => store.selectCostume(i)}>
                 <span className="backdrop-number">{i + 1}</span>
                 <span className="backdrop-thumb costume-thumb" style={url ? { backgroundImage: `url("${url}")` } : { color: sprite.color }}>
-                  {!c.picture && !c.model && SHAPE_ICONS[c.shape]}
+                  {!url && !c.model && SHAPE_ICONS[c.shape]}
                 </span>
                 <span className="backdrop-name">{c.name}</span>
                 {i === current && sprite.costumes.length > 1 && (
@@ -333,36 +323,18 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
             )
           })}
         </div>
-        <div className="backdrop-add">
+        <AddMenu
+          className="backdrop-add"
+          title={t('costume.add')}
+          options={[
+            { icon: 'choose', label: t('costume.choose'), onChoose: () => setLibrary(true) },
+            { icon: 'paint', label: t('costume.paintNew'), onChoose: () => void paint(null) },
+            { icon: 'upload', label: t('costume.upload'), onChoose: upload.pick },
+            { icon: 'new', label: t('costume.add'), onChoose: () => store.addCostume() },
+          ]}
+        >
           {upload.element}
-          <input
-            ref={modelInput}
-            type="file"
-            accept=".glb,model/gltf-binary"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (!file) return
-              store.uploadModel(file).catch((err: unknown) => {
-                const reason = err instanceof ModelError ? err.reason : 'unreadable'
-                void showAlert(t(`costume.modelError.${reason}`, { name: file.name }))
-              })
-            }}
-          />
-          <button className="add-sprite-button" title={t('costume.add')} onClick={() => setMenuOpen(!menuOpen)}>
-            +
-          </button>
-          {menuOpen && (
-            <div className="add-sprite-menu backdrop-add-menu">
-              <button onClick={choose(() => setLibrary(true))}>{t('costume.choose')}</button>
-              <button onClick={choose(upload.pick)}>{t('costume.upload')}</button>
-              <button onClick={choose(() => modelInput.current?.click())}>{t('costume.uploadModel')}</button>
-              <button onClick={choose(() => void paint(null))}>{t('costume.paintNew')}</button>
-              <button onClick={choose(() => store.addCostume())}>{t('costume.add')}</button>
-            </div>
-          )}
-        </div>
+        </AddMenu>
       </div>
       <CostumeForm key={`${sprite.id}:${current}`} store={store} index={current} costume={sprite.costumes[current]} onPaint={() => void paint(current)} />
       {painting && painted && (
@@ -381,7 +353,7 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
           items={COSTUME_LIBRARY.map((entry) => ({
             key: entry.key,
             name: libraryCostumeName(entry),
-            picture: entry.model ? modelThumbnail(store.rt.assets, entry.model.asset) : libraryAssetUrl(entry.picture!),
+            picture: libraryThumbnail(store.rt.assets, entry),
             choose: () => store.addLibraryCostume(entry),
           }))}
           onClose={() => setLibrary(false)}

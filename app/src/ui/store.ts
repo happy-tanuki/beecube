@@ -2,19 +2,20 @@ import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
 import { ASSET_MIME, assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
 import { plainCostume, type Costume, type CostumeModel, type ModelPose } from '../engine/costume'
-import { availableName } from '../engine/rename'
+import { availableName, availableSpriteName } from '../engine/rename'
 import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
 import { findExtension } from '../extensions'
 import { Runtime } from '../engine/runtime'
 import type { Sprite } from '../engine/sprite'
-import { STAGE_ID, type ShapeKind, type SpriteData } from '../engine/types'
+import { BASE_SIZE, STAGE_ID, type ShapeKind, type SpriteData } from '../engine/types'
 import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
 import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
-import { isLibraryAsset, libraryCostumeName, loadLibraryAsset, type LibraryCostume, type LibraryRoom, type LibraryScenery } from './library'
+import { isLibraryAsset, libraryCostumeName, libraryRoomName, librarySceneryName, loadLibraryAsset, SPRITE_MOVES, type LibraryCostume, type LibraryRoom, type LibraryScenery } from './library'
+import { clipLabel } from './modelNames'
 import { clipPose, modelClips, modelSize, readModel } from '../stage/models'
-import { loadModel } from './modelThumbnails'
+import { loadModel } from './costumeThumbnails'
 import { costumePicture, facePicture, panoramaPicture, type Picture } from './pictures'
 import { readProjectFile, writeProjectFile } from './projectFile'
 import { sampleScript } from './sample'
@@ -50,6 +51,17 @@ const newId = () => `sprite-${Date.now().toString(36)}-${idCounter++}`
  * Project-level state shared by the UI: the runtime (which owns the sprites)
  * and which sprite is being edited. React subscribes via `subscribe`/`version`.
  */
+/** Binary glTF starts with "glTF". */
+const isGlb = (data: Uint8Array) => data[0] === 0x67 && data[1] === 0x6c && data[2] === 0x54 && data[3] === 0x46
+
+/** A costume from the library. */
+function libraryCostume(entry: LibraryCostume): Costume {
+  const c: Costume = { ...plainCostume(libraryCostumeName(entry), entry.shape), layout: entry.layout }
+  if (entry.picture) c.picture = { ...entry.picture }
+  if (entry.model) c.model = { asset: { ...entry.model.asset }, size: [...entry.model.size] }
+  return c
+}
+
 /** The model in a pose; an empty pose is left out, as the file has it. */
 function withPose({ asset, size }: CostumeModel, pose: ModelPose): CostumeModel {
   return Object.keys(pose).length > 0 ? { asset, size, pose } : { asset, size }
@@ -223,8 +235,39 @@ export class ProjectStore {
     this.notify()
   }
 
+  /** Adds a sprite of a plain shape and selects it. */
   addSprite(shape: ShapeKind): void {
-    const data = this.makeSprite(shape)
+    this.pushSprite(this.makeSprite(shape))
+  }
+
+  /**
+   * Adds a sprite from the library, named after it, wearing its costume and
+   * the moves it comes with (SPRITE_MOVES), and selects it.
+   */
+  async addLibrarySprite(entry: LibraryCostume): Promise<void> {
+    const costume = libraryCostume(entry)
+    const moves = SPRITE_MOVES[entry.key]
+    const more = moves && costume.model ? await this.clipCostumes(costume.model, moves.clip, moves.frames, [costume.name]) : []
+    this.pushSprite(this.spriteWearing([costume, ...more]))
+  }
+
+  /** Adds a sprite wearing a costume from a file (see uploadCostume), named after it, and selects it. */
+  async uploadSprite(file: File): Promise<void> {
+    this.pushSprite(this.spriteWearing([await this.costumeFromFile(file, 'cube')]))
+  }
+
+  /** A new sprite wearing the first of these costumes, named after it, standing on the floor. */
+  private spriteWearing(costumes: Costume[]): SpriteData {
+    const data = this.makeSprite(costumes[0].shape)
+    data.name = availableSpriteName(costumes[0].name, this.rt.sprites.map((s) => s.name)) ?? data.name
+    data.costumes = costumes
+    // A model's box can be lower than a cube.
+    data.z = (BASE_SIZE / 2) * (costumes[0].model?.size[2] ?? 1)
+    return data
+  }
+
+  /** Adds a sprite somewhere near the middle, and selects it. */
+  private pushSprite(data: SpriteData): void {
     data.x = Math.round(Math.random() * 300 - 150)
     data.y = Math.round(Math.random() * 200 - 100)
     const sprite = this.rt.addSprite(data)
@@ -316,6 +359,18 @@ export class ProjectStore {
     })
   }
 
+  /** Adds a backdrop with scenery from the library, named after it, and makes it current. */
+  addLibraryScenery(entry: LibraryScenery): void {
+    this.pushBackdrop(plainBackdrop(librarySceneryName(entry)))
+    this.setLibraryScenery(this.rt.backdrops.current, entry)
+  }
+
+  /** Adds a backdrop that is a room from the library, named after it, and makes it current. */
+  addLibraryRoom(entry: LibraryRoom): void {
+    this.pushBackdrop(plainBackdrop(libraryRoomName(entry)))
+    this.setLibraryRoom(this.rt.backdrops.current, entry)
+  }
+
   /** Dresses a backdrop's six faces as a room from the library; its scenery and grid stay. */
   setLibraryRoom(index: number, entry: LibraryRoom): void {
     this.updateBackdrop(index, (b) => {
@@ -372,35 +427,38 @@ export class ProjectStore {
     this.pushCostume(plainCostume(shapeName(this.editing.shape), this.editing.shape))
   }
 
-  /** Adds a costume with an uploaded picture, on the shape of the one worn, and wears it. */
+  /**
+   * Adds a costume from a file and wears it: a picture, on the shape of the
+   * one worn, or a 3D model (a binary glTF file). Throws ModelError if a
+   * model can't be used.
+   */
   async uploadCostume(file: File): Promise<void> {
-    const picture = await this.storePicture(await costumePicture(file))
-    const name = file.name.replace(/\.[^.]*$/, '') || shapeName(this.editing.shape)
-    this.pushCostume({ ...plainCostume(name, this.editing.shape), picture })
+    this.pushCostume(await this.costumeFromFile(file, this.editing.shape))
   }
 
   /** Adds a costume from the library and wears it. */
   addLibraryCostume(entry: LibraryCostume): void {
-    const c = plainCostume(libraryCostumeName(entry), entry.shape)
-    if (entry.picture) c.picture = { ...entry.picture }
-    if (entry.model) c.model = { asset: { ...entry.model.asset }, size: [...entry.model.size] }
-    this.pushCostume({ ...c, layout: entry.layout })
+    this.pushCostume(libraryCostume(entry))
   }
 
-  /**
-   * Adds a costume that is a 3D model (a binary glTF file) and wears it.
-   * Throws ModelError if the file can't be used.
-   */
-  async uploadModel(file: File): Promise<void> {
+  /** A costume from a file, named after it: a 3D model, or a picture on a shape. */
+  private async costumeFromFile(file: File, shape: ShapeKind): Promise<Costume> {
+    const name = file.name.replace(/\.[^.]*$/, '')
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer())
+    if (isGlb(head) || /\.glb$/i.test(file.name)) return this.modelCostume(file, name || t('costume.model'))
+    const picture = await this.storePicture(await costumePicture(file))
+    return { ...plainCostume(name || shapeName(shape), shape), picture }
+  }
+
+  /** A costume that is a 3D model. Throws ModelError if the file can't be used. */
+  private async modelCostume(file: File, name: string): Promise<Costume> {
     if (file.size > MODEL_MAX_BYTES) throw new ModelError('tooLarge')
     const data = new Uint8Array(await file.arrayBuffer())
-    // Binary glTF starts with "glTF".
-    if (!(data[0] === 0x67 && data[1] === 0x6c && data[2] === 0x54 && data[3] === 0x46)) throw new ModelError('notGlb')
+    if (!isGlb(data)) throw new ModelError('notGlb')
     const size = modelSize(await readModel(data).catch(() => Promise.reject(new ModelError('unreadable'))))
     if (!size) throw new ModelError('empty')
     const asset = await this.rt.assets.add(data, 'glb')
-    const name = file.name.replace(/\.[^.]*$/, '') || t('costume.model')
-    this.pushCostume({ ...plainCostume(name, 'cube'), model: { asset, size } })
+    return { ...plainCostume(name, 'cube'), model: { asset, size } }
   }
 
   /** Stands a model costume in a pose (empty for as the file has it). */
@@ -419,17 +477,26 @@ export class ProjectStore {
   async addClipCostumes(index: number, clipName: string, frames: number): Promise<void> {
     const sprite = this.editing
     const model = sprite.costumes[index]?.model
-    const read = model && (await loadModel(this.rt.assets, model.asset))
-    const clip = read && modelClips(read).find((c) => c.name === clipName)
-    if (!model || !clip) return
-    const first = sprite.costumes.length
-    for (let i = 0; i < frames; i++) {
-      const pose = clipPose(read, clip, (clip.duration * i) / frames)
-      const name = availableName(`${clip.name}${i + 1}`, sprite.costumes.map((o) => o.name)) ?? clip.name
-      sprite.costumes = [...sprite.costumes, { ...plainCostume(name, 'cube'), model: withPose(model, pose) }]
-    }
-    sprite.costume = first
+    const added = model ? await this.clipCostumes(model, clipName, frames, sprite.costumes.map((o) => o.name)) : []
+    if (added.length === 0) return
+    sprite.costume = sprite.costumes.length
+    sprite.costumes = [...sprite.costumes, ...added]
     this.notify()
+  }
+
+  /** Costumes of a model in moments of an animation (see addClipCostumes), named after it and unlike the names taken. */
+  private async clipCostumes(model: CostumeModel, clipName: string, frames: number, taken: string[]): Promise<Costume[]> {
+    const read = await loadModel(this.rt.assets, model.asset)
+    const clip = read && modelClips(read).find((c) => c.name === clipName)
+    if (!read || !clip) return []
+    const names = [...taken]
+    const costumes: Costume[] = []
+    for (let i = 0; i < frames; i++) {
+      const name = availableName(`${clipLabel(clip.name)}${i + 1}`, names) ?? clip.name
+      names.push(name)
+      costumes.push({ ...plainCostume(name, 'cube'), model: withPose(model, clipPose(read, clip, (clip.duration * i) / frames)) })
+    }
+    return costumes
   }
 
   /** Takes the model off a costume: it is its shape again. */

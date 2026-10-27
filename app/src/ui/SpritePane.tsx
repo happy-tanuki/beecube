@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react'
 import type { Sprite } from '../engine/sprite'
 import type { ShapeKind } from '../engine/types'
 import { t } from '../i18n'
-import { costumeThumbnail } from './CostumesTab'
+import { AddMenu } from './AddMenu'
+import { COSTUME_FILE_TYPES, Library, useImagePicker, type LibraryItem } from './BackdropsTab'
+import { COSTUME_CATEGORIES, COSTUME_LIBRARY, libraryCostumeName, SPRITE_CATEGORIES } from './library'
+import { costumeThumbnail, libraryThumbnail, shapeThumbnail } from './costumeThumbnails'
 import { SHAPES, shapeName, type ProjectStore } from './store'
 
 interface Props {
@@ -20,7 +23,7 @@ export const SHAPE_ICONS: Record<ShapeKind, string> = {
 /** The costume worn: its picture or model, or its shape in the sprite's color. */
 function SpriteThumb({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
   const costume = sprite.costumes[sprite.costume]
-  const url = costume && costumeThumbnail(store.rt.assets, costume)
+  const url = costume && costumeThumbnail(store.rt.assets, costume, sprite.color)
   if (url) return <div className="sprite-thumb picture" style={{ backgroundImage: `url("${url}")` }} />
   return (
     <div className="sprite-thumb" style={{ color: sprite.color }}>
@@ -126,10 +129,40 @@ function SpriteInfo({ store, sprite }: { store: ProjectStore; sprite: Sprite }) 
   )
 }
 
+/** The color plain shapes are shown in, in the sprite library. */
+const PLAIN_COLOR = '#4c97ff'
+
+/** Choosing a new sprite: one of the costume library's (characters first), or a plain shape. */
+function SpriteLibrary({ store, onClose }: { store: ProjectStore; onClose: () => void }) {
+  const order = (key: string) => SPRITE_CATEGORIES.indexOf(COSTUME_CATEGORIES[key] ?? 'things')
+  const items: LibraryItem[] = [
+    ...[...COSTUME_LIBRARY]
+      .sort((a, b) => order(a.key) - order(b.key))
+      .map((entry) => ({
+        key: entry.key,
+        name: libraryCostumeName(entry),
+        picture: libraryThumbnail(store.rt.assets, entry),
+        category: COSTUME_CATEGORIES[entry.key] ?? 'things',
+        choose: () => void store.addLibrarySprite(entry),
+      })),
+    ...SHAPES.map((shape) => ({
+      key: `shape:${shape}`,
+      name: shapeName(shape),
+      picture: shapeThumbnail(store.rt.assets, shape, null, 'same', PLAIN_COLOR),
+      icon: SHAPE_ICONS[shape],
+      category: 'shapes',
+      choose: () => store.addSprite(shape),
+    })),
+  ]
+  const categories = SPRITE_CATEGORIES.map((key) => ({ key, label: t(`spriteCategory.${key}`) }))
+  return <Library title={t('sprite.choose')} items={items} categories={categories} onClose={onClose} />
+}
+
 export function SpritePane({ store, editingId }: Props) {
   // Thumbnails show the costume worn, which scripts change, and pictures that arrive later.
   useTicker(250)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [library, setLibrary] = useState(false)
+  const upload = useImagePicker((file) => store.uploadSprite(file), COSTUME_FILE_TYPES)
   const editing = store.rt.getSprite(editingId)
   return (
     <div className="sprite-pane">
@@ -158,26 +191,34 @@ export function SpritePane({ store, editingId }: Props) {
           </div>
         ))}
       </div>
-      <div className="add-sprite">
-        <button className="add-sprite-button" title={t('sprite.add')} onClick={() => setMenuOpen(!menuOpen)}>
-          +
-        </button>
-        {menuOpen && (
-          <div className="add-sprite-menu">
+      <AddMenu
+        className="add-sprite"
+        title={t('sprite.add')}
+        options={[
+          { icon: 'choose', label: t('sprite.choose'), onChoose: () => setLibrary(true) },
+          { icon: 'upload', label: t('sprite.upload'), onChoose: upload.pick },
+        ]}
+        extra={(close) => (
+          <div className="add-menu-shapes">
+            <span>{t('sprite.plainShape')}</span>
             {SHAPES.map((shape) => (
               <button
                 key={shape}
+                title={shapeName(shape)}
                 onClick={() => {
+                  close()
                   store.addSprite(shape)
-                  setMenuOpen(false)
                 }}
               >
-                {SHAPE_ICONS[shape]} {shapeName(shape)}
+                {SHAPE_ICONS[shape]}
               </button>
             ))}
           </div>
         )}
-      </div>
+      >
+        {upload.element}
+      </AddMenu>
+      {library && <SpriteLibrary store={store} onClose={() => setLibrary(false)} />}
     </div>
   )
 }

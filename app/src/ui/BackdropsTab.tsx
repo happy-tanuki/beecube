@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FACES, type BackdropData, type FaceName } from '../engine/backdrop'
 import { t } from '../i18n'
 import { assetUrl } from './assetUrls'
@@ -7,7 +7,8 @@ import { showAlert } from './dialogs'
 import { PaintEditor } from './PaintEditor'
 import { pictureSize } from './pictures'
 import { backdropPreview } from './StagePane'
-import type { ProjectStore } from './store'
+import { ModelError, type ProjectStore } from './store'
+import { AddMenu } from './AddMenu'
 
 /** The color a face gets when it stops being transparent. */
 const OPAQUE: Record<FaceName, string> = {
@@ -19,21 +20,33 @@ const OPAQUE: Record<FaceName, string> = {
   right: '#ffffff',
 }
 
-const IMAGE_TYPES = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml'
+export const IMAGE_TYPES = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml'
 
-/** A hidden file input: `pick` opens the browser's file chooser, and `onFile` gets the chosen image. */
-export function useImagePicker(onFile: (file: File) => Promise<void>) {
+/** What a costume (or a sprite) can be made from: a picture or a 3D model. */
+export const COSTUME_FILE_TYPES = `${IMAGE_TYPES},.glb,model/gltf-binary`
+
+/**
+ * A hidden file input: `pick` opens the browser's file chooser, and
+ * `onFile` gets the chosen file (an image, unless `accept` says otherwise).
+ * If it can't be used, the child is told why.
+ */
+export function useImagePicker(onFile: (file: File) => Promise<void>, accept = IMAGE_TYPES) {
   const input = useRef<HTMLInputElement>(null)
   const element = (
     <input
       ref={input}
       type="file"
-      accept={IMAGE_TYPES}
+      accept={accept}
       hidden
       onChange={(e) => {
         const file = e.target.files?.[0]
         e.target.value = ''
-        if (file) onFile(file).catch(() => showAlert(t('backdrop.pictureFailed', { name: file.name })))
+        if (!file) return
+        onFile(file).catch((err: unknown) =>
+          showAlert(
+            err instanceof ModelError ? t(`costume.modelError.${err.reason}`, { name: file.name }) : t('backdrop.pictureFailed', { name: file.name }),
+          ),
+        )
       }}
     />
   )
@@ -197,11 +210,37 @@ export interface LibraryItem {
   name: string
   /** null until it is ready (a model's is drawn first). */
   picture: string | null
+  /** Shown in place of a picture. */
+  icon?: ReactNode
+  /** One of the library's categories' keys. */
+  category?: string
   choose: () => void
 }
 
-/** Choosing from a library (a backdrop's scenery or room, a costume), laid out as Scratch's "Choose a Backdrop". */
-export function Library({ title, items, onClose }: { title: string; items: LibraryItem[]; onClose: () => void }) {
+/**
+ * Choosing from a library (sprites, costumes, backdrops, a backdrop's
+ * scenery or room), over the whole editor, laid out as Scratch's "Choose a
+ * Backdrop". With categories, buttons along the top show one at a time (or
+ * all). Escape closes it.
+ */
+export function Library({
+  title,
+  items,
+  categories,
+  onClose,
+}: {
+  title: string
+  items: LibraryItem[]
+  categories?: { key: string; label: string }[]
+  onClose: () => void
+}) {
+  const [category, setCategory] = useState<string | null>(null)
+  useEffect(() => {
+    const escape = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    document.addEventListener('keydown', escape)
+    return () => document.removeEventListener('keydown', escape)
+  }, [onClose])
+  const shown = category === null ? items : items.filter((item) => item.category === category)
   return (
     <div className="library">
       <div className="library-header">
@@ -210,8 +249,17 @@ export function Library({ title, items, onClose }: { title: string; items: Libra
           ×
         </button>
       </div>
+      {categories && (
+        <div className="library-categories">
+          {[{ key: null, label: t('spriteCategory.all') }, ...categories].map((c) => (
+            <button key={c.key ?? ''} className={c.key === category ? 'selected' : undefined} onClick={() => setCategory(c.key)}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="library-items">
-        {items.map((item) => (
+        {shown.map((item) => (
           <button
             key={item.key}
             className="library-item"
@@ -220,7 +268,11 @@ export function Library({ title, items, onClose }: { title: string; items: Libra
               onClose()
             }}
           >
-            {item.picture ? <img src={item.picture} alt="" loading="lazy" /> : <span className="library-item-blank" />}
+            {item.picture ? (
+              <img src={item.picture} alt="" loading="lazy" />
+            ) : (
+              <span className="library-item-blank">{item.icon}</span>
+            )}
             <span>{item.name}</span>
           </button>
         ))}
@@ -257,11 +309,35 @@ export function useTicker(ms: number): void {
   }, [ms])
 }
 
+/** Choosing a new backdrop: scenery or a room from the libraries. */
+function NewBackdropLibrary({ store, onClose }: { store: ProjectStore; onClose: () => void }) {
+  const items: LibraryItem[] = [
+    ...SCENERY_LIBRARY.map((entry) => ({
+      key: `scenery:${entry.key}`,
+      name: librarySceneryName(entry),
+      picture: libraryAssetUrl(entry.picture),
+      category: 'scenery',
+      choose: () => store.addLibraryScenery(entry),
+    })),
+    ...ROOM_LIBRARY.map((entry) => ({
+      key: `room:${entry.key}`,
+      name: libraryRoomName(entry),
+      picture: libraryAssetUrl(entry.faces.back.picture!),
+      category: 'room',
+      choose: () => store.addLibraryRoom(entry),
+    })),
+  ]
+  const categories = [
+    { key: 'scenery', label: t('backdropCategory.scenery') },
+    { key: 'room', label: t('backdropCategory.room') },
+  ]
+  return <Library title={t('backdrop.chooseNew')} items={items} categories={categories} onClose={onClose} />
+}
+
 /** The stage's Backdrops tab: the list (choosing one makes it current, as in Scratch) and the chosen one's look. */
 export function BackdropsTab({ store }: { store: ProjectStore }) {
   useTicker(250)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [library, setLibrary] = useState<LibraryKind | null>(null)
+  const [library, setLibrary] = useState<LibraryKind | 'new' | null>(null)
   /** The face whose picture is being painted, and the picture to start from. */
   const [painting, setPainting] = useState<{ face: FaceName; source: Blob | null } | null>(null)
   const upload = useImagePicker((file) => store.uploadBackdrop(file))
@@ -269,10 +345,6 @@ export function BackdropsTab({ store }: { store: ProjectStore }) {
   const paint = async (face: FaceName) => {
     const picture = backdrop.faces[face].picture
     setPainting({ face, source: picture && (await store.pictureBlob(picture)) })
-  }
-  const choose = (open: () => void) => () => {
-    setMenuOpen(false)
-    open()
   }
   return (
     <div className="backdrops-tab">
@@ -298,18 +370,17 @@ export function BackdropsTab({ store }: { store: ProjectStore }) {
             </div>
           ))}
         </div>
-        <div className="backdrop-add">
+        <AddMenu
+          className="backdrop-add"
+          title={t('backdrop.add')}
+          options={[
+            { icon: 'choose', label: t('backdrop.chooseNew'), onChoose: () => setLibrary('new') },
+            { icon: 'upload', label: t('backdrop.upload'), onChoose: upload.pick },
+            { icon: 'new', label: t('backdrop.add'), onChoose: () => store.addBackdrop() },
+          ]}
+        >
           {upload.element}
-          <button className="add-sprite-button" title={t('backdrop.add')} onClick={() => setMenuOpen(!menuOpen)}>
-            +
-          </button>
-          {menuOpen && (
-            <div className="add-sprite-menu backdrop-add-menu">
-              <button onClick={choose(upload.pick)}>{t('backdrop.upload')}</button>
-              <button onClick={choose(() => store.addBackdrop())}>{t('backdrop.add')}</button>
-            </div>
-          )}
-        </div>
+        </AddMenu>
       </div>
       <BackdropForm key={backdrop.id} store={store} index={current} backdrop={backdrop} onChoose={setLibrary} onPaint={(face) => void paint(face)} />
       {painting && (
@@ -322,7 +393,8 @@ export function BackdropsTab({ store }: { store: ProjectStore }) {
           onClose={() => setPainting(null)}
         />
       )}
-      {library && <BackdropLibrary store={store} index={current} kind={library} onClose={() => setLibrary(null)} />}
+      {library === 'new' && <NewBackdropLibrary store={store} onClose={() => setLibrary(null)} />}
+      {library && library !== 'new' && <BackdropLibrary store={store} index={current} kind={library} onClose={() => setLibrary(null)} />}
     </div>
   )
 }

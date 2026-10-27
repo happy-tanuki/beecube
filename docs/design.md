@@ -264,7 +264,20 @@ sprites. Extension blocks are left out, as they act on sprites.
   time, with a 360° image from the scenery library or uploaded, and a room
   from the room library. Selecting a sprite shows its scripts and a
   Costumes tab, which does the same for its costumes. The editor is
-  designed for computers with a mouse and keyboard.
+  designed for computers with a mouse and keyboard; tablets work too,
+  without a layout of their own.
+- **Choosing first.** The audience is small children, so adding things
+  starts from libraries of pictures. The sprite list, the costume list and
+  the backdrop list each have a round "+" button with the same menu of
+  icons: choose (a library over the whole editor), paint, upload, and new.
+  The sprite library has the costume library's models and pictured shapes,
+  and the plain shapes, in categories (animals, people, vehicles, space,
+  nature, food, things, shapes); a sprite chosen is named after it and
+  stands on the floor, and the library's children come with walking
+  costumes. The backdrop library makes a new backdrop of scenery or a room.
+  Upload takes a picture or a 3D model, told apart by the file. Costumes
+  are shown as they look on the stage, drawn in 3D (`app/src/ui/costumeThumbnails.ts`),
+  and the library's models' animations and bones have translated names.
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
   plane. Drag the cone above the selected sprite to change its height.
   Dragging empty space orbits the camera, Shift+drag pans and the wheel zooms.

@@ -1,6 +1,7 @@
 /**
  * The libraries of scenery (360° images), rooms (pictures for the six faces
- * of the stage's box) and costumes (pictures on shapes), which ship with the app, in public/library/
+ * of the stage's box) and costumes (pictures on shapes and 3D models, which
+ * are also the sprite library's), which ship with the app, in public/library/
  * (see its README). Like Scratch's library, an entry only refers to its
  * pictures as assets; they are fetched when shown.
  */
@@ -44,6 +45,56 @@ export const COSTUME_LIBRARY = costumes as LibraryCostume[]
 export const librarySceneryName = (s: LibraryScenery): string => t(`sceneryLibrary.${s.key}` as MessageKey)
 export const libraryRoomName = (r: LibraryRoom): string => t(`roomLibrary.${r.key}` as MessageKey)
 export const libraryCostumeName = (c: LibraryCostume): string => t(`costumeLibrary.${c.key}` as MessageKey)
+
+/** How the sprite library groups its entries. */
+export const SPRITE_CATEGORIES = ['animals', 'people', 'vehicles', 'space', 'nature', 'food', 'things', 'shapes'] as const
+export type SpriteCategory = (typeof SPRITE_CATEGORIES)[number]
+
+/** Each costume library entry's group, as a sprite (plain shapes are 'shapes'). */
+export const COSTUME_CATEGORIES: Record<string, SpriteCategory> = {
+  dice: 'things',
+  bee: 'animals',
+  present: 'things',
+  crate: 'things',
+  bricks: 'things',
+  grass: 'nature',
+  earth: 'space',
+  moon: 'space',
+  beachBall: 'things',
+  watermelon: 'food',
+  can: 'food',
+  trafficCone: 'things',
+  cat: 'animals',
+  dog: 'animals',
+  bunny: 'animals',
+  panda: 'animals',
+  penguin: 'animals',
+  chick: 'animals',
+  girl: 'people',
+  boy: 'people',
+  car: 'vehicles',
+  police: 'vehicles',
+  fireTruck: 'vehicles',
+  raceCar: 'vehicles',
+  spaceship: 'space',
+  alien: 'space',
+  astronaut: 'space',
+  rover: 'space',
+  tree: 'nature',
+  pineTree: 'nature',
+  flower: 'nature',
+  apple: 'food',
+  burger: 'food',
+  cake: 'food',
+  donut: 'food',
+  pizza: 'food',
+}
+
+/** Library sprites that come with costumes of a move of their model: its animation, and how many moments of it. */
+export const SPRITE_MOVES: Record<string, { clip: string; frames: number }> = {
+  girl: { clip: 'walk', frames: 4 },
+  boy: { clip: 'walk', frames: 4 },
+}
 
 export const libraryAssetUrl = (ref: AssetRef): string => `${import.meta.env.BASE_URL}library/${assetFileName(ref)}`
 

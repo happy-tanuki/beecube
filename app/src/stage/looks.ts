@@ -154,6 +154,23 @@ diffuseColor.rgb = mix(diffuseColor.rgb, pictureTexel.rgb, pictureTexel.a);
   material.customProgramCacheKey = () => `${key()}-${APP_ID}-picture`
 }
 
+/** A picture as a texture to wrap a shape with; null if it can't be found. */
+export async function loadPictureTexture(assets: Assets, ref: AssetRef): Promise<THREE.Texture | null> {
+  const data = await assets.load(ref)
+  if (!data) return null
+  const bitmap = await createImageBitmap(new Blob([data as Uint8Array<ArrayBuffer>], { type: ASSET_MIME[ref.dataFormat] }))
+  // Drawn onto a canvas, which three.js flips like an image (an ImageBitmap it can't).
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0)
+  bitmap.close()
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = 4
+  return texture
+}
+
 /**
  * What to draw for each look (a batch's parts), made when first asked for
  * and kept: a plain shape, a shape with its picture, or a model's meshes
@@ -260,19 +277,8 @@ export class LookResources {
     const key = assetFileName(ref)
     const have = this.textures.get(key)
     if (have) return have
-    const data = await this.assets.load(ref)
-    if (!data) return null
-    const bitmap = await createImageBitmap(new Blob([data as Uint8Array<ArrayBuffer>], { type: ASSET_MIME[ref.dataFormat] }))
-    // Drawn onto a canvas, which three.js flips like an image (an ImageBitmap it can't).
-    const canvas = document.createElement('canvas')
-    canvas.width = bitmap.width
-    canvas.height = bitmap.height
-    canvas.getContext('2d')!.drawImage(bitmap, 0, 0)
-    bitmap.close()
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.colorSpace = THREE.SRGBColorSpace
-    texture.anisotropy = 4
-    this.textures.set(key, texture)
+    const texture = await loadPictureTexture(this.assets, ref)
+    if (texture) this.textures.set(key, texture)
     return texture
   }
 

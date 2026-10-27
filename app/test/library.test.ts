@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { assetFileName } from '../src/engine/assets'
 import { FACES } from '../src/engine/backdrop'
-import { COSTUME_LIBRARY, ROOM_LIBRARY, SCENERY_LIBRARY } from '../src/ui/library'
+import { COSTUME_CATEGORIES, COSTUME_LIBRARY, ROOM_LIBRARY, SCENERY_LIBRARY, SPRITE_MOVES } from '../src/ui/library'
 
 // The files in public/library (listed, not loaded).
 const files = new Set(Object.keys(import.meta.glob('../public/library/*.{jpg,png,glb}')).map((path) => path.split('/').pop()))
@@ -28,5 +28,10 @@ describe('the libraries', () => {
         if (face.color === null) expect(face.picture!.dataFormat, `${r.key} ${name}`).toBe('png')
       }
     expect(ROOM_LIBRARY.some((r) => FACES.some((name) => r.faces[name].color === null))).toBe(true)
+  })
+
+  it('put every costume in a category of the sprite library, and give moves only to models', () => {
+    for (const c of COSTUME_LIBRARY) expect(COSTUME_CATEGORIES[c.key], c.key).toBeDefined()
+    for (const key of Object.keys(SPRITE_MOVES)) expect(COSTUME_LIBRARY.find((c) => c.key === key)?.model, key).toBeDefined()
   })
 })

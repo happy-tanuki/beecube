@@ -64,6 +64,9 @@ export function t(key: MessageKey, params?: Record<string, string | number>): st
   return params ? text.replace(/\{(\w+)\}/g, (m, name: string) => (name in params ? String(params[name]) : m)) : text
 }
 
+/** Whether there is a UI message with this key. */
+export const hasMessage = (key: string): key is MessageKey => Object.hasOwn(en.ui, key)
+
 /** scratch-blocks messages for this project's own blocks, in the current locale. */
 export function blockMessages(): Record<string, string> {
   return LOCALES[current].messages.blocks

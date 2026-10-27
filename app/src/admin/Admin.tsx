@@ -8,7 +8,7 @@ import { APP_ID, APP_NAME } from '../brand'
 import { t, type MessageKey } from '../i18n'
 import { ApiError, shareUrl } from '../share/client'
 import { assetFileName, Assets, parseAssetFileName, type AssetRef } from '../engine/assets'
-import { modelThumbnail } from '../ui/modelThumbnails'
+import { modelThumbnail } from '../ui/costumeThumbnails'
 import { AdminApi, type ReviewDetail, type ReviewItem } from './api'
 import { projectTexts } from './texts'
 
