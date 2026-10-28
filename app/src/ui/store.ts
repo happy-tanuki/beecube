@@ -1,7 +1,7 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
 import { ASSET_MIME, assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
-import { plainCostume, type Costume, type CostumeModel, type ModelPose } from '../engine/costume'
+import { clampCostumeDimension, costumeDimensions, naturalDimensions, plainCostume, sameDimensions, type Costume, type CostumeDimensions, type CostumeModel, type ModelPose } from '../engine/costume'
 import { availableName, availableSpriteName } from '../engine/rename'
 import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
@@ -461,6 +461,15 @@ export class ProjectStore {
     return { ...plainCostume(name, 'cube'), model: { asset, size } }
   }
 
+  /** Sets a costume's width, depth or height (axis 0, 1 or 2) in stage units. */
+  setCostumeDimension(index: number, axis: 0 | 1 | 2, value: number): void {
+    const costume = this.editing.costumes[index]
+    if (!costume) return
+    const dimensions = [...costumeDimensions(costume)] as CostumeDimensions
+    dimensions[axis] = clampCostumeDimension(value)
+    this.updateCostume(index, { dimensions: sameDimensions(dimensions, naturalDimensions(costume)) ? undefined : dimensions })
+  }
+
   /** Stands a model costume in a pose (empty for as the file has it). */
   setModelPose(index: number, pose: ModelPose): void {
     const model = this.editing.costumes[index]?.model
@@ -477,7 +486,8 @@ export class ProjectStore {
   async addClipCostumes(index: number, clipName: string, frames: number): Promise<void> {
     const sprite = this.editing
     const model = sprite.costumes[index]?.model
-    const added = model ? await this.clipCostumes(model, clipName, frames, sprite.costumes.map((o) => o.name)) : []
+    const dimensions = sprite.costumes[index]?.dimensions
+    const added = (model ? await this.clipCostumes(model, clipName, frames, sprite.costumes.map((o) => o.name)) : []).map((c) => ({ ...c, ...(dimensions && { dimensions }) }))
     if (added.length === 0) return
     sprite.costume = sprite.costumes.length
     sprite.costumes = [...sprite.costumes, ...added]

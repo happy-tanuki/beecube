@@ -28,10 +28,15 @@
  * the file has them. Costumes of one model in different poses make it move
  * as they are switched, as a flip book does; its box stays as the file has
  * it, so switching doesn't change what it touches.
+ *
+ * A costume has a width, depth and height in stage units, which can differ
+ * from its shape's (a cube is BASE_SIZE each way) or its model's box: a
+ * flat board from a cube, a thin boy. The sprite's size, width, depth and
+ * height (percents) scale it in turn.
  */
 import { assetFileName, type AssetRef } from './assets'
 import type { Random } from './random'
-import { SHAPES, type ShapeKind, type Value } from './types'
+import { BASE_SIZE, SHAPES, type ShapeKind, type Value } from './types'
 
 export type CostumeLayout = 'same' | 'net'
 
@@ -70,7 +75,34 @@ export interface Costume {
   layout: CostumeLayout
   /** Drawn in place of the shape and its picture; null for none. */
   model: CostumeModel | null
+  /** Its width, depth and height in stage units; missing for its shape's or model's own (naturalDimensions). */
+  dimensions?: CostumeDimensions
 }
+
+/** Width, depth and height in stage units, along the sprite's x (front), y (left) and z (up). */
+export type CostumeDimensions = [number, number, number]
+
+/** The smallest and largest a costume's width, depth or height can be (1% and 2000% of a cube's, as "set width to"). */
+export const MIN_DIMENSION = BASE_SIZE / 100
+export const MAX_DIMENSION = BASE_SIZE * 20
+
+export const clampCostumeDimension = (n: number): number => Math.max(MIN_DIMENSION, Math.min(MAX_DIMENSION, n))
+
+/** A costume's width, depth and height as its shape or model has them: a cube's, or the model's box scaled as it is drawn. */
+export const naturalDimensions = (c: Costume): CostumeDimensions =>
+  c.model ? (c.model.size.map((n) => n * BASE_SIZE) as CostumeDimensions) : [BASE_SIZE, BASE_SIZE, BASE_SIZE]
+
+/** A costume's width, depth and height. */
+export const costumeDimensions = (c: Costume): CostumeDimensions => c.dimensions ?? naturalDimensions(c)
+
+/** How much a costume is stretched from its shape or model along each axis (1 for not). */
+export function costumeStretch(c: Costume): [number, number, number] {
+  const natural = naturalDimensions(c)
+  return costumeDimensions(c).map((n, i) => n / natural[i]) as [number, number, number]
+}
+
+/** Whether these dimensions are the costume's own (so it needn't keep them). */
+export const sameDimensions = (a: CostumeDimensions, b: CostumeDimensions): boolean => a.every((n, i) => Math.abs(n - b[i]) < 1e-9)
 
 /** The grid a net is drawn on. */
 export const NET_COLUMNS = 4
@@ -118,8 +150,9 @@ export const COSTUME_MENU = { next: NEXT_COSTUME, previous: PREVIOUS_COSTUME, ra
 
 /**
  * What the stage draws for an entity: a shape (index into SHAPES) and the
- * picture on it, or a model. `extent` is what it touches things with: the
- * shape stretched by these fractions along its axes (a model's box in a cube).
+ * picture on it, or a model, stretched by `stretch` (fractions along its
+ * axes). `extent` is what it touches things with: the shape stretched by
+ * these fractions along its axes (a model's box in a cube, stretched).
  */
 export interface Look {
   shape: number
@@ -128,10 +161,11 @@ export interface Look {
   model: AssetRef | null
   /** The model's pose. */
   pose: ModelPose
+  stretch: [number, number, number]
   extent: [number, number, number]
 }
 
-export const plainLook = (shape: number): Look => ({ shape, picture: null, layout: 'same', model: null, pose: {}, extent: [1, 1, 1] })
+export const plainLook = (shape: number): Look => ({ shape, picture: null, layout: 'same', model: null, pose: {}, stretch: [1, 1, 1], extent: [1, 1, 1] })
 
 /**
  * Every look in use, each once, so entities can name theirs by number (the
@@ -144,19 +178,28 @@ export class Looks {
 
   /** The number of a costume's look, added if it is new. */
   of(costume: Costume): number {
+    const stretch = costumeStretch(costume)
+    const stretchKey = stretch.every((n) => Math.abs(n - 1) < 1e-9) ? '' : `:${stretch.join(',')}`
     const model = costume.model
-    if (model) return this.intern(`model:${assetFileName(model.asset)}:${poseKey(model.pose)}`, () => ({
+    if (model) return this.intern(`model:${assetFileName(model.asset)}:${poseKey(model.pose)}${stretchKey}`, () => ({
       ...plainLook(0),
       model: { ...model.asset },
       pose: structuredClone(model.pose ?? {}),
-      extent: [...model.size],
+      stretch,
+      extent: [model.size[0] * stretch[0], model.size[1] * stretch[1], model.size[2] * stretch[2]],
     }))
     const shape = Math.max(0, SHAPES.indexOf(costume.shape))
-    if (!costume.picture) return shape
+    if (!costume.picture && !stretchKey) return shape
     // A sphere's picture wraps one way only.
     const layout: CostumeLayout = costume.shape === 'sphere' ? 'same' : costume.layout
     const picture = costume.picture
-    return this.intern(`${shape}:${assetFileName(picture)}:${layout}`, () => ({ ...plainLook(shape), picture: { ...picture }, layout }))
+    return this.intern(`${shape}:${picture ? assetFileName(picture) : ''}:${picture ? layout : ''}${stretchKey}`, () => ({
+      ...plainLook(shape),
+      picture: picture && { ...picture },
+      layout: picture ? layout : 'same',
+      stretch,
+      extent: [...stretch],
+    }))
   }
 
   private intern(key: string, make: () => Look): number {

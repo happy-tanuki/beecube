@@ -116,6 +116,22 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
   heading (x at direction 90), depth across it, height up its local z axis.
   A stretched cube is a cuboid, for floors, walls and ramps; a stretched
   sphere is an egg. They turn with the sprite, and "size" scales all three.
+  They are the sprite's: scaling, relative to what it wears. Its
+  information shows only "size"; editing it pops up width, depth and
+  height in percent, each as the size makes it along that axis, as
+  Scratch's direction pops up a dial: size 200 makes them 200 each, and
+  height alone can then go back to 100. The size field and "set size to"
+  mean the same: they scale all three, keeping their proportions. The
+  popup and "set width to" mean the same too: "set height to 100" with
+  size 200 makes the height 100%, and the reporters give what the popup
+  shows. They are kept relative to the size.
+- **A costume's width, depth and height** are its shape, in stage units: a
+  cube's are 40 each, a model's its box as drawn. Setting them in the
+  Costumes tab makes a flat board from a cube or a tall boy from the boy
+  model; they stay when the shape changes or the model is taken off. A
+  costume of other dimensions is a look of its own, its geometry scaled,
+  and touches things as that box; the sprite's width, depth and height
+  scale it in turn. Files before version 3 have none.
 - **The stage's box.** The workplane's walls stop sprites at any height,
   as before. What the stage shows is a box from the floor up to 360 (the
   height of Scratch's stage, so the back wall is 480 × 360): floor, ceiling

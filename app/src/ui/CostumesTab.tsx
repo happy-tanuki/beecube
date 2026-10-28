@@ -1,13 +1,13 @@
 /**
  * A sprite's Costumes tab, as Scratch's: the list (choosing one puts it on
  * the sprite), adding one (from the library, uploaded, painted, a 3D model,
- * or without a picture), and the chosen one's name, shape, picture and how
- * the picture wraps the shape, or its model and the model's pose
+ * or without a picture), and the chosen one's name, shape, width, depth and height, picture
+ * and how the picture wraps the shape, or its model and the model's pose
  * (engine/costume.ts).
  */
 import { useEffect, useRef, useState } from 'react'
 import { assetFileName, type AssetRef, type Assets } from '../engine/assets'
-import { COSTUME_LAYOUTS, type Costume } from '../engine/costume'
+import { COSTUME_LAYOUTS, costumeDimensions, type Costume } from '../engine/costume'
 import type { ShapeKind } from '../engine/types'
 import { t, type MessageKey } from '../i18n'
 import { assetUrl } from './assetUrls'
@@ -18,7 +18,7 @@ import { costumeGuide, newCostumeSize } from './paint'
 import { PaintEditor } from './PaintEditor'
 import { costumeThumbnail, libraryThumbnail, loadModel } from './costumeThumbnails'
 import { modelBones, modelClips, type Model } from '../stage/models'
-import { SHAPE_ICONS } from './SpritePane'
+import { NumberField, SHAPE_ICONS } from './SpritePane'
 import { SHAPES, shapeName, type ProjectStore } from './store'
 import { boneLabel, clipLabel } from './modelNames'
 
@@ -197,6 +197,19 @@ function ClipCostumes({ store, index, clips }: { store: ProjectStore; index: num
   )
 }
 
+/** A costume's width, depth and height, in stage units (a cube's are 40). */
+function DimensionFields({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
+  const dimensions = costumeDimensions(costume)
+  const labels: MessageKey[] = ['costume.width', 'costume.depth', 'costume.height']
+  return (
+    <div className="field costume-dimensions">
+      {labels.map((label, axis) => (
+        <NumberField key={label} label={t(label)} value={dimensions[axis]} onChange={(v) => store.setCostumeDimension(index, axis as 0 | 1 | 2, v)} />
+      ))}
+    </div>
+  )
+}
+
 /** A model costume's form: the model, which can be taken off to leave the shape, and its pose if it has bones. */
 function ModelForm({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
   const url = costumeThumbnail(store.rt.assets, costume, store.editing.color)
@@ -213,6 +226,7 @@ function ModelForm({ store, index, costume }: { store: ProjectStore; index: numb
           ×
         </button>
       </div>
+      <DimensionFields store={store} index={index} costume={costume} />
       <p className="costume-note">{t('costume.modelNote')}</p>
       {bones.length > 0 && (
         <>
@@ -243,6 +257,7 @@ function CostumeForm({ store, index, costume, onPaint }: { store: ProjectStore; 
           ))}
         </select>
       </label>
+      <DimensionFields store={store} index={index} costume={costume} />
       <div className="field costume-picture">
         <span>{t('costume.picture')}</span>
         {picker.element}

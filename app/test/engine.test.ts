@@ -50,6 +50,28 @@ describe('width, depth and height', () => {
     expect(a.width).toBe(2000)
   })
 
+  it('counts each dimension as the size makes it, as the editor shows it', () => {
+    const { rt, sprites: [a], ticks } = setup([
+      makeSprite('a', [
+        flag(
+          dimension('looks_setdimensionto', 'height', 100),
+          dimension('looks_changedimensionby', 'depth', 50),
+          setVar('w', reporter(blk('looks_width'))),
+          setVar('h', reporter(blk('looks_height'))),
+          setVar('d', reporter(blk('looks_depth'))),
+        ),
+      ], { size: 200 }),
+    ])
+    rt.greenFlag()
+    ticks(1)
+    // Size 200: width 200, height set back to 100, depth 200 + 50; kept relative to the size.
+    expect([rt.getVariable('w'), rt.getVariable('h'), rt.getVariable('d')]).toEqual([200, 100, 250])
+    expect([a.width, a.depth, a.height]).toEqual([100, 125, 50])
+    // The size scales them all.
+    a.size = 100
+    expect(bounds(rt.store, a.slot)).toMatchObject({ maxX: 20, maxY: 25, maxZ: 10 })
+  })
+
   it('stretches the shape along its own axes', () => {
     const { rt, sprites: [a] } = setup([makeSprite('a', [], { width: 300, depth: 50, height: 25 })])
     // Size 100 is 40 units: 120 along the heading (x at direction 90), 20 across, 10 high.

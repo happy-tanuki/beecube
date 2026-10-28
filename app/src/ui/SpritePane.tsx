@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Sprite } from '../engine/sprite'
 import type { ShapeKind } from '../engine/types'
 import { t } from '../i18n'
@@ -41,7 +41,7 @@ function useTicker(ms: number): void {
   }, [ms])
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+export function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null)
   const shown = draft ?? String(Math.round(value * 100) / 100)
   return (
@@ -88,6 +88,50 @@ function NameField({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
   )
 }
 
+/**
+ * The size; while it is being edited, a popup under it shows the sprite's
+ * width, depth and height in percent, each as the size makes it along that
+ * axis, as the blocks see them (size 200 makes them 200 each, and one of
+ * them can then be set apart). They are kept relative to the size
+ * (Sprite.width and so on), so the size scales all three, keeping their
+ * proportions, as "set size to" does.
+ */
+function SizeField({ sprite, set }: { sprite: Sprite; set: (patch: Partial<Pick<Sprite, 'size' | 'width' | 'depth' | 'height'>>) => void }) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const close = () => setOpen(false)
+  const axes = [
+    ['width', 'sprite.width'],
+    ['depth', 'sprite.depth'],
+    ['height', 'sprite.height'],
+  ] as const
+  return (
+    <div
+      className="size-field"
+      ref={root}
+      onFocus={() => setOpen(true)}
+      onBlur={(e) => {
+        if (!root.current?.contains(e.relatedTarget as Node | null)) close()
+      }}
+      onKeyDown={(e) => e.key === 'Escape' && close()}
+    >
+      <NumberField label={t('sprite.size')} value={sprite.size} onChange={(size) => set({ size })} />
+      {open && (
+        <div className="size-popup">
+          {axes.map(([axis, label]) => (
+            <NumberField
+              key={axis}
+              label={t(label)}
+              value={(sprite.size * sprite[axis]) / 100}
+              onChange={(v) => sprite.size > 0 && set({ [axis]: (v * 100) / sprite.size })}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SpriteInfo({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
   useTicker(100)
   const set = (patch: Partial<Pick<Sprite, 'x' | 'y' | 'z' | 'direction' | 'pitch' | 'roll' | 'size' | 'width' | 'depth' | 'height' | 'shape' | 'color' | 'visible'>>) => {
@@ -103,10 +147,7 @@ function SpriteInfo({ store, sprite }: { store: ProjectStore; sprite: Sprite }) 
       <NumberField label={t('sprite.direction')} value={sprite.direction} onChange={(direction) => set({ direction })} />
       <NumberField label={t('sprite.pitch')} value={sprite.pitch} onChange={(pitch) => set({ pitch })} />
       <NumberField label={t('sprite.roll')} value={sprite.roll} onChange={(roll) => set({ roll })} />
-      <NumberField label={t('sprite.size')} value={sprite.size} onChange={(size) => set({ size })} />
-      <NumberField label={t('sprite.width')} value={sprite.width} onChange={(width) => set({ width })} />
-      <NumberField label={t('sprite.depth')} value={sprite.depth} onChange={(depth) => set({ depth })} />
-      <NumberField label={t('sprite.height')} value={sprite.height} onChange={(height) => set({ height })} />
+      <SizeField sprite={sprite} set={set} />
       <label className="field">
         <span>{t('sprite.shape')}</span>
         <select value={sprite.shape} onChange={(e) => set({ shape: e.target.value as ShapeKind })}>

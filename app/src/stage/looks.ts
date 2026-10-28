@@ -171,6 +171,8 @@ export async function loadPictureTexture(assets: Assets, ref: AssetRef): Promise
   return texture
 }
 
+const isStretchedLook = (look: Look) => look.stretch.some((n) => n !== 1)
+
 /**
  * What to draw for each look (a batch's parts), made when first asked for
  * and kept: a plain shape, a shape with its picture, or a model's meshes
@@ -215,10 +217,15 @@ export class LookResources {
   }
 
   private geometry(look: Look): THREE.BufferGeometry {
-    if (!look.picture) return this.plainGeometries[look.shape]
-    const key = `${look.shape}:${look.layout}`
+    const stretched = isStretchedLook(look)
+    if (!look.picture && !stretched) return this.plainGeometries[look.shape]
+    const key = `${look.shape}:${look.picture ? look.layout : ''}:${look.stretch.join(',')}`
     let g = this.geometries.get(key)
-    if (!g) this.geometries.set(key, (g = texturedGeometry(look.shape, look.layout)))
+    if (!g) {
+      g = look.picture ? texturedGeometry(look.shape, look.layout) : this.plainGeometries[look.shape].clone()
+      if (stretched) g.scale(...look.stretch)
+      this.geometries.set(key, g)
+    }
     return g
   }
 
@@ -257,12 +264,13 @@ export class LookResources {
   }
 
   private modelParts(look: Look): Promise<BatchPart[]> {
-    const key = `${assetFileName(look.model!)}:${poseKey(look.pose)}`
+    const key = `${assetFileName(look.model!)}:${poseKey(look.pose)}:${look.stretch.join(',')}`
     let parts = this.posed.get(key)
     if (!parts) {
       parts = this.model(look.model!).then((model) =>
         model
           ? modelParts(model, look.pose).map(({ geometry, material }) => {
+              if (isStretchedLook(look)) geometry.scale(...look.stretch)
               for (const m of Array.isArray(material) ? material : [material]) this.prepare(m)
               return { geometry, material, tinted: false }
             })

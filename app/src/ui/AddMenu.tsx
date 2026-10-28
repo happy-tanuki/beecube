@@ -1,10 +1,23 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, type IconName } from './icons'
 
 export interface AddOption {
   icon: IconName
   label: string
   onChoose: () => void
+}
+
+/** While `open`, calls `close` on a press outside `root` (menus and popups). */
+export function usePressAway(root: RefObject<HTMLElement | null>, open: boolean, close: () => void): void {
+  useEffect(() => {
+    if (!open) return
+    const away = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) close()
+    }
+    // Captured: the blocks editor stops presses on it from bubbling.
+    document.addEventListener('pointerdown', away, true)
+    return () => document.removeEventListener('pointerdown', away, true)
+  }, [root, open, close])
 }
 
 /**
@@ -29,15 +42,8 @@ export function AddMenu({
 }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const away = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', away)
-    return () => document.removeEventListener('pointerdown', away)
-  }, [open])
-  const close = () => setOpen(false)
+  const close = useCallback(() => setOpen(false), [])
+  usePressAway(root, open, close)
   return (
     <div className={className} ref={root}>
       {children}

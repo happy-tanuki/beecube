@@ -7,15 +7,18 @@
 import { APP_ID, APP_NAME } from '../brand'
 import { assetFileName, isAssetId, PICTURE_FORMATS, type AssetFormat, type AssetRef } from './assets'
 import { FACES, type BackdropData, type Face, type FaceName } from './backdrop'
-import { COSTUME_LAYOUTS, plainCostume, type Costume, type CostumeLayout, type CostumeModel, type ModelPose } from './costume'
+import { clampCostumeDimension, COSTUME_LAYOUTS, naturalDimensions, plainCostume, sameDimensions, type Costume, type CostumeDimensions, type CostumeLayout, type CostumeModel, type ModelPose } from './costume'
 import { isColorString } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
 import { DEFAULT_CLONE_LIMIT, type BlockJson, type ShapeKind, type SpriteData, type Value, type VariableDef, type WorkspaceJson } from './types'
 
 export const PROJECT_FORMAT = `${APP_ID}-project`
-/** 2: sprites have costumes (version 1 files have one shape each, and still open). */
-export const PROJECT_VERSION = 2
+/**
+ * 2: sprites have costumes (version 1 files have one shape each, and still open).
+ * 3: costumes have their own width, depth and height (older editors would draw them as their shapes).
+ */
+export const PROJECT_VERSION = 3
 
 export type SavedSprite = SpriteData
 
@@ -167,7 +170,22 @@ function parseCostume(v: unknown, where: string): Costume {
   if (!isObj(v)) fail(`${where} must be an object`)
   const layout = (v.layout ?? 'same') as CostumeLayout
   if (!COSTUME_LAYOUTS.includes(layout)) fail(`${where}.layout "${layout}" is not one of ${COSTUME_LAYOUTS.join(', ')}`)
-  return { name: str(v, 'name', where), shape: parseShape(v, where), picture: parsePicture(v.picture, `${where}.picture`), layout, model: parseModel(v.model, `${where}.model`) }
+  const costume: Costume = {
+    name: str(v, 'name', where),
+    shape: parseShape(v, where),
+    picture: parsePicture(v.picture, `${where}.picture`),
+    layout,
+    model: parseModel(v.model, `${where}.model`),
+  }
+  const dimensions = parseDimensions(v.dimensions, `${where}.dimensions`)
+  return dimensions && !sameDimensions(dimensions, naturalDimensions(costume)) ? { ...costume, dimensions } : costume
+}
+
+/** Missing (older files) means the shape's or model's own; kept between MIN_DIMENSION and MAX_DIMENSION. */
+function parseDimensions(v: unknown, where: string): CostumeDimensions | undefined {
+  if (v === undefined || v === null) return undefined
+  if (!Array.isArray(v) || v.length !== 3 || !v.every((n) => typeof n === 'number' && Number.isFinite(n))) fail(`${where} must be three numbers`)
+  return v.map(clampCostumeDimension) as CostumeDimensions
 }
 
 /** Missing (older files) means none. */

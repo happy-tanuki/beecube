@@ -46,7 +46,7 @@ describe('costumes', () => {
     ticks(1)
     expect(s.shape).toBe('sphere')
     const look = rt.looks.list[rt.store.look[s.slot]]
-    expect(look).toEqual({ shape: SHAPES.indexOf('sphere'), picture: ball.picture, layout: 'same', model: null, pose: {}, extent: [1, 1, 1] })
+    expect(look).toEqual({ shape: SHAPES.indexOf('sphere'), picture: ball.picture, layout: 'same', model: null, pose: {}, stretch: [1, 1, 1], extent: [1, 1, 1] })
     // The same costume again is the same look.
     expect(rt.looks.of(ball)).toBe(rt.store.look[s.slot])
   })
@@ -181,5 +181,54 @@ describe('costumes', () => {
     // A picture can't be a model either.
     const picture = { ...saved.sprites[0].costumes[0], model: null, picture: model.asset }
     expect(() => parseProject({ ...saved, sprites: [{ ...saved.sprites[0], costumes: [picture] }] })).toThrow(/picture\.dataFormat/)
+  })
+
+  it('gives a costume its own width, depth and height: drawn and touching things so, and scaled by the sprite’s', () => {
+    const board: Costume = { ...plainCostume('board', 'cube'), dimensions: [40, 20, 4] }
+    const { rt, sprites: [a, b] } = setup([
+      makeSprite('a', [], { costumes: [board, plainCostume('box', 'cube')] }),
+      makeSprite('b', [], { x: 0, y: 31 }),
+    ])
+    const E = rt.store
+    const look = rt.looks.of(board)
+    expect(look).toBeGreaterThanOrEqual(SHAPES.length)
+    expect(rt.looks.list[look].stretch).toEqual([1, 0.5, 0.1])
+    expect([E.extentX[a.slot], E.extentY[a.slot], E.extentZ[a.slot]]).toEqual([1, 0.5, 0.1])
+    // 20 deep: it reaches 10 from its middle across y, b from 11.
+    expect(shapesIntersect(E, a.slot, b.slot)).toBe(false)
+    // The sprite's own depth scales it: 30 from its middle.
+    a.depth = 300
+    expect(shapesIntersect(E, a.slot, b.slot)).toBe(true)
+    a.depth = 100
+    // The same dimensions are the same look; a cube's own are the plain cube's.
+    expect(rt.looks.of({ ...board, name: 'other' })).toBe(look)
+    expect(rt.looks.of({ ...board, dimensions: [40, 40, 40] })).toBe(0)
+    // A model's own are its box's, as drawn (its longest side a cube's): half as wide is 10.
+    const asset = { assetId: 'd'.repeat(64), dataFormat: 'glb' as const }
+    const thin = rt.looks.of({ ...plainCostume('m', 'cube'), model: { asset, size: [0.5, 0.5, 1] }, dimensions: [10, 20, 40] })
+    expect(rt.looks.list[thin].stretch).toEqual([0.5, 1, 1])
+    expect(rt.looks.list[thin].extent).toEqual([0.25, 0.5, 1])
+    // Drawn so.
+    const inst = new EntityInstances(new THREE.Scene())
+    inst.sync(rt, 1)
+    const g = inst.batches[look].mesh.geometry
+    g.computeBoundingBox()
+    expect(g.boundingBox!.max.toArray()).toEqual([20, 10, 2])
+  })
+
+  it('saves a costume’s width, depth and height, kept to what a cube can be stretched to', () => {
+    const { rt } = setup([makeSprite('a', [], { costumes: [{ ...plainCostume('board', 'cube'), dimensions: [40, 20, 4] }], width: 80 })])
+    const saved = serializeProject(rt)
+    const opened = parseProject(saved).sprites[0]
+    expect(opened.costumes[0].dimensions).toEqual([40, 20, 4])
+    // The sprite keeps its own width.
+    expect(opened.width).toBe(80)
+    const withDimensions = (dimensions: unknown) =>
+      parseProject({ ...saved, sprites: [{ ...saved.sprites[0], costumes: [{ ...saved.sprites[0].costumes[0], dimensions }] }] }).sprites[0].costumes[0]
+    expect(withDimensions([40, 40, 40]).dimensions).toBeUndefined()
+    expect(withDimensions([0, 5000, 40]).dimensions).toEqual([0.4, 800, 40])
+    expect(() => withDimensions([40, 40])).toThrow(/dimensions/)
+    // Older files have none.
+    expect(parseProject({ ...saved, version: 2, sprites: [{ ...saved.sprites[0], costumes: [plainCostume('box', 'cube')] }] }).sprites[0].costumes[0].dimensions).toBeUndefined()
   })
 })
