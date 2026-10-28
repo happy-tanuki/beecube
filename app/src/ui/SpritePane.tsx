@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { Sprite } from '../engine/sprite'
 import type { ShapeKind } from '../engine/types'
 import { t } from '../i18n'
 import { AddMenu } from './AddMenu'
+import { Dial } from './Dial'
 import { COSTUME_FILE_TYPES, Library, useImagePicker, type LibraryItem } from './BackdropsTab'
 import { COSTUME_CATEGORIES, COSTUME_LIBRARY, libraryCostumeName, SPRITE_CATEGORIES } from './library'
 import { costumeThumbnail, libraryThumbnail, shapeThumbnail } from './costumeThumbnails'
@@ -89,83 +90,150 @@ function NameField({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
 }
 
 /**
- * The size; while it is being edited, a popup under it shows the sprite's
- * width, depth and height in percent, each as the size makes it along that
- * axis, as the blocks see them (size 200 makes them 200 each, and one of
- * them can then be set apart). They are kept relative to the size
- * (Sprite.width and so on), so the size scales all three, keeping their
- * proportions, as "set size to" does.
+ * A field with a popup under it while anything in it has focus, as
+ * Scratch's direction field pops up a dial. Escape closes it.
  */
-function SizeField({ sprite, set }: { sprite: Sprite; set: (patch: Partial<Pick<Sprite, 'size' | 'width' | 'depth' | 'height'>>) => void }) {
+function PopupField({ className, field, children }: { className: string; field: ReactNode; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
-  const close = () => setOpen(false)
-  const axes = [
-    ['width', 'sprite.width'],
-    ['depth', 'sprite.depth'],
-    ['height', 'sprite.height'],
-  ] as const
+  const popup = useRef<HTMLDivElement>(null)
+  // Moved left as far as it needs to stay inside the sprite pane, which clips it.
+  useLayoutEffect(() => {
+    const el = popup.current
+    const pane = el?.closest('.sprite-pane')
+    if (!el || !pane) return
+    el.style.left = '0px'
+    const over = el.getBoundingClientRect().right - (pane.getBoundingClientRect().right - 8)
+    if (over > 0) el.style.left = `${-over}px`
+  }, [open])
   return (
     <div
-      className="size-field"
+      className={`popup-field ${className}`}
       ref={root}
       onFocus={() => setOpen(true)}
       onBlur={(e) => {
-        if (!root.current?.contains(e.relatedTarget as Node | null)) close()
+        if (!root.current?.contains(e.relatedTarget as Node | null)) setOpen(false)
       }}
-      onKeyDown={(e) => e.key === 'Escape' && close()}
+      onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
     >
-      <NumberField label={t('sprite.size')} value={sprite.size} onChange={(size) => set({ size })} />
+      {field}
       {open && (
-        <div className="size-popup">
-          {axes.map(([axis, label]) => (
-            <NumberField
-              key={axis}
-              label={t(label)}
-              value={(sprite.size * sprite[axis]) / 100}
-              onChange={(v) => sprite.size > 0 && set({ [axis]: (v * 100) / sprite.size })}
-            />
-          ))}
+        <div className="field-popup" ref={popup}>
+          {children}
         </div>
       )}
     </div>
   )
 }
 
+type SetSprite = (patch: Partial<Pick<Sprite, 'direction' | 'pitch' | 'roll' | 'size' | 'width' | 'depth' | 'height'>>) => void
+
+/**
+ * The direction; while it is being edited, a popup shows dials for it (seen
+ * from above), the pitch (seen from the side) and the roll (seen from
+ * behind), the last two with their numbers.
+ */
+function DirectionField({ sprite, set }: { sprite: Sprite; set: SetSprite }) {
+  return (
+    <PopupField
+      className="direction-field"
+      field={<NumberField label={t('sprite.direction')} value={sprite.direction} onChange={(direction) => set({ direction })} />}
+    >
+      <div className="dial-column">
+        <span>{t('sprite.direction')}</span>
+        <Dial view="above" label={t('sprite.direction')} angle={sprite.direction} onChange={(direction) => set({ direction })} />
+      </div>
+      <div className="dial-column">
+        <span>{t('sprite.pitch')}</span>
+        <Dial view="side" label={t('sprite.pitch')} angle={sprite.pitch} onChange={(pitch) => set({ pitch })} />
+        <NumberField label="" value={sprite.pitch} onChange={(pitch) => set({ pitch })} />
+      </div>
+      <div className="dial-column">
+        <span>{t('sprite.roll')}</span>
+        <Dial view="behind" label={t('sprite.roll')} angle={sprite.roll} onChange={(roll) => set({ roll })} />
+        <NumberField label="" value={sprite.roll} onChange={(roll) => set({ roll })} />
+      </div>
+    </PopupField>
+  )
+}
+
+/**
+ * The size; while it is being edited, a popup shows sliders for it and for
+ * the sprite's width, depth and height in percent, each as the size makes it along that axis,
+ * as the blocks see them (size 200 makes them 200 each, and one of them
+ * can then be set apart). They are kept relative to the size
+ * (Sprite.width and so on), so the size scales all three, keeping their
+ * proportions, as "set size to" does.
+ */
+/** What the size popup's sliders reach, in percent; the fields take more. */
+const SLIDER_MIN = 5
+const SLIDER_MAX = 500
+
+/** A labeled slider, with the number beside it when `number` is given. */
+function SliderRow({ label, value, onChange, number }: { label: string; value: number; onChange: (v: number) => void; number?: boolean }) {
+  return (
+    <div className="slider-row">
+      <span>{label}</span>
+      <input
+        type="range"
+        aria-label={label}
+        min={SLIDER_MIN}
+        max={SLIDER_MAX}
+        value={Math.round(value)}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+      {number ? <NumberField label="" value={value} onChange={onChange} /> : <span />}
+    </div>
+  )
+}
+
+function SizeField({ sprite, set }: { sprite: Sprite; set: SetSprite }) {
+  const axes = [
+    ['width', 'sprite.width'],
+    ['depth', 'sprite.depth'],
+    ['height', 'sprite.height'],
+  ] as const
+  return (
+    <PopupField className="size-field" field={<NumberField label={t('sprite.size')} value={sprite.size} onChange={(size) => set({ size })} />}>
+      <SliderRow label={t('sprite.size')} value={sprite.size} onChange={(size) => set({ size })} />
+      {axes.map(([axis, label]) => (
+        <SliderRow
+          key={axis}
+          label={t(label)}
+          value={(sprite.size * sprite[axis]) / 100}
+          onChange={(v) => sprite.size > 0 && set({ [axis]: (v * 100) / sprite.size })}
+          number
+        />
+      ))}
+    </PopupField>
+  )
+}
+
 function SpriteInfo({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
   useTicker(100)
-  const set = (patch: Partial<Pick<Sprite, 'x' | 'y' | 'z' | 'direction' | 'pitch' | 'roll' | 'size' | 'width' | 'depth' | 'height' | 'shape' | 'color' | 'visible'>>) => {
+  const set = (patch: Partial<Pick<Sprite, 'x' | 'y' | 'z' | 'direction' | 'pitch' | 'roll' | 'size' | 'width' | 'depth' | 'height' | 'visible'>>) => {
     Object.assign(sprite, patch)
     store.notify()
   }
   return (
     <div className="sprite-info">
-      <NameField key={sprite.id} store={store} sprite={sprite} />
-      <NumberField label="x" value={sprite.x} onChange={(x) => set({ x })} />
-      <NumberField label="y" value={sprite.y} onChange={(y) => set({ y })} />
-      <NumberField label="z" value={sprite.z} onChange={(z) => set({ z })} />
-      <NumberField label={t('sprite.direction')} value={sprite.direction} onChange={(direction) => set({ direction })} />
-      <NumberField label={t('sprite.pitch')} value={sprite.pitch} onChange={(pitch) => set({ pitch })} />
-      <NumberField label={t('sprite.roll')} value={sprite.roll} onChange={(roll) => set({ roll })} />
-      <SizeField sprite={sprite} set={set} />
-      <label className="field">
-        <span>{t('sprite.shape')}</span>
-        <select value={sprite.shape} onChange={(e) => set({ shape: e.target.value as ShapeKind })}>
-          {SHAPES.map((s) => (
-            <option key={s} value={s}>
-              {shapeName(s)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>{t('sprite.color')}</span>
-        <input type="color" value={sprite.color} onChange={(e) => set({ color: e.target.value })} />
-      </label>
-      <label className="field checkbox">
-        <span>{t('sprite.show')}</span>
-        <input type="checkbox" checked={sprite.visible} onChange={(e) => set({ visible: e.target.checked })} />
-      </label>
+      <div className="sprite-info-row">
+        <NameField key={sprite.id} store={store} sprite={sprite} />
+        <label className="field checkbox">
+          <span>{t('sprite.show')}</span>
+          <input type="checkbox" checked={sprite.visible} onChange={(e) => set({ visible: e.target.checked })} />
+        </label>
+      </div>
+      {/* Labels above the fields; the position (x, y and z, together), direction and size spread across the row. */}
+      <div className="sprite-info-row stacked">
+        <div className="position-fields">
+          <NumberField label="x" value={sprite.x} onChange={(x) => set({ x })} />
+          <NumberField label="y" value={sprite.y} onChange={(y) => set({ y })} />
+          <NumberField label="z" value={sprite.z} onChange={(z) => set({ z })} />
+        </div>
+        <DirectionField sprite={sprite} set={set} />
+        <SizeField sprite={sprite} set={set} />
+      </div>
     </div>
   )
 }

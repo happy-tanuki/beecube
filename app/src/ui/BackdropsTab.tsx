@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { FACES, type BackdropData, type FaceName } from '../engine/backdrop'
 import { t } from '../i18n'
 import { assetUrl } from './assetUrls'
@@ -124,56 +124,60 @@ function FaceRow({ store, index, backdrop, name, onPaint }: { store: ProjectStor
   )
 }
 
-/** The scenery: a color, and a 360° image over it (from the library or uploaded). Laid out as the faces' rows, above which it is listed. */
-function SceneryRow({ store, index, backdrop, onChoose }: { store: ProjectStore; index: number; backdrop: BackdropData; onChoose: () => void }) {
+/** How a face looks in a small picture: its picture, over its color (or nothing). */
+const faceStyle = (store: ProjectStore, backdrop: BackdropData, name: FaceName): CSSProperties => {
+  const { color, picture } = backdrop.faces[name]
+  const url = picture && assetUrl(store.rt.assets, picture)
+  return { backgroundColor: color ?? 'transparent', backgroundImage: url ? `url("${url}")` : undefined }
+}
+
+/** The scenery, as a big card: a color, and a 360° image over it (from the library or uploaded). */
+function SceneryCard({ store, index, backdrop, onChoose }: { store: ProjectStore; index: number; backdrop: BackdropData; onChoose: () => void }) {
   const picker = useImagePicker((file) => store.setSceneryPicture(index, file))
   const picture = backdrop.sceneryPicture
   const url = picture && assetUrl(store.rt.assets, picture)
   return (
-    <tr>
-      <th>{t('backdrop.scenery')}</th>
-      <td>
-        <input
-          type="color"
-          aria-label={t('backdrop.scenery')}
-          value={backdrop.scenery}
-          onChange={(e) => store.updateBackdrop(index, (b) => (b.scenery = e.target.value))}
-        />
-      </td>
-      <td />
-      <td className="face-picture">
+    <div className="backdrop-card">
+      <span className="backdrop-card-title">{t('backdrop.scenery')}</span>
+      <button className="backdrop-card-preview" style={{ backgroundColor: backdrop.scenery, backgroundImage: url ? `url("${url}")` : undefined }} onClick={onChoose} title={t('backdrop.sceneryLibrary')} />
+      <div className="backdrop-card-actions">
         {picker.element}
-        {picture ? (
-          <>
-            <span className="face-picture-thumb panorama" style={url ? { backgroundImage: `url("${url}")` } : undefined} />
-            <button className="face-picture-remove" title={t('backdrop.removePicture')} onClick={() => void store.setSceneryPicture(index, null)}>
-              ×
-            </button>
-          </>
-        ) : (
-          <>
-            <button onClick={onChoose}>{t('backdrop.choose')}</button>
-            <button onClick={picker.pick}>{t('backdrop.uploadScenery')}</button>
-          </>
-        )}
-      </td>
-    </tr>
-  )
-}
-
-/** Dressing the six faces as a room from the library. */
-function RoomRow({ onChoose }: { onChoose: () => void }) {
-  return (
-    <tr>
-      <th>{t('backdrop.room')}</th>
-      <td colSpan={2} />
-      <td className="face-picture">
         <button onClick={onChoose}>{t('backdrop.choose')}</button>
-      </td>
-    </tr>
+        <button onClick={picker.pick}>{t('backdrop.uploadScenery')}</button>
+        <label className="field">
+          <span>{t('backdrop.color')}</span>
+          <input type="color" value={backdrop.scenery} onChange={(e) => store.updateBackdrop(index, (b) => (b.scenery = e.target.value))} />
+        </label>
+        {picture && (
+          <button className="face-picture-remove" title={t('backdrop.removePicture')} onClick={() => void store.setSceneryPicture(index, null)}>
+            ×
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
+/** The room, as a big card: its back wall over its floor, and dressing all six faces from the library. */
+function RoomCard({ store, backdrop, onChoose }: { store: ProjectStore; backdrop: BackdropData; onChoose: () => void }) {
+  return (
+    <div className="backdrop-card">
+      <span className="backdrop-card-title">{t('backdrop.room')}</span>
+      <button className="backdrop-card-preview room" onClick={onChoose} title={t('backdrop.roomLibrary')}>
+        <span className="room-back" style={faceStyle(store, backdrop, 'back')} />
+        <span className="room-floor" style={faceStyle(store, backdrop, 'floor')} />
+      </button>
+      <div className="backdrop-card-actions">
+        <button onClick={onChoose}>{t('backdrop.choose')}</button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A backdrop's form: its name, the scenery and the room as two big cards,
+ * the grid, and each face's color and picture under "More".
+ */
 function BackdropForm(props: {
   store: ProjectStore
   index: number
@@ -186,19 +190,24 @@ function BackdropForm(props: {
   return (
     <div className="backdrop-form">
       <NameField key={backdrop.id} store={store} index={index} backdrop={backdrop} />
-      <table className="backdrop-faces">
-        <tbody>
-          <SceneryRow store={store} index={index} backdrop={backdrop} onChoose={() => onChoose('scenery')} />
-          <RoomRow onChoose={() => onChoose('room')} />
-          {FACES.map((name) => (
-            <FaceRow key={name} store={store} index={index} backdrop={backdrop} name={name} onPaint={() => onPaint(name)} />
-          ))}
-        </tbody>
-      </table>
+      <div className="backdrop-cards">
+        <SceneryCard store={store} index={index} backdrop={backdrop} onChoose={() => onChoose('scenery')} />
+        <RoomCard store={store} backdrop={backdrop} onChoose={() => onChoose('room')} />
+      </div>
       <label className="field checkbox">
         <input type="checkbox" checked={backdrop.grid} onChange={(e) => update((b) => (b.grid = e.target.checked))} />
         <span>{t('backdrop.grid')}</span>
       </label>
+      <details className="backdrop-details">
+        <summary>{t('backdrop.details')}</summary>
+        <table className="backdrop-faces">
+          <tbody>
+            {FACES.map((name) => (
+              <FaceRow key={name} store={store} index={index} backdrop={backdrop} name={name} onPaint={() => onPaint(name)} />
+            ))}
+          </tbody>
+        </table>
+      </details>
     </div>
   )
 }

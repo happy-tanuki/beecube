@@ -218,11 +218,55 @@ body,
 
 .sprite-info {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   font-size: 12px;
+}
+
+.sprite-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.sprite-info-row.stacked {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px 8px;
+}
+
+.position-fields {
+  display: flex;
+  gap: 6px;
+}
+
+.sprite-info-row.stacked .position-fields > .field,
+.sprite-info-row.stacked > .popup-field > .field {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.sprite-info-row.stacked .position-fields > .field > span,
+.sprite-info-row.stacked > .popup-field > .field > span {
+  padding-left: 8px;
+  font-size: 11px;
+  /* The same for Latin and Japanese labels, so the fields line up. */
+  line-height: 14px;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 4.5em 150px 64px;
+  align-items: center;
+  gap: 8px;
+}
+
+.slider-row > span:first-child {
+  text-align: right;
 }
 
 .field {
@@ -242,27 +286,127 @@ body,
   font-size: 12px;
 }
 
-.size-field {
+.popup-field {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
-.size-popup {
+.field-popup {
   position: absolute;
-  top: 32px;
+  top: calc(100% + 6px);
   left: 0;
   z-index: 20;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
   gap: 6px;
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--panel);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   white-space: nowrap;
+}
+
+.size-field .field-popup {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.direction-field .field-popup {
+  gap: 12px;
+}
+
+.dial-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.dial {
+  touch-action: none;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.dial:focus-visible {
+  outline: 2px solid var(--menu-bar);
+}
+
+.dial-face {
+  fill: #f2f6fc;
+  stroke: var(--border);
+}
+
+.dial-floor {
+  stroke: #b8c4d6;
+  stroke-dasharray: 3 3;
+}
+
+.dial-tick {
+  stroke: #9aa7bb;
+  stroke-width: 2;
+}
+
+.dial-needle {
+  stroke: var(--menu-bar);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.dial-center {
+  fill: var(--menu-bar);
+}
+
+.dial-knob {
+  fill: var(--menu-bar);
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.choice-button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.choice-button:hover {
+  border-color: #b7c9e6;
+}
+
+.choice-button.chosen {
+  border-color: var(--menu-bar);
+  background: #eef4ff;
+}
+
+.choice-button img {
+  width: 48px;
+  height: 36px;
+}
+
+.choice-glyph {
+  width: 48px;
+  height: 36px;
+  font-size: 22px;
+  line-height: 36px;
+}
+
+.choice-button.layout {
+  padding: 4px 8px;
+}
+
+.layout-icon rect {
+  fill: #ffffff;
+  stroke: #7a879c;
+}
+
+.layout-icon circle {
+  fill: #ff8c1a;
 }
 
 .costume-dimensions {
@@ -618,6 +762,77 @@ body,
   font-size: 13px;
 }
 
+.backdrop-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.backdrop-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.backdrop-card-title {
+  font-weight: bold;
+}
+
+.backdrop-card-preview {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 118px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #eef2f8 center / cover no-repeat;
+  cursor: pointer;
+}
+
+.backdrop-card-preview:hover {
+  border-color: var(--menu-bar);
+}
+
+.backdrop-card-preview .room-back,
+.backdrop-card-preview .room-floor {
+  display: block;
+  width: 100%;
+  background-position: center;
+  background-size: cover;
+}
+
+.backdrop-card-preview .room-back {
+  flex: 3;
+}
+
+.backdrop-card-preview .room-floor {
+  flex: 2;
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.backdrop-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.backdrop-details summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.backdrop-details[open] summary {
+  margin-bottom: 8px;
+}
+
 .backdrop-faces th {
   padding-right: 12px;
   font-weight: normal;
@@ -637,7 +852,8 @@ body,
 
 .face-picture button,
 .costume-picture button,
-.costume-pose button {
+.costume-pose button,
+.backdrop-card-actions button {
   height: 26px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -650,7 +866,8 @@ body,
 
 .face-picture button:hover,
 .costume-picture button:hover,
-.costume-pose button:hover:not(:disabled) {
+.costume-pose button:hover:not(:disabled),
+.backdrop-card-actions button:hover {
   border-color: var(--menu-bar);
 }
 
@@ -668,7 +885,8 @@ body,
 }
 
 .face-picture button.face-picture-remove,
-.costume-picture button.face-picture-remove {
+.costume-picture button.face-picture-remove,
+.backdrop-card-actions button.face-picture-remove {
   width: 22px;
   height: 22px;
   padding: 0;

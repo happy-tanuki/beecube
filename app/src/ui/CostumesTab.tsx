@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { assetFileName, type AssetRef, type Assets } from '../engine/assets'
-import { COSTUME_LAYOUTS, costumeDimensions, type Costume } from '../engine/costume'
+import { COSTUME_LAYOUTS, costumeDimensions, type Costume, type CostumeLayout } from '../engine/costume'
 import type { ShapeKind } from '../engine/types'
 import { t, type MessageKey } from '../i18n'
 import { assetUrl } from './assetUrls'
@@ -16,7 +16,7 @@ import { AddMenu } from './AddMenu'
 import { COSTUME_LIBRARY, libraryCostumeName } from './library'
 import { costumeGuide, newCostumeSize } from './paint'
 import { PaintEditor } from './PaintEditor'
-import { costumeThumbnail, libraryThumbnail, loadModel } from './costumeThumbnails'
+import { costumeThumbnail, libraryThumbnail, loadModel, shapeThumbnail } from './costumeThumbnails'
 import { modelBones, modelClips, type Model } from '../stage/models'
 import { NumberField, SHAPE_ICONS } from './SpritePane'
 import { SHAPES, shapeName, type ProjectStore } from './store'
@@ -239,6 +239,42 @@ function ModelForm({ store, index, costume }: { store: ProjectStore; index: numb
   )
 }
 
+/** The sprite's color, which shows where a costume's shape has no picture (one for all its costumes). */
+function ColorField({ store }: { store: ProjectStore }) {
+  return (
+    <label className="field">
+      <span>{t('sprite.color')}</span>
+      <input
+        type="color"
+        value={store.editing.color}
+        onChange={(e) => {
+          store.editing.color = e.target.value
+          store.notify()
+        }}
+      />
+    </label>
+  )
+}
+
+/** A picture of how a picture wraps a shape: the same picture on every face, or a net (a cross of six faces). */
+function LayoutIcon({ layout }: { layout: CostumeLayout }) {
+  const square = (x: number, y: number, mark: boolean) => (
+    <g key={`${x},${y}`}>
+      <rect x={x} y={y} width={10} height={10} />
+      {mark && <circle cx={x + 5} cy={y + 5} r={2.5} />}
+    </g>
+  )
+  const squares =
+    layout === 'same'
+      ? [square(3, 11, true), square(15, 11, true), square(27, 11, true)]
+      : [square(15, 1, false), square(3, 11, false), square(15, 11, true), square(27, 11, false), square(39, 11, false), square(15, 21, false)]
+  return (
+    <svg className="layout-icon" width={52} height={32} viewBox="0 0 52 32" aria-hidden>
+      {squares}
+    </svg>
+  )
+}
+
 function CostumeForm({ store, index, costume, onPaint }: { store: ProjectStore; index: number; costume: Costume; onPaint: () => void }) {
   const picker = useImagePicker((file) => store.setCostumePicture(index, file))
   const url = costume.picture && assetUrl(store.rt.assets, costume.picture)
@@ -247,16 +283,25 @@ function CostumeForm({ store, index, costume, onPaint }: { store: ProjectStore; 
   return (
     <div className="backdrop-form costume-form">
       <NameField store={store} index={index} costume={costume} />
-      <label className="field">
+      <div className="field" role="radiogroup" aria-label={t('costume.shape')}>
         <span>{t('costume.shape')}</span>
-        <select value={shape} onChange={(e) => store.updateCostume(index, { shape: e.target.value as ShapeKind })}>
-          {SHAPES.map((s) => (
-            <option key={s} value={s}>
-              {shapeName(s)}
-            </option>
-          ))}
-        </select>
-      </label>
+        {SHAPES.map((s) => {
+          const thumb = shapeThumbnail(store.rt.assets, s, null, 'same', store.editing.color)
+          return (
+            <button
+              key={s}
+              className={`choice-button${shape === s ? ' chosen' : ''}`}
+              role="radio"
+              aria-checked={shape === s}
+              title={shapeName(s)}
+              onClick={() => store.updateCostume(index, { shape: s })}
+            >
+              {thumb ? <img src={thumb} alt="" /> : <span className="choice-glyph">{SHAPE_ICONS[s]}</span>}
+            </button>
+          )
+        })}
+      </div>
+      <ColorField store={store} />
       <DimensionFields store={store} index={index} costume={costume} />
       <div className="field costume-picture">
         <span>{t('costume.picture')}</span>
@@ -275,14 +320,24 @@ function CostumeForm({ store, index, costume, onPaint }: { store: ProjectStore; 
       {shape === 'sphere' ? (
         <p className="costume-note">{t('costume.sphereNote')}</p>
       ) : (
-        <div className="field costume-layout" role="radiogroup" aria-label={t('costume.layout')}>
+        <div className="field" role="radiogroup" aria-label={t('costume.layout')}>
           <span>{t('costume.layout')}</span>
-          {COSTUME_LAYOUTS.map((layout) => (
-            <label key={layout} className="field checkbox">
-              <input type="radio" name="costume-layout" checked={costume.layout === layout} onChange={() => store.updateCostume(index, { layout })} />
-              <span>{t(layout === 'same' ? 'costume.layoutSame' : 'costume.layoutNet')}</span>
-            </label>
-          ))}
+          {COSTUME_LAYOUTS.map((layout) => {
+            const label = t(layout === 'same' ? 'costume.layoutSame' : 'costume.layoutNet')
+            return (
+              <button
+                key={layout}
+                className={`choice-button layout${costume.layout === layout ? ' chosen' : ''}`}
+                role="radio"
+                aria-checked={costume.layout === layout}
+                title={label}
+                onClick={() => store.updateCostume(index, { layout })}
+              >
+                <LayoutIcon layout={layout} />
+                <span>{label}</span>
+              </button>
+            )
+          })}
         </div>
       )}
       {shape !== 'sphere' && costume.layout === 'net' && (

@@ -294,6 +294,19 @@ sprites. Extension blocks are left out, as they act on sprites.
   Upload takes a picture or a 3D model, told apart by the file. Costumes
   are shown as they look on the stage, drawn in 3D (`app/src/ui/costumeThumbnails.ts`),
   and the library's models' animations and bones have translated names.
+- **Few fields.** A sprite's information is its name and whether it
+  shows, and below them x, y and z (kept together on one row, as they are
+  read together, with their labels above them), direction and size. Like Scratch's direction, which pops up a dial, the direction pops
+  up three dials when edited: direction seen from above, pitch seen from
+  the side and roll seen from behind, each turned by dragging its knob (or
+  with the arrow keys); the size pops up sliders for it and for width,
+  depth and height (see Width, depth and height), which reach 5–500%
+  (the fields take more). What a sprite looks like is in its Costumes
+  tab: the shape and how a picture wraps it are chosen with picture
+  buttons, and the color (one for the sprite, as the "set color" block
+  sets it) is there too. A backdrop's form shows the scenery and the room
+  as two big cards, chosen by pressing their pictures; each face's color
+  and picture are under "More".
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
   plane. Drag the cone above the selected sprite to change its height.
   Dragging empty space orbits the camera, Shift+drag pans and the wheel zooms.
