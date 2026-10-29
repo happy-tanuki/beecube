@@ -394,12 +394,14 @@ export function BackdropsTab({ store }: { store: ProjectStore }) {
       <BackdropForm key={backdrop.id} store={store} index={current} backdrop={backdrop} onChoose={setLibrary} onPaint={(face) => void paint(face)} />
       {painting && (
         <PaintEditor
-          title={`${backdrop.name}: ${t(`backdrop.face.${painting.face}`)}`}
           source={painting.source}
           size={pictureSize(painting.face)}
           guide={[]}
-          onSave={(picture) => store.setFacePicture(current, painting.face, picture)}
-          onClose={() => setPainting(null)}
+          covering={{
+            title: `${backdrop.name}: ${t(`backdrop.face.${painting.face}`)}`,
+            onSave: (picture) => store.setFacePicture(current, painting.face, picture),
+            onClose: () => setPainting(null),
+          }}
         />
       )}
       {library === 'new' && <NewBackdropLibrary store={store} onClose={() => setLibrary(null)} />}

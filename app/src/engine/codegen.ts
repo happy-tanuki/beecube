@@ -648,11 +648,9 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
     }
     case 'looks_setdimensionto':
     case 'looks_changedimensionby':
-      // In percent as the size makes them (size 200 and width 100 is 200), as the editor shows them; kept relative to the size.
       if ((DIMENSIONS as readonly string[]).includes(s.f.DIMENSION)) {
         const col = f.col(s.f.DIMENSION)
-        const SZ = f.col('size')
-        const v = s.op === 'looks_changedimensionby' ? `${col}[i] + ${n('VALUE')} * 100 / ${SZ}[i]` : `${n('VALUE')} * 100 / ${SZ}[i]`
+        const v = s.op === 'looks_changedimensionby' ? `${col}[i] + ${n('VALUE')}` : n('VALUE')
         emit(ctx, `${col}[i] = L.clampDimension(${v});`)
       }
       break
@@ -1122,7 +1120,7 @@ function expr(e: Expr, ctx: Ctx, m: ModuleGen): V {
     case 'looks_width':
     case 'looks_depth':
     case 'looks_height':
-      return { c: `Math.round(${f.col('size')}[i] * ${f.col(e.op.slice('looks_'.length))}[i] / 100)`, t: 'num' }
+      return { c: `Math.round(${f.col(e.op.slice('looks_'.length))}[i])`, t: 'num' }
     case 'looks_costumenumbername':
       return e.f.NUMBER_NAME === 'name' ? { c: 'rt.costumeName(i)', t: 'str' } : { c: `(${f.col('costume')}[i] + 1)`, t: 'num' }
     case 'looks_backdropnumbername':

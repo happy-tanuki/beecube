@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import type { Sprite } from '../engine/sprite'
 import type { ShapeKind } from '../engine/types'
 import { t } from '../i18n'
 import { AddMenu } from './AddMenu'
 import { Dial } from './Dial'
+import { NumberField, PopupField } from './fields'
 import { COSTUME_FILE_TYPES, Library, useImagePicker, type LibraryItem } from './BackdropsTab'
 import { COSTUME_CATEGORIES, COSTUME_LIBRARY, libraryCostumeName, SPRITE_CATEGORIES } from './library'
 import { costumeThumbnail, libraryThumbnail, shapeThumbnail } from './costumeThumbnails'
@@ -42,26 +43,6 @@ function useTicker(ms: number): void {
   }, [ms])
 }
 
-export function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const shown = draft ?? String(Math.round(value * 100) / 100)
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <input
-        value={shown}
-        onFocus={() => setDraft(shown)}
-        onChange={(e) => {
-          setDraft(e.target.value)
-          const n = Number(e.target.value)
-          if (e.target.value.trim() !== '' && !Number.isNaN(n)) onChange(n)
-        }}
-        onBlur={() => setDraft(null)}
-      />
-    </label>
-  )
-}
-
 /** Applied on Enter or leaving the field, as in Scratch, so blocks that refer to the sprite follow once. */
 function NameField({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
   const [draft, setDraft] = useState<string | null>(null)
@@ -86,43 +67,6 @@ function NameField({ store, sprite }: { store: ProjectStore; sprite: Sprite }) {
         }}
       />
     </label>
-  )
-}
-
-/**
- * A field with a popup under it while anything in it has focus, as
- * Scratch's direction field pops up a dial. Escape closes it.
- */
-function PopupField({ className, field, children }: { className: string; field: ReactNode; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  const popup = useRef<HTMLDivElement>(null)
-  // Moved left as far as it needs to stay inside the sprite pane, which clips it.
-  useLayoutEffect(() => {
-    const el = popup.current
-    const pane = el?.closest('.sprite-pane')
-    if (!el || !pane) return
-    el.style.left = '0px'
-    const over = el.getBoundingClientRect().right - (pane.getBoundingClientRect().right - 8)
-    if (over > 0) el.style.left = `${-over}px`
-  }, [open])
-  return (
-    <div
-      className={`popup-field ${className}`}
-      ref={root}
-      onFocus={() => setOpen(true)}
-      onBlur={(e) => {
-        if (!root.current?.contains(e.relatedTarget as Node | null)) setOpen(false)
-      }}
-      onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
-    >
-      {field}
-      {open && (
-        <div className="field-popup" ref={popup}>
-          {children}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -157,14 +101,6 @@ function DirectionField({ sprite, set }: { sprite: Sprite; set: SetSprite }) {
   )
 }
 
-/**
- * The size; while it is being edited, a popup shows sliders for it and for
- * the sprite's width, depth and height in percent, each as the size makes it along that axis,
- * as the blocks see them (size 200 makes them 200 each, and one of them
- * can then be set apart). They are kept relative to the size
- * (Sprite.width and so on), so the size scales all three, keeping their
- * proportions, as "set size to" does.
- */
 /** What the size popup's sliders reach, in percent; the fields take more. */
 const SLIDER_MIN = 5
 const SLIDER_MAX = 500
@@ -187,6 +123,12 @@ function SliderRow({ label, value, onChange, number }: { label: string; value: n
   )
 }
 
+/**
+ * The size; while it is being edited, a popup shows sliders for it and for
+ * the sprite's width, depth and height, in percent of the size (as the
+ * "set width to" blocks have them), so the size scales all three, keeping
+ * their proportions, as "set size to" does.
+ */
 function SizeField({ sprite, set }: { sprite: Sprite; set: SetSprite }) {
   const axes = [
     ['width', 'sprite.width'],
@@ -200,8 +142,8 @@ function SizeField({ sprite, set }: { sprite: Sprite; set: SetSprite }) {
         <SliderRow
           key={axis}
           label={t(label)}
-          value={(sprite.size * sprite[axis]) / 100}
-          onChange={(v) => sprite.size > 0 && set({ [axis]: (v * 100) / sprite.size })}
+          value={sprite[axis]}
+          onChange={(v) => set({ [axis]: v })}
           number
         />
       ))}
@@ -274,7 +216,7 @@ export function SpritePane({ store, editingId }: Props) {
   const upload = useImagePicker((file) => store.uploadSprite(file), COSTUME_FILE_TYPES)
   const editing = store.rt.getSprite(editingId)
   return (
-    <div className="sprite-pane">
+    <div className="sprite-pane" data-popup-bounds>
       {editing && <SpriteInfo store={store} sprite={editing} />}
       <div className="sprite-list">
         {store.rt.sprites.map((s) => (

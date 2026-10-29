@@ -8,9 +8,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { assetFileName, type AssetRef, type Assets } from '../engine/assets'
 import { COSTUME_LAYOUTS, costumeDimensions, type Costume, type CostumeLayout } from '../engine/costume'
-import type { ShapeKind } from '../engine/types'
 import { t, type MessageKey } from '../i18n'
-import { assetUrl } from './assetUrls'
 import { COSTUME_FILE_TYPES, Library, useImagePicker, useTicker } from './BackdropsTab'
 import { AddMenu } from './AddMenu'
 import { COSTUME_LIBRARY, libraryCostumeName } from './library'
@@ -18,7 +16,8 @@ import { costumeGuide, newCostumeSize } from './paint'
 import { PaintEditor } from './PaintEditor'
 import { costumeThumbnail, libraryThumbnail, loadModel, shapeThumbnail } from './costumeThumbnails'
 import { modelBones, modelClips, type Model } from '../stage/models'
-import { NumberField, SHAPE_ICONS } from './SpritePane'
+import { NumberField } from './fields'
+import { SHAPE_ICONS } from './SpritePane'
 import { SHAPES, shapeName, type ProjectStore } from './store'
 import { boneLabel, clipLabel } from './modelNames'
 
@@ -45,45 +44,6 @@ function NameField({ store, index, costume }: { store: ProjectStore; index: numb
         }}
       />
     </label>
-  )
-}
-
-/** Where each part of a shape goes on its net (the grid of 4 × 3 in engine/costume.ts), row by row; null for an empty square. */
-const NETS: Record<Exclude<ShapeKind, 'sphere'>, ([MessageKey, number] | null)[][]> = {
-  cube: [
-    [null, ['costume.part.top', 1], null, null],
-    [['costume.part.right', 1], ['costume.part.front', 1], ['costume.part.left', 1], ['costume.part.back', 1]],
-    [null, ['costume.part.bottom', 1], null, null],
-  ],
-  cylinder: [
-    [null, ['costume.part.top', 2], null],
-    [['costume.part.side', 4]],
-    [null, ['costume.part.bottom', 2], null],
-  ],
-  cone: [
-    [['costume.part.side', 4]],
-    [null, ['costume.part.base', 2], null],
-  ],
-}
-
-/** A picture of the net's grid with the parts named, so a picture can be drawn to fit. */
-function NetGuide({ shape }: { shape: Exclude<ShapeKind, 'sphere'> }) {
-  return (
-    <div className={`costume-net ${shape}`} aria-hidden>
-      {NETS[shape].map((row, r) => (
-        <div key={r} className="costume-net-row">
-          {row.map((part, k) =>
-            part ? (
-              <span key={k} className="costume-net-part" style={{ flexGrow: part[1] }}>
-                {t(part[0])}
-              </span>
-            ) : (
-              <span key={k} className="costume-net-empty" style={{ flexGrow: 1 }} />
-            ),
-          )}
-        </div>
-      ))}
-    </div>
   )
 }
 
@@ -210,31 +170,45 @@ function DimensionFields({ store, index, costume }: { store: ProjectStore; index
   )
 }
 
-/** A model costume's form: the model, which can be taken off to leave the shape, and its pose if it has bones. */
-function ModelForm({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
-  const url = costumeThumbnail(store.rt.assets, costume, store.editing.color)
+/**
+ * A model costume: its name, width, depth and height and the model (which
+ * can be taken off to leave the shape) above; the model drawn large, and
+ * its pose if it has bones, below.
+ */
+function ModelCostume({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
+  const url = costumeThumbnail(store.rt.assets, costume, store.editing.color, 2)
   const model = useModel(store.rt.assets, costume.model!.asset)
   const bones = model ? modelBones(model) : []
   const clips = model ? modelClips(model).map((c) => c.name) : []
   return (
-    <div className="backdrop-form costume-form">
-      <NameField store={store} index={index} costume={costume} />
-      <div className="field costume-picture">
-        <span>{t('costume.model')}</span>
-        <span className="face-picture-thumb costume-model-thumb" style={url ? { backgroundImage: `url("${url}")` } : undefined} />
-        <button className="face-picture-remove" title={t('costume.removeModel')} onClick={() => store.removeModel(index)}>
-          ×
-        </button>
+    <div className="costume-main">
+      <div className="costume-header">
+        <div className="costume-header-row">
+          <NameField store={store} index={index} costume={costume} />
+          <div className="field costume-picture">
+            <span>{t('costume.model')}</span>
+            <button className="face-picture-remove" title={t('costume.removeModel')} onClick={() => store.removeModel(index)}>
+              ×
+            </button>
+          </div>
+        </div>
+        <div className="costume-header-row">
+          <DimensionFields store={store} index={index} costume={costume} />
+        </div>
       </div>
-      <DimensionFields store={store} index={index} costume={costume} />
-      <p className="costume-note">{t('costume.modelNote')}</p>
-      {bones.length > 0 && (
-        <>
-          <PoseEditor key={index} store={store} index={index} costume={costume} bones={bones} />
-          {clips.length > 0 && <ClipCostumes store={store} index={index} clips={clips} />}
-          <p className="costume-note">{t('costume.poseNote')}</p>
-        </>
-      )}
+      <div className="costume-model">
+        <span className="costume-model-view" style={url ? { backgroundImage: `url("${url}")` } : undefined} />
+        <div className="costume-model-pose">
+          {bones.length > 0 && (
+            <>
+              <PoseEditor key={index} store={store} index={index} costume={costume} bones={bones} />
+              {clips.length > 0 && <ClipCostumes store={store} index={index} clips={clips} />}
+              <p className="costume-note">{t('costume.poseNote')}</p>
+            </>
+          )}
+          <p className="costume-note">{t('costume.modelNote')}</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -275,95 +249,130 @@ function LayoutIcon({ layout }: { layout: CostumeLayout }) {
   )
 }
 
-function CostumeForm({ store, index, costume, onPaint }: { store: ProjectStore; index: number; costume: Costume; onPaint: () => void }) {
-  const picker = useImagePicker((file) => store.setCostumePicture(index, file))
-  const url = costume.picture && assetUrl(store.rt.assets, costume.picture)
-  const { shape } = costume
-  if (costume.model) return <ModelForm store={store} index={index} costume={costume} />
+/**
+ * The picture being painted, as part of the tab: each change becomes the
+ * costume's picture. It starts again from the costume's picture only when
+ * that changes otherwise, or, while there is none,
+ * when the size a new one would have changes.
+ */
+function CostumePaint({ store, index, costume, showGuide }: { store: ProjectStore; index: number; costume: Costume; showGuide: boolean }) {
+  const id = costume.picture && assetFileName(costume.picture)
+  // The sprite painted, kept for a change handed back after another is chosen.
+  const [sprite] = useState(store.editing)
+  const size = newCostumeSize(costume.shape, costume.layout)
+  const sizeKey = size.join('x')
+  /** The picture this editor last made, and how many it is saving. */
+  const own = useRef<{ id: string | null; saving: number }>({ id, saving: 0 })
+  const [start, setStart] = useState<{ id: string | null; source: Blob | null; size: [number, number] } | null>(null)
+  useEffect(() => {
+    if (own.current.saving > 0) return
+    if (start && id === own.current.id && (id !== null || sizeKey === start.size.join('x'))) return
+    let cancelled = false
+    void (async () => {
+      const source = costume.picture && (await store.pictureBlob(costume.picture))
+      if (cancelled) return
+      own.current.id = id
+      setStart({ id, source, size })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, sizeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!start) return <div className="paint-editor" />
   return (
-    <div className="backdrop-form costume-form">
-      <NameField store={store} index={index} costume={costume} />
-      <div className="field" role="radiogroup" aria-label={t('costume.shape')}>
-        <span>{t('costume.shape')}</span>
-        {SHAPES.map((s) => {
-          const thumb = shapeThumbnail(store.rt.assets, s, null, 'same', store.editing.color)
-          return (
-            <button
-              key={s}
-              className={`choice-button${shape === s ? ' chosen' : ''}`}
-              role="radio"
-              aria-checked={shape === s}
-              title={shapeName(s)}
-              onClick={() => store.updateCostume(index, { shape: s })}
-            >
-              {thumb ? <img src={thumb} alt="" /> : <span className="choice-glyph">{SHAPE_ICONS[s]}</span>}
-            </button>
-          )
-        })}
-      </div>
-      <ColorField store={store} />
-      <DimensionFields store={store} index={index} costume={costume} />
-      <div className="field costume-picture">
-        <span>{t('costume.picture')}</span>
-        {picker.element}
-        {costume.picture ? (
-          <>
-            <span className="face-picture-thumb" style={url ? { backgroundImage: `url("${url}")` } : undefined} />
-            <button className="face-picture-remove" title={t('costume.removePicture')} onClick={() => void store.setCostumePicture(index, null)}>
-              ×
-            </button>
-          </>
-        ) : null}
-        <button onClick={picker.pick}>{t('costume.uploadPicture')}</button>
-        <button onClick={onPaint}>{t('costume.paint')}</button>
-      </div>
-      {shape === 'sphere' ? (
-        <p className="costume-note">{t('costume.sphereNote')}</p>
-      ) : (
-        <div className="field" role="radiogroup" aria-label={t('costume.layout')}>
-          <span>{t('costume.layout')}</span>
-          {COSTUME_LAYOUTS.map((layout) => {
-            const label = t(layout === 'same' ? 'costume.layoutSame' : 'costume.layoutNet')
-            return (
-              <button
-                key={layout}
-                className={`choice-button layout${costume.layout === layout ? ' chosen' : ''}`}
-                role="radio"
-                aria-checked={costume.layout === layout}
-                title={label}
-                onClick={() => store.updateCostume(index, { layout })}
-              >
-                <LayoutIcon layout={layout} />
-                <span>{label}</span>
-              </button>
-            )
-          })}
+    <PaintEditor
+      key={`${start.id}:${start.size.join('x')}`}
+      source={start.source}
+      size={start.size}
+      guide={costumeGuide(costume.shape, costume.layout)}
+      showGuide={showGuide}
+      onChange={(picture) => {
+        own.current.saving++
+        void store
+          .paintCostume(sprite, index, picture)
+          .then((made) => (own.current.id = assetFileName(made)))
+          .finally(() => own.current.saving--)
+      }}
+    />
+  )
+}
+
+/**
+ * A costume that is a shape: its settings above (name, shape, color, width,
+ * depth and height, and how a picture wraps it), and the picture editor
+ * below, as in Scratch (a picture is uploaded as a new costume).
+ */
+function ShapeCostume({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
+  const { shape } = costume
+  const guide = costumeGuide(shape, costume.layout)
+  const [showGuide, setShowGuide] = useState(true)
+  return (
+    <div className="costume-main">
+      <div className="costume-header">
+        <div className="costume-header-row">
+          <NameField store={store} index={index} costume={costume} />
+          <DimensionFields store={store} index={index} costume={costume} />
         </div>
-      )}
-      {shape !== 'sphere' && costume.layout === 'net' && (
-        <>
-          <p className="costume-note">{t('costume.netNote')}</p>
-          <NetGuide shape={shape} />
-        </>
-      )}
+        {/* A sphere wraps one way only, and some layouts have no guide: their places stay, so nothing moves. */}
+        <div className="costume-header-row">
+          <div className="field" role="radiogroup" aria-label={t('costume.shape')}>
+            <span>{t('costume.shape')}</span>
+            {SHAPES.map((s) => {
+              const thumb = shapeThumbnail(store.rt.assets, s, null, 'same', store.editing.color)
+              return (
+                <button
+                  key={s}
+                  className={`choice-button${shape === s ? ' chosen' : ''}`}
+                  role="radio"
+                  aria-checked={shape === s}
+                  title={shapeName(s)}
+                  onClick={() => store.updateCostume(index, { shape: s })}
+                >
+                  {thumb ? <img src={thumb} alt="" /> : <span className="choice-glyph">{SHAPE_ICONS[s]}</span>}
+                </button>
+              )
+            })}
+          </div>
+          <ColorField store={store} />
+          <div className={`field${shape === 'sphere' ? ' unused' : ''}`} role="radiogroup" aria-label={t('costume.layout')} aria-hidden={shape === 'sphere'}>
+            <span>{t('costume.layout')}</span>
+            {COSTUME_LAYOUTS.map((layout) => {
+              const label = t(layout === 'same' ? 'costume.layoutSame' : 'costume.layoutNet')
+              return (
+                <button
+                  key={layout}
+                  className={`choice-button layout${costume.layout === layout ? ' chosen' : ''}`}
+                  role="radio"
+                  aria-checked={costume.layout === layout}
+                  title={label}
+                  onClick={() => store.updateCostume(index, { layout })}
+                >
+                  <LayoutIcon layout={layout} />
+                </button>
+              )
+            })}
+          </div>
+          <label className={`field checkbox${guide.length === 0 ? ' unused' : ''}`}>
+            <input type="checkbox" checked={showGuide} onChange={(e) => setShowGuide(e.target.checked)} />
+            <span>{t('paint.guide')}</span>
+          </label>
+        </div>
+      </div>
+      <CostumePaint store={store} index={index} costume={costume} showGuide={showGuide} />
     </div>
   )
+}
+
+function CostumeView(props: { store: ProjectStore; index: number; costume: Costume }) {
+  return props.costume.model ? <ModelCostume {...props} /> : <ShapeCostume {...props} />
 }
 
 export function CostumesTab({ store }: { store: ProjectStore }) {
   useTicker(250)
   const [library, setLibrary] = useState(false)
-  /** The costume whose picture is being painted (null for a new one), and the picture to start from. */
-  const [painting, setPainting] = useState<{ index: number | null; source: Blob | null } | null>(null)
   const upload = useImagePicker((file) => store.uploadCostume(file), COSTUME_FILE_TYPES)
   const sprite = store.editing
   const current = sprite.costume
-  const paint = async (index: number | null) => {
-    const picture = index === null ? null : sprite.costumes[index].picture
-    setPainting({ index, source: picture && (await store.pictureBlob(picture)) })
-  }
-  // A new costume is painted for the shape worn, with its whole picture on every side.
-  const painted = painting && (painting.index === null ? { ...sprite.costumes[current], layout: 'same' as const } : sprite.costumes[painting.index])
   return (
     <div className="backdrops-tab costumes-tab">
       <div className="backdrop-column">
@@ -398,25 +407,14 @@ export function CostumesTab({ store }: { store: ProjectStore }) {
           title={t('costume.add')}
           options={[
             { icon: 'choose', label: t('costume.choose'), onChoose: () => setLibrary(true) },
-            { icon: 'paint', label: t('costume.paintNew'), onChoose: () => void paint(null) },
+            { icon: 'paint', label: t('costume.paintNew'), onChoose: () => store.addCostume() },
             { icon: 'upload', label: t('costume.upload'), onChoose: upload.pick },
-            { icon: 'new', label: t('costume.add'), onChoose: () => store.addCostume() },
           ]}
         >
           {upload.element}
         </AddMenu>
       </div>
-      <CostumeForm key={`${sprite.id}:${current}`} store={store} index={current} costume={sprite.costumes[current]} onPaint={() => void paint(current)} />
-      {painting && painted && (
-        <PaintEditor
-          title={painting.index === null ? t('costume.paintNew') : painted.name}
-          source={painting.source}
-          size={newCostumeSize(painted.shape, painted.layout)}
-          guide={costumeGuide(painted.shape, painted.layout)}
-          onSave={(picture) => store.paintCostume(painting.index, picture)}
-          onClose={() => setPainting(null)}
-        />
-      )}
+      <CostumeView key={`${sprite.id}:${current}`} store={store} index={current} costume={sprite.costumes[current]} />
       {library && (
         <Library
           title={t('costume.choose')}

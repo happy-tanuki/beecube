@@ -514,23 +514,24 @@ export class ProjectStore {
     this.updateCostume(index, { model: null })
   }
 
-  /** Puts a painted picture on a costume, or on a new one (index null) of the shape of the one worn. */
-  async paintCostume(index: number | null, painted: Blob): Promise<void> {
+  /**
+   * Puts a painted picture on a costume of a sprite (the one painted, which
+   * may no longer be the one edited by the time it is stored). Returns the
+   * picture.
+   */
+  async paintCostume(sprite: Sprite, index: number, painted: Blob): Promise<AssetRef> {
     const picture = await this.storePicture(await costumePicture(painted))
-    if (index !== null) return this.updateCostume(index, { picture })
-    this.pushCostume({ ...plainCostume(shapeName(this.editing.shape), this.editing.shape), picture })
+    if (sprite.costumes[index]) {
+      sprite.costumes = sprite.costumes.map((c, i) => (i === index ? { ...c, picture } : c))
+      this.notify()
+    }
+    return picture
   }
 
   /** The contents of a picture, to edit it; null if it can't be found. */
   async pictureBlob(ref: AssetRef): Promise<Blob | null> {
     const data = await this.rt.assets.load(ref)
     return data && new Blob([data as Uint8Array<ArrayBuffer>], { type: ASSET_MIME[ref.dataFormat] })
-  }
-
-  /** Puts a picture on a costume (null takes it off). */
-  async setCostumePicture(index: number, file: File | null): Promise<void> {
-    const picture = file ? await this.storePicture(await costumePicture(file)) : null
-    this.updateCostume(index, { picture })
   }
 
   /** Removes a costume; there is always at least one. Blocks keep its name, as in Scratch. */

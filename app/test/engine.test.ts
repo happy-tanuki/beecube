@@ -50,13 +50,12 @@ describe('width, depth and height', () => {
     expect(a.width).toBe(2000)
   })
 
-  it('counts each dimension as the size makes it, as the editor shows it', () => {
+  it('keeps each dimension in percent of the size, which scales them all', () => {
     const { rt, sprites: [a], ticks } = setup([
       makeSprite('a', [
         flag(
-          dimension('looks_setdimensionto', 'height', 100),
-          dimension('looks_changedimensionby', 'depth', 50),
-          setVar('w', reporter(blk('looks_width'))),
+          dimension('looks_setdimensionto', 'height', 50),
+          dimension('looks_changedimensionby', 'depth', 25),
           setVar('h', reporter(blk('looks_height'))),
           setVar('d', reporter(blk('looks_depth'))),
         ),
@@ -64,12 +63,11 @@ describe('width, depth and height', () => {
     ])
     rt.greenFlag()
     ticks(1)
-    // Size 200: width 200, height set back to 100, depth 200 + 50; kept relative to the size.
-    expect([rt.getVariable('w'), rt.getVariable('h'), rt.getVariable('d')]).toEqual([200, 100, 250])
+    // The size doesn't change what the blocks set and report.
+    expect([rt.getVariable('h'), rt.getVariable('d')]).toEqual([50, 125])
     expect([a.width, a.depth, a.height]).toEqual([100, 125, 50])
-    // The size scales them all.
-    a.size = 100
-    expect(bounds(rt.store, a.slot)).toMatchObject({ maxX: 20, maxY: 25, maxZ: 10 })
+    // Size 200 is 80 units: 80 along the heading, 100 across, 40 high.
+    expect(bounds(rt.store, a.slot)).toMatchObject({ maxX: 40, maxY: 50, maxZ: 20 })
   })
 
   it('stretches the shape along its own axes', () => {

@@ -127,9 +127,9 @@ export function makeLib(rt: Runtime) {
       case 'pitch': return round6(s.pitch[o])
       case 'roll': return round6(s.roll[o])
       case 'size': return Math.round(s.size[o])
-      case 'width': return Math.round((s.size[o] * s.width[o]) / 100)
-      case 'depth': return Math.round((s.size[o] * s.depth[o]) / 100)
-      case 'height': return Math.round((s.size[o] * s.height[o]) / 100)
+      case 'width': return Math.round(s.width[o])
+      case 'depth': return Math.round(s.depth[o])
+      case 'height': return Math.round(s.height[o])
       default: return 0
     }
   }

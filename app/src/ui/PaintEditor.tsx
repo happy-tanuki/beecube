@@ -1,16 +1,24 @@
 /**
  * The picture editor: a bitmap editor like Scratch's paint editor in bitmap
- * mode, for costumes' pictures and backdrops' faces. It covers the tab it is
- * opened from, and hands back the picture as a PNG; the caller re-encodes it
- * as an uploaded picture.
+ * mode, for costumes' pictures and backdrops' faces. For a face it covers
+ * the tab it is opened from, and hands back the picture as a PNG when done;
+ * for a costume it is part of the tab, as in Scratch, and hands back the
+ * picture each time it is changed (a moment after, so a burst of changes is
+ * saved once). The caller re-encodes it as an uploaded picture.
  *
  * Tools: brush, eraser, fill, line, rectangle, ellipse, text and color
- * picker, with undo and redo. A guide (paint.ts) shows where each part of a
+ * picker, with undo and redo. As in Scratch's vector mode, there is a fill
+ * color (the brush, the fill, text, and filled rectangles and ellipses) and
+ * an outline color (lines, and outlined rectangles and ellipses), each
+ * chosen with the browser's color picker; for rectangles and ellipses,
+ * their labels choose between filled and outlined, as Scratch's bitmap
+ * mode does. The options bar stays as it is. A guide (paint.ts) shows where each part of a
  * shape goes; it is drawn over the picture, not into it.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { t, type MessageKey } from '../i18n'
 import { showConfirm } from './dialogs'
+import { NumberField, PopupField } from './fields'
 import { floodFill, hexToRgba, rgbToHex, type GuidePart } from './paint'
 
 type Tool = 'brush' | 'eraser' | 'fill' | 'line' | 'rect' | 'ellipse' | 'text' | 'picker'
@@ -26,27 +34,41 @@ const TOOLS: [Tool, string, MessageKey][] = [
   ['picker', '💧', 'paint.picker'],
 ]
 
-const SWATCHES = ['#000000', '#ffffff', '#9e9e9e', '#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa', '#f06292', '#8d6e63', '#00acc1']
+/** The tools that draw with the fill color (the color picker sets it) and those that draw with the outline color. */
+const USES_FILL = new Set<Tool>(['brush', 'fill', 'rect', 'ellipse', 'text', 'picker'])
+const USES_OUTLINE = new Set<Tool>(['line', 'rect', 'ellipse'])
+
+
+/** The thinnest and thickest lines, in the picture's pixels. */
+const MIN_WIDTH = 1
+const MAX_WIDTH = 100
+const clampWidth = (w: number) => Math.round(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, w)))
 
 /** Snapshots kept for undo. */
 const UNDO_LIMIT = 40
 
 interface Props {
-  title: string
   /** The picture to edit, or null for a new, transparent one of `size`. */
   source: Blob | null
   size: [number, number]
   guide: GuidePart[]
-  onSave(picture: Blob): Promise<void>
-  onClose(): void
+  /** Covering the tab, with a title and Cancel and Done (`onSave`, then `onClose`). */
+  covering?: { title: string; onSave(picture: Blob): Promise<void>; onClose(): void }
+  /** Part of the tab: each change is handed back (when `covering` is not given). */
+  onChange?(picture: Blob): void
+  /** Whether the guide shows (its switch is the caller's). */
+  showGuide?: boolean
 }
+
+/** How long after a change the picture is handed back, in milliseconds. */
+const CHANGE_DELAY = 400
 
 interface Point {
   x: number
   y: number
 }
 
-export function PaintEditor({ title, source, size, guide, onSave, onClose }: Props) {
+export function PaintEditor({ source, size, guide, covering, onChange, showGuide = true }: Props) {
   const area = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const preview = useRef<HTMLCanvasElement>(null)
@@ -54,10 +76,12 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
   const [dims, setDims] = useState<[number, number] | null>(source ? null : size)
   const [scale, setScale] = useState(1)
   const [tool, setTool] = useState<Tool>('brush')
-  const [color, setColor] = useState('#e53935')
-  const [width, setWidth] = useState(12)
+  const [fillColor, setFillColor] = useState('#e53935')
+  const [outline, setOutline] = useState('#000000')
+  /** Whether rectangles and ellipses are filled (with the fill color) or outlined (with the outline color), as Scratch's bitmap mode has them. */
   const [filled, setFilled] = useState(true)
-  const [showGuide, setShowGuide] = useState(true)
+  const isShape = tool === 'rect' || tool === 'ellipse'
+  const [width, setWidth] = useState(12)
   const [text, setText] = useState<{ at: Point; value: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const undo = useRef<ImageData[]>([])
@@ -65,6 +89,36 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
   const [, setHistory] = useState(0)
   const changed = useRef(false)
   const drag = useRef<{ from: Point; last: Point } | null>(null)
+  const changeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestOnChange = useRef(onChange)
+  latestOnChange.current = onChange
+
+  /** Hands the picture back (to `onChange`) now. */
+  const handBack = useCallback((c: HTMLCanvasElement | null) => {
+    if (changeTimer.current) clearTimeout(changeTimer.current)
+    changeTimer.current = null
+    c?.toBlob((blob) => blob && latestOnChange.current?.(blob), 'image/png')
+  }, [])
+
+  /** The canvas changed, kept here as its ref is let go before the editor's effects are cleaned up. */
+  const changedCanvas = useRef<HTMLCanvasElement | null>(null)
+
+  /** After a change: hands the picture back a moment later, once nothing is being drawn. */
+  const changedNow = useCallback(() => {
+    changed.current = true
+    if (!latestOnChange.current) return
+    if (changeTimer.current) clearTimeout(changeTimer.current)
+    changedCanvas.current = canvas.current
+    changeTimer.current = setTimeout(() => (drag.current ? changedNow() : handBack(changedCanvas.current)), CHANGE_DELAY)
+  }, [handBack])
+
+  // A change not yet handed back is, when the editor goes (another costume is chosen).
+  useEffect(
+    () => () => {
+      if (changeTimer.current) handBack(changedCanvas.current)
+    },
+    [handBack],
+  )
 
   const ctx = () => canvas.current!.getContext('2d', { willReadFrequently: true })!
 
@@ -142,13 +196,15 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
     const c = canvas.current!
     to.push(ctx().getImageData(0, 0, c.width, c.height))
     ctx().putImageData(snapshot, 0, 0)
-    changed.current = true
+    changedNow()
     setHistory((n) => n + 1)
-  }, [])
+  }, [changedNow])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || text) return
+      // Not while typing in a field (a costume's name).
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       e.preventDefault()
       if (e.shiftKey) step(redo.current, undo.current)
       else step(undo.current, redo.current)
@@ -164,7 +220,8 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
 
   /** Lines, rectangles and ellipses from `a` to `b` (Shift: straight, square or round). */
   const drawShape = (g: CanvasRenderingContext2D, a: Point, b: Point, square: boolean) => {
-    g.strokeStyle = g.fillStyle = color
+    g.strokeStyle = outline
+    g.fillStyle = fillColor
     g.lineWidth = width
     g.lineCap = g.lineJoin = 'round'
     let dx = b.x - a.x
@@ -189,15 +246,19 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
     }
     if (tool === 'rect') g.rect(a.x, a.y, dx, dy)
     else g.ellipse(a.x + dx / 2, a.y + dy / 2, Math.abs(dx / 2), Math.abs(dy / 2), 0, 0, Math.PI * 2)
-    if (filled) g.fill()
-    else g.stroke()
+    // Filled, its edge is drawn too, in the fill color, so it covers what the outlined one would (rounded corners and all).
+    if (filled) {
+      g.fill()
+      g.strokeStyle = fillColor
+    }
+    g.stroke()
   }
 
   const stroke = (a: Point, b: Point) => {
     const g = ctx()
     g.save()
     g.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
-    g.strokeStyle = color
+    g.strokeStyle = fillColor
     g.lineWidth = width
     g.lineCap = g.lineJoin = 'round'
     g.beginPath()
@@ -212,7 +273,7 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
     const p = pointAt(e)
     if (tool === 'picker') {
       const [r, g, b, a] = ctx().getImageData(Math.floor(p.x), Math.floor(p.y), 1, 1).data
-      if (a > 0) setColor(rgbToHex(r, g, b))
+      if (a > 0) setFillColor(rgbToHex(r, g, b))
       setTool('brush')
       return
     }
@@ -220,11 +281,11 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
       const c = canvas.current!
       const image = ctx().getImageData(0, 0, c.width, c.height)
       const before = new ImageData(new Uint8ClampedArray(image.data), image.width, image.height)
-      if (floodFill(image, p.x, p.y, hexToRgba(color))) {
+      if (floodFill(image, p.x, p.y, hexToRgba(fillColor))) {
         undo.current.push(before)
         redo.current = []
-        changed.current = true
         ctx().putImageData(image, 0, 0)
+        changedNow()
         setHistory((n) => n + 1)
       }
       return
@@ -264,6 +325,7 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
       preview.current!.getContext('2d')!.clearRect(0, 0, dims![0], dims![1])
       drawShape(ctx(), d.from, pointAt(e), e.shiftKey)
     }
+    changedNow()
   }
 
   const fontSize = Math.max(16, width * 4)
@@ -272,30 +334,33 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
     if (!text || !text.value.trim()) return setText(null)
     remember()
     const g = ctx()
-    g.fillStyle = color
+    g.fillStyle = fillColor
     g.font = `bold ${fontSize}px sans-serif`
     g.textBaseline = 'top'
     g.fillText(text.value, text.at.x, text.at.y)
     setText(null)
+    changedNow()
   }
 
   const clear = () => {
     remember()
     ctx().clearRect(0, 0, dims![0], dims![1])
+    changedNow()
   }
 
   const close = async () => {
     if (changed.current && !(await showConfirm(t('paint.confirmDiscard')))) return
-    onClose()
+    covering?.onClose()
   }
 
   const save = async () => {
+    if (!covering) return
     commitText()
     setSaving(true)
     try {
       const blob = await new Promise<Blob | null>((resolve) => canvas.current!.toBlob(resolve, 'image/png'))
-      if (blob) await onSave(blob)
-      onClose()
+      if (blob) await covering.onSave(blob)
+      covering.onClose()
     } finally {
       setSaving(false)
     }
@@ -303,34 +368,36 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
 
   const shown = dims && { width: dims[0] * scale, height: dims[1] * scale }
   return (
-    <div className="paint-editor">
-      <div className="library-header">
-        <span>{title}</span>
-        <span className="paint-header-buttons">
-          <button onClick={() => void close()}>{t('paint.cancel')}</button>
-          <button className="primary" disabled={saving || !dims} onClick={() => void save()}>
-            {t('paint.save')}
-          </button>
-        </span>
-      </div>
+    <div className={`paint-editor${covering ? ' covering' : ''}`}>
+      {covering && (
+        <div className="library-header">
+          <span>{covering.title}</span>
+          <span className="paint-header-buttons">
+            <button onClick={() => void close()}>{t('paint.cancel')}</button>
+            <button className="primary" disabled={saving || !dims} onClick={() => void save()}>
+              {t('paint.save')}
+            </button>
+          </span>
+        </div>
+      )}
       <div className="paint-options">
-        <span className="paint-swatches">
-          <input type="color" value={color} aria-label={t('paint.color')} onChange={(e) => setColor(e.target.value)} />
-          {SWATCHES.map((c) => (
-            <button key={c} className={`paint-swatch${c === color ? ' selected' : ''}`} style={{ background: c }} title={c} onClick={() => setColor(c)} />
-          ))}
-        </span>
-        <label className="paint-width">
-          <span>{t('paint.width')}</span>
-          <input type="range" min={1} max={100} value={width} onChange={(e) => setWidth(Number(e.target.value))} />
-          <span className="paint-width-value">{width}</span>
-        </label>
-        {(tool === 'rect' || tool === 'ellipse') && (
-          <label className="field checkbox">
-            <input type="checkbox" checked={filled} onChange={(e) => setFilled(e.target.checked)} />
-            <span>{t('paint.filled')}</span>
-          </label>
-        )}
+        <ColorField
+          label={t('paint.fillColor')}
+          color={fillColor}
+          onChange={setFillColor}
+          disabled={isShape ? !filled : !USES_FILL.has(tool)}
+          choice={{ shown: isShape, chosen: filled, onChoose: () => setFilled(true) }}
+        />
+        <ColorField
+          label={t('paint.outline')}
+          color={outline}
+          onChange={setOutline}
+          disabled={isShape ? filled : !USES_OUTLINE.has(tool)}
+          choice={{ shown: isShape, chosen: !filled, onChoose: () => setFilled(false) }}
+        />
+        <PopupField className="paint-width" field={<NumberField label={t('paint.width')} value={width} onChange={(w) => setWidth(clampWidth(w))} />}>
+          <input type="range" aria-label={t('paint.width')} min={MIN_WIDTH} max={MAX_WIDTH} value={width} onChange={(e) => setWidth(Number(e.target.value))} />
+        </PopupField>
         <span className="paint-history">
           <button disabled={undo.current.length === 0} title={t('paint.undo')} onClick={() => step(undo.current, redo.current)}>
             ↶
@@ -340,12 +407,6 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
           </button>
           <button onClick={clear}>{t('paint.clear')}</button>
         </span>
-        {guide.length > 0 && (
-          <label className="field checkbox">
-            <input type="checkbox" checked={showGuide} onChange={(e) => setShowGuide(e.target.checked)} />
-            <span>{t('paint.guide')}</span>
-          </label>
-        )}
       </div>
       <div className="paint-body">
         <div className="paint-tools" role="toolbar">
@@ -375,7 +436,7 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
                   className="paint-text"
                   autoFocus
                   value={text.value}
-                  style={{ left: text.at.x * scale, top: text.at.y * scale, fontSize: fontSize * scale, color }}
+                  style={{ left: text.at.x * scale, top: text.at.y * scale, fontSize: fontSize * scale, color: fillColor }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onChange={(e) => setText({ ...text, value: e.target.value })}
                   onKeyDown={(e) => {
@@ -390,6 +451,35 @@ export function PaintEditor({ title, source, size, guide, onSave, onClose }: Pro
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * A color: its label and the browser's color picker, opened directly.
+ * While `choice.shown` (rectangles and ellipses), the label is a button
+ * that chooses this color's way of drawing (filled, or outlined), lit
+ * while chosen; otherwise it is the same size, so nothing moves. Dimmed
+ * while the tool doesn't use the color.
+ */
+function ColorField({ label, color, onChange, disabled, choice }: {
+  label: string
+  color: string
+  onChange: (color: string) => void
+  disabled: boolean
+  choice: { shown: boolean; chosen: boolean; onChoose: () => void }
+}) {
+  return (
+    <span className={`paint-color${disabled ? ' disabled' : ''}`}>
+      <button
+        className={`paint-color-label${choice.shown ? ' choosable' : ''}${choice.shown && choice.chosen ? ' chosen' : ''}`}
+        disabled={!choice.shown}
+        aria-pressed={choice.shown ? choice.chosen : undefined}
+        onClick={choice.onChoose}
+      >
+        {label}
+      </button>
+      <input type="color" value={color} aria-label={label} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+    </span>
   )
 }
 

@@ -361,6 +361,76 @@ body,
   stroke-width: 2;
 }
 
+.costume-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+/* A costume's settings, above its picture, as Scratch's paint editor has them. */
+.costume-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 12px;
+}
+
+.costume-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+
+.costume-header .choice-button img,
+.costume-header .choice-glyph {
+  width: 36px;
+  height: 27px;
+  line-height: 27px;
+  font-size: 18px;
+}
+
+.costume-header .unused {
+  visibility: hidden;
+}
+
+.costume-header .layout-icon {
+  width: 42px;
+  height: 26px;
+}
+
+.costume-model {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  padding: 16px 20px;
+  overflow: auto;
+  background: var(--ui-bg);
+  font-size: 13px;
+}
+
+.costume-model-view {
+  width: 320px;
+  height: 240px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff center / contain no-repeat;
+}
+
+.costume-model-pose {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 420px;
+}
+
 .choice-button {
   display: inline-flex;
   flex-direction: column;
@@ -547,6 +617,7 @@ body,
   border: none;
   background: none;
   text-align: left;
+  white-space: nowrap;
   font-size: 14px;
   color: var(--text);
   cursor: pointer;
@@ -747,9 +818,10 @@ body,
   padding: 10px 0 14px;
 }
 
+/* Above the button, as the sprite list's. */
 .backdrop-add .add-sprite-menu {
-  bottom: 14px;
-  left: 82px;
+  bottom: 68px;
+  left: 8px;
   right: auto;
 }
 
@@ -1433,12 +1505,17 @@ body,
 
 /* The picture editor covers the tab it is opened from, as the library does. */
 .paint-editor {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--ui-bg);
+}
+
+.paint-editor.covering {
   position: absolute;
   inset: 0;
   z-index: 7;
-  display: flex;
-  flex-direction: column;
-  background: var(--ui-bg);
 }
 
 .paint-header-buttons {
@@ -1471,47 +1548,56 @@ body,
   font-size: 12px;
 }
 
-.paint-swatches {
+.paint-color {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
-.paint-swatches input[type='color'] {
+.paint-color input[type='color'] {
   width: 32px;
   height: 26px;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: none;
-}
-
-.paint-swatch {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 50%;
   cursor: pointer;
 }
 
-.paint-swatch.selected {
-  outline: 2px solid var(--menu-bar);
-  outline-offset: 1px;
+.paint-color-label {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
 }
 
-.paint-width {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.paint-color-label.choosable {
+  border-color: var(--border);
+  background: var(--panel);
+  cursor: pointer;
 }
 
-.paint-width input {
-  width: 100px;
+.paint-color-label.choosable:hover {
+  border-color: var(--menu-bar);
 }
 
-.paint-width-value {
-  min-width: 24px;
+.paint-color-label.chosen {
+  border-color: var(--menu-bar);
+  background: #e6f0ff;
+  color: var(--menu-bar-dark);
+}
+
+.paint-color.disabled > .paint-color-label:not(.choosable),
+.paint-color input[type='color']:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.paint-width .field-popup input[type='range'] {
+  width: 260px;
 }
 
 .paint-history {

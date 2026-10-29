@@ -35,10 +35,10 @@ function fitStretch(stretch: Stretch): Stretch {
 const stretchKey = (stretch: Stretch) => (stretch.every((n) => n === 1) ? '' : `:${stretch.join(',')}`)
 
 /** Draws meshes (disposing of them after), stretched, and returns the picture. */
-function render(meshes: { geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[] }[], stretch: Stretch = NO_STRETCH): string {
+function render(meshes: { geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[] }[], stretch: Stretch = NO_STRETCH, zoom = 1): string {
   const scale = fitStretch(stretch)
   renderer ??= new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
-  renderer.setSize(WIDTH, HEIGHT, false)
+  renderer.setSize(WIDTH * zoom, HEIGHT * zoom, false)
   const scene = new THREE.Scene()
   scene.add(new THREE.HemisphereLight('#ffffff', '#8a93a6', 2.2))
   const sun = new THREE.DirectionalLight('#ffffff', 1.6)
@@ -89,11 +89,15 @@ export function loadModel(assets: Assets, ref: AssetRef): Promise<Model | null> 
   return model
 }
 
-/** A picture of a model in a pose, or null until it has been made (it is asked for; show it on a later render) or if it can't be. */
-export function modelThumbnail(assets: Assets, ref: AssetRef, pose?: ModelPose, stretch: Stretch = NO_STRETCH): string | null {
-  return thumbnail(`${assetFileName(ref)}:${poseKey(pose)}${stretchKey(stretch)}`, async () => {
+/**
+ * A picture of a model in a pose, or null until it has been made (it is
+ * asked for; show it on a later render) or if it can't be. `zoom` draws it
+ * that many times larger, to be shown large.
+ */
+export function modelThumbnail(assets: Assets, ref: AssetRef, pose?: ModelPose, stretch: Stretch = NO_STRETCH, zoom = 1): string | null {
+  return thumbnail(`${assetFileName(ref)}:${poseKey(pose)}${stretchKey(stretch)}${zoom === 1 ? '' : `@${zoom}`}`, async () => {
     const model = await loadModel(assets, ref)
-    return model && render(modelParts(model, pose ?? {}), stretch)
+    return model && render(modelParts(model, pose ?? {}), stretch, zoom)
   })
 }
 
@@ -119,10 +123,10 @@ export function shapeThumbnail(
   })
 }
 
-/** A picture of a costume as a sprite of this color wears it, or null until it has been made. */
-export function costumeThumbnail(assets: Assets, c: Costume, color: string): string | null {
+/** A picture of a costume as a sprite of this color wears it, or null until it has been made; a model can be drawn `zoom` times larger. */
+export function costumeThumbnail(assets: Assets, c: Costume, color: string, zoom = 1): string | null {
   const stretch = costumeStretch(c)
-  if (c.model) return modelThumbnail(assets, c.model.asset, c.model.pose, stretch)
+  if (c.model) return modelThumbnail(assets, c.model.asset, c.model.pose, stretch, zoom)
   return shapeThumbnail(assets, c.shape, c.picture, c.layout, color, stretch)
 }
 

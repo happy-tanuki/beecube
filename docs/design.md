@@ -105,26 +105,40 @@ The audience is children, as with Scratch. Section 7 lists what follows from tha
 - **The picture editor** (`app/src/ui/PaintEditor.tsx`) paints a costume's
   picture or a backdrop face's, like Scratch's paint editor in bitmap mode
   (there is no vector mode): brush, eraser, fill, line, rectangle, ellipse,
-  text and a color picker, with undo and redo. It opens over the tab with
-  "Paint", on the picture there is or a new transparent one (a net's
-  1024 × 768, a globe's 1024 × 512, otherwise 512 × 512; a face's its
-  picture size), and shows a guide of where each part of the shape goes,
-  over the picture but not in it. What it makes is kept as an uploaded
-  picture would be.
+  text and a color picker, with undo and redo. As in Scratch's vector
+  mode, it has a fill color (brush, fill, text and filled rectangles and
+  ellipses) and an outline color (lines and outlined rectangles and
+  ellipses). Each is a label beside the browser's color picker, opened
+  directly. For rectangles and ellipses the two labels become buttons that
+  choose between filled (fill color, no outline) and outlined (outline
+  color only), as Scratch's bitmap mode does; filled is the default, and
+  covers just what the outlined one would (its edge is drawn in the fill
+  color, rounded corners and all). The
+  options bar never changes: the labels keep their size, and the color the
+  tool doesn't use is dimmed (the eraser uses neither). The width (1–100
+  pixels) is a number field that pops up a long slider while edited, as
+  the size does. In the Costumes tab it is
+  always there, as in Scratch, under the costume's settings: it paints the
+  picture there is or a new transparent one (a net's 1024 × 768, a
+  globe's 1024 × 512, otherwise 512 × 512), and each change becomes the
+  costume's picture a moment after it is made (so a stroke is stored
+  once); there is no Done. For a backdrop's face it opens over the tab
+  with "Paint" (on a picture of the face's size) and keeps the picture on
+  Done. It shows a guide of where each part of the shape goes, over the
+  picture but not in it. What it makes is kept as an uploaded picture
+  would be.
 - **Width, depth and height** stretch a shape along its own axes, in
   percent of its size (1–2000%, 100% each by default): width along its
   heading (x at direction 90), depth across it, height up its local z axis.
   A stretched cube is a cuboid, for floors, walls and ramps; a stretched
   sphere is an egg. They turn with the sprite, and "size" scales all three.
-  They are the sprite's: scaling, relative to what it wears. Its
-  information shows only "size"; editing it pops up width, depth and
-  height in percent, each as the size makes it along that axis, as
-  Scratch's direction pops up a dial: size 200 makes them 200 each, and
-  height alone can then go back to 100. The size field and "set size to"
-  mean the same: they scale all three, keeping their proportions. The
-  popup and "set width to" mean the same too: "set height to 100" with
-  size 200 makes the height 100%, and the reporters give what the popup
-  shows. They are kept relative to the size.
+  They are the sprite's: scaling, relative to what it wears, in percent
+  of its size. Its information shows only "size"; editing it pops up
+  sliders for the size and for width, depth and height, as Scratch's
+  direction pops up a dial. The popup and "set width to" give them as
+  they are (size 200 and width 100 is 100, though it is 80 units wide),
+  and the size field and "set size to" scale all three, keeping their
+  proportions.
 - **A costume's width, depth and height** are its shape, in stage units: a
   cube's are 40 each, a model's its box as drawn. Setting them in the
   Costumes tab makes a flat board from a cube or a tall boy from the boy
@@ -302,9 +316,15 @@ sprites. Extension blocks are left out, as they act on sprites.
   with the arrow keys); the size pops up sliders for it and for width,
   depth and height (see Width, depth and height), which reach 5–500%
   (the fields take more). What a sprite looks like is in its Costumes
-  tab: the shape and how a picture wraps it are chosen with picture
-  buttons, and the color (one for the sprite, as the "set color" block
-  sets it) is there too. A backdrop's form shows the scenery and the room
+  tab, laid out as Scratch's: a costume's settings in a band at the top
+  (name, shape and how a picture wraps it, chosen with picture buttons,
+  the color, one for the sprite as the "set color" block sets it, width,
+  depth and height, and whether the editor's guide shows; places that
+  don't apply, such as a sphere's wrapping, stay empty so the band never
+  moves), and the picture editor below (a picture is
+  uploaded as a new costume, from the "+" menu, and cleared with the
+  editor's Clear); a model costume shows the model large, with its
+  pose. Adding a costume to paint adds one without a picture. A backdrop's form shows the scenery and the room
   as two big cards, chosen by pressing their pictures; each face's color
   and picture are under "More".
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
