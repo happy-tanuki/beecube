@@ -331,6 +331,16 @@ sprites. Extension blocks are left out, as they act on sprites.
   plane. Drag the cone above the selected sprite to change its height.
   Dragging empty space orbits the camera, Shift+drag pans and the wheel zooms.
   The home button and the top, front and side buttons reset the camera.
+  On a touch screen one finger does what the mouse does, and two fingers
+  pinch to zoom and pan, even when the first one landed on a sprite (its
+  drag stops). A finger moves farther before a press becomes a drag, and
+  presses the height cone when near it (a sprite under it comes first).
+  Popups stay open while their sliders are used, though those take no
+  focus on touch screens and in Safari.
+- **Words for children.** The interface keeps Scratch's words children
+  know (sprite, costume, extensions) and avoids grown-ups' ones: "throw
+  away" rather than "discard", "room" rather than "interior", squares
+  rather than a grid, short notes that speak to the child.
 - **Full screen** fills the window like Scratch's, keeping the stage's aspect
   ratio. It is for playing: sprites can be clicked but not moved, while the
   camera still orbits.

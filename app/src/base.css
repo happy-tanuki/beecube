@@ -18,6 +18,19 @@
   box-sizing: border-box;
 }
 
+/* On touch screens: a quick second tap on a button doesn't zoom the page, and a long press doesn't select. */
+button,
+input[type='checkbox'],
+input[type='color'] {
+  touch-action: manipulation;
+}
+
+button {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 /* The app's name with the bee icon, in each page's top bar. */
 .brand {
   display: inline-flex;

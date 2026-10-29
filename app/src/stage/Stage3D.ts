@@ -56,6 +56,12 @@ const VIEW_POSITIONS: Record<ViewName, [number, number, number]> = {
 const topOf = (E: EntityStore, slot: number) => (BASE_SIZE / 2) * (E.size[slot] / 100) * (E.height[slot] / 100) * E.extentZ[slot]
 const PICK_SCALE = new THREE.Matrix4()
 const DRAG_THRESHOLD_PX = 3
+/** A finger wobbles more than a mouse: it moves this far before a press becomes a drag. */
+const TOUCH_DRAG_THRESHOLD_PX = 10
+/** A finger presses the height handle when this close to it on the screen, as the cone is small. */
+const TOUCH_HANDLE_PX = 28
+
+const dragThreshold = (e: PointerEvent) => (e.pointerType === 'touch' ? TOUCH_DRAG_THRESHOLD_PX : DRAG_THRESHOLD_PX)
 /** Speech bubbles shown at once; the ones nearest the camera win. */
 const MAX_BUBBLES = 64
 /** Pen lines are at least this many CSS pixels wide, however far away, so thin ones don't vanish. */
@@ -131,6 +137,8 @@ export class Stage3D {
 
   /** A press on empty space, which is a click on the stage unless it moves (orbiting). */
   private emptyPress: { pointerId: number; x: number; y: number } | null = null
+  /** Fingers on the stage, by pointer id. */
+  private readonly touches = new Set<number>()
 
   private drag: {
     mode: 'move' | 'height'
@@ -165,7 +173,7 @@ export class Stage3D {
     this.camera = new THREE.PerspectiveCamera(45, 1, 1, 5000)
     this.camera.up.set(0, 0, 1)
 
-    // Registered before OrbitControls so a press on a sprite can disable orbiting first.
+    // Registered before OrbitControls so a press on a sprite can stop orbiting first (see beginDrag).
     const canvas = this.renderer.domElement
     canvas.addEventListener('pointerdown', this.onPointerDown)
     canvas.addEventListener('pointermove', this.onPointerMove)
@@ -360,7 +368,8 @@ export class Stage3D {
       this.viewRequests = cam.viewRequests
       this.placeView(cam.view)
     }
-    this.controls.enabled = slot < 0 && this.drag === null
+    // While a sprite is dragged only orbiting stops (beginDrag), so a second finger can still pinch.
+    this.controls.enabled = slot < 0
     if (slot < 0) {
       this.controls.update()
       return -1
@@ -520,17 +529,32 @@ export class Stage3D {
   }
 
   private onPointerDown = (e: PointerEvent): void => {
+    if (e.pointerType === 'touch') {
+      this.touches.add(e.pointerId)
+      // A second finger pinches or pans the view: whatever the first began stops.
+      if (this.touches.size > 1) {
+        this.emptyPress = null
+        if (this.drag) this.endDrag()
+        return
+      }
+    }
     if (e.button === 0) this.rt.mouse.down = true
     if (e.button !== 0 || e.shiftKey) return
     this.setRay(e)
 
+    // The height handle when pressed on, a sprite when pressed on, and (for a finger) the handle when pressed near.
     const selected = this.selectedSlot()
-    if (selected >= 0 && this.heightHandle.visible && this.raycaster.intersectObject(this.heightHandle).length > 0) {
+    const handle = selected >= 0 && this.heightHandle.visible
+    if (handle && this.raycaster.intersectObject(this.heightHandle).length > 0) {
       this.beginDrag(e, 'height', this.rt.entity(selected)!, new THREE.Plane(), new THREE.Vector2())
       return
     }
 
     const entity = this.pickEntity()
+    if (!entity && handle && this.nearHeightHandle(e)) {
+      this.beginDrag(e, 'height', this.rt.entity(selected)!, new THREE.Plane(), new THREE.Vector2())
+      return
+    }
     if (!entity) {
       this.emptyPress = { pointerId: e.pointerId, x: e.clientX, y: e.clientY }
       return
@@ -541,6 +565,16 @@ export class Stage3D {
     this.beginDrag(e, 'move', entity, plane, offset)
   }
 
+  /** Whether a finger is near the height handle on the screen (the cone is small for fingers). */
+  private nearHeightHandle(e: PointerEvent): boolean {
+    if (e.pointerType !== 'touch') return false
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    const at = this.heightHandle.getWorldPosition(new THREE.Vector3()).project(this.camera)
+    const x = rect.left + ((at.x + 1) / 2) * rect.width
+    const y = rect.top + ((1 - at.y) / 2) * rect.height
+    return Math.hypot(e.clientX - x, e.clientY - y) < TOUCH_HANDLE_PX
+  }
+
   private beginDrag(
     e: PointerEvent,
     mode: 'move' | 'height',
@@ -548,7 +582,8 @@ export class Stage3D {
     plane: THREE.Plane,
     offset: THREE.Vector2,
   ): void {
-    this.controls.enabled = false
+    // Orbiting stops, but the controls still follow the finger, so a second one can pinch or pan the view.
+    this.controls.enableRotate = false
     this.renderer.domElement.setPointerCapture(e.pointerId)
     // Height follows vertical mouse movement in screen space, which works from any view angle.
     const distance = this.camera.position.distanceTo(new THREE.Vector3(entity.x, entity.y, entity.z))
@@ -581,7 +616,7 @@ export class Stage3D {
       if (!drag) this.renderer.domElement.style.cursor = this.hoverCursor()
       return
     }
-    if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < DRAG_THRESHOLD_PX) return
+    if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < dragThreshold(e)) return
     drag.moved = true
     if (!this.editable) return
     // The entity may have been deleted while dragging.
@@ -605,20 +640,27 @@ export class Stage3D {
   }
 
   private onPointerUp = (e: PointerEvent): void => {
+    this.touches.delete(e.pointerId)
     if (e.button === 0) this.rt.mouse.down = false
     // A click where there is no sprite (not an orbit) clicks the stage.
     const press = this.emptyPress
     this.emptyPress = null
-    if (press && press.pointerId === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_THRESHOLD_PX) {
+    if (press && press.pointerId === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) < dragThreshold(e)) {
       this.rt.stageClicked()
     }
     const drag = this.drag
     if (!drag || drag.pointerId !== e.pointerId) return
-    this.drag = null
-    this.controls.enabled = true
-    if (this.renderer.domElement.hasPointerCapture(e.pointerId)) {
-      this.renderer.domElement.releasePointerCapture(e.pointerId)
-    }
+    this.endDrag()
     if (!drag.moved && drag.mode === 'move') this.callbacks.onEntityClicked(drag.entity)
+  }
+
+  private endDrag(): void {
+    const drag = this.drag
+    if (!drag) return
+    this.drag = null
+    this.controls.enableRotate = true
+    if (this.renderer.domElement.hasPointerCapture(drag.pointerId)) {
+      this.renderer.domElement.releasePointerCapture(drag.pointerId)
+    }
   }
 }
