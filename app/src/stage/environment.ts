@@ -125,6 +125,16 @@ export class Environment {
     sc.near = 10
     sc.far = 1500
     scene.add(sun)
+    // Something always drawn into the shadow map, under the floor where its shadow falls on nothing: in
+    // Firefox a shadow map that only gets cleared keeps the last shadows, of sprites since hidden.
+    const keeper = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }),
+    )
+    keeper.position.z = -10
+    keeper.castShadow = true
+    keeper.frustumCulled = false
+    scene.add(keeper)
 
     this.faces = Object.fromEntries(FACES.map((name) => [name, makeFace(name)])) as Environment['faces']
     for (const face of Object.values(this.faces)) scene.add(face)
