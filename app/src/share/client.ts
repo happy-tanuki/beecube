@@ -125,8 +125,9 @@ export async function createShare(content: ShareContent, turnstileToken: string,
   return record
 }
 
-export async function updateShare(record: ShareRecord, content: ShareContent, load: AssetLoader): Promise<void> {
-  const res = await request('PUT', projectApiUrl(record.id), content, record.editKey)
+/** Updates a share with the project in `content`, as createShare shares it. */
+export async function updateShare(record: ShareRecord, content: ShareContent, turnstileToken: string, load: AssetLoader): Promise<void> {
+  const res = await request('PUT', projectApiUrl(record.id), { ...content, turnstileToken }, record.editKey)
   saveShares(loadShares().map((r) => (r.id === record.id ? { ...r, title: content.title, notes: content.notes } : r)))
   await uploadAssets(record, missingRefs(await res.json()), load)
 }
@@ -140,8 +141,8 @@ export async function fetchSharedAsset(id: string, ref: AssetRef): Promise<Uint8
 }
 
 /** Changes a share's title and notes, keeping its project. */
-export async function updateShareInfo(record: ShareRecord, title: string, notes: string): Promise<void> {
-  await request('PUT', projectApiUrl(record.id), { title, notes }, record.editKey)
+export async function updateShareInfo(record: ShareRecord, title: string, notes: string, turnstileToken: string): Promise<void> {
+  await request('PUT', projectApiUrl(record.id), { title, notes, turnstileToken }, record.editKey)
   saveShares(loadShares().map((r) => (r.id === record.id ? { ...r, title, notes } : r)))
 }
 

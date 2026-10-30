@@ -34,12 +34,14 @@ const ERROR_MESSAGES: Record<string, MessageKey> = {
   too_large: 'share.errorTooLarge',
   verification_failed: 'share.errorVerification',
   not_configured: 'share.errorUnavailable',
+  rate_limited: 'share.errorTooMany',
 }
 
 function errorText(err: unknown): string {
   if (err instanceof AssetUploadError) {
-    const tooLarge = err.reason instanceof ApiError && err.reason.code === 'too_large'
-    return tooLarge ? t('share.errorPicturesTooLarge') : t('share.errorPictures')
+    const code = err.reason instanceof ApiError ? err.reason.code : null
+    if (code === 'rate_limited') return t('share.errorTooMany')
+    return code === 'too_large' ? t('share.errorPicturesTooLarge') : t('share.errorPictures')
   }
   if (err instanceof ApiError && ERROR_MESSAGES[err.code]) return t(ERROR_MESSAGES[err.code])
   return t('share.errorFailed', { reason: err instanceof ApiError ? err.code : String(err) })
@@ -109,7 +111,8 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
   /** The share whose title and notes are being edited, with the edited values. */
   const [editing, setEditing] = useState<{ record: ShareRecord; title: string; notes: string } | null>(null)
   const checkRef = useRef<HTMLDivElement>(null)
-  const check = useTurnstile(checkRef, !justShared && !editing)
+  // Sharing, updating and editing a share all need the check; the page shown once shared needs none.
+  const check = useTurnstile(checkRef, !justShared)
 
   const load = (ref: AssetRef) => store.rt.assets.load(ref)
 
@@ -137,36 +140,46 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
     }
   }
 
+  /** Runs `action` with the check's token, which works once. */
+  const checked = async (action: (token: string) => Promise<void>) => {
+    if (!check.token) throw new ApiError(403, 'verification_failed')
+    try {
+      await action(check.token)
+    } finally {
+      check.reset()
+    }
+  }
+
   const share = () =>
     run(async () => {
       if (!title.trim()) throw new ApiError(400, 'title_required')
-      if (!check.token) throw new ApiError(403, 'verification_failed')
-      try {
-        setJustShared(await createShare(await content(title, notes), check.token, load))
-      } catch (err) {
-        // Shared, but without some pictures: show the link anyway.
-        if (err instanceof AssetUploadError) setJustShared(err.record)
-        throw err
-      } finally {
-        // A token works once.
-        check.reset()
-      }
+      await checked(async (token) => {
+        try {
+          setJustShared(await createShare(await content(title, notes), token, load))
+        } catch (err) {
+          // Shared, but without some pictures: show the link anyway.
+          if (err instanceof AssetUploadError) setJustShared(err.record)
+          throw err
+        }
+      })
     })
 
   const update = async (record: ShareRecord) => {
     if (!(await showConfirm(t('share.confirmUpdate', { title: record.title })))) return
     // Replaces the project only; the title and notes stay as shared.
-    await run(async () => {
-      await updateShare(record, await content(record.title, record.notes ?? ''), load)
-      setUpdated(record.id)
-    })
+    await run(() =>
+      checked(async (token) => {
+        await updateShare(record, await content(record.title, record.notes ?? ''), token, load)
+        setUpdated(record.id)
+      }),
+    )
   }
 
   const saveInfo = () =>
     run(async () => {
       if (!editing) return
       if (!editing.title.trim()) throw new ApiError(400, 'title_required')
-      await updateShareInfo(editing.record, editing.title, editing.notes)
+      await checked((token) => updateShareInfo(editing.record, editing.title, editing.notes, token))
       setUpdated(editing.record.id)
       setEditing(null)
     })
@@ -224,12 +237,16 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
                 }}
                 onNotes={setNotes}
               />
+            </>
+          )}
+          {!justShared && (
+            <>
               <div className="share-check" ref={checkRef} />
               {check.unavailable && <p className="share-error">{t('share.errorUnavailable')}</p>}
             </>
           )}
           {error && <p className="share-error" role="alert">{error}</p>}
-          {shares.length > 0 && !editing && (
+          {shares.length > 0 && !editing && !justShared && (
             <section className="share-mine">
               <h3>{t('share.mine')}</h3>
               <ul>
@@ -250,7 +267,7 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
                       >
                         {t('share.edit')}
                       </button>
-                      <button type="button" disabled={busy} onClick={() => void update(r)}>
+                      <button type="button" disabled={busy || !check.token} onClick={() => void update(r)}>
                         {t('share.update')}
                       </button>
                       <button type="button" disabled={busy} onClick={() => void stop(r)}>
@@ -270,7 +287,7 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
               <button type="button" onClick={() => setEditing(null)}>
                 {t('share.back')}
               </button>
-              <button type="submit" className="primary" disabled={busy}>
+              <button type="submit" className="primary" disabled={busy || !check.token}>
                 {t('share.save')}
               </button>
             </>

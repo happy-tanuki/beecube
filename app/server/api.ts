@@ -6,7 +6,8 @@
  *   GET    /api/projects/:id/thumbnail   the link-preview picture (JPEG)
  *   GET    /api/projects/:id/assets/:file   a picture or 3D model the project uses (<sha-256>.<png|jpg|glb>)
  *   PUT    /api/projects/:id/assets/:file   upload one (Authorization: Bearer <editKey>);
- *                                        the body is the file itself
+ *                                        the body is the file itself, checked through
+ *                                        (files.ts); a project takes UPLOAD_LIMIT.count an hour
  *   PUT    /api/projects/:id             update: { title, notes, project?, thumbnail? }
  *                                        (Authorization: Bearer <editKey>); without
  *                                        `project`, only the title and notes change
@@ -24,8 +25,12 @@
  * the app, never are). Only those files are accepted, and pictures the
  * project stops using are removed when it is updated.
  *
- * Sharing and reporting need a Turnstile token (`turnstileToken` in the body),
- * which shows a person, not a script, sent them.
+ * Sharing, updating and reporting need a Turnstile token (`turnstileToken` in
+ * the body), which shows a person, not a script, sent them.
+ *
+ * Files are served with headers that keep browsers from reading them as
+ * anything but what they are, and other sites from showing a project's
+ * pictures, so the API is no use for handing out files.
  *
  * Moderation (Authorization: Bearer <ADMIN_TOKEN>):
  *   GET    /api/admin/projects           hidden or reported projects, with their reports
@@ -44,6 +49,7 @@
 import { ASSET_MIME, assetFileName, hashAsset, type AssetFormat } from '../src/engine/assets'
 import { parseProject, projectAssets, ProjectFormatError, type ProjectFile } from '../src/engine/project'
 import { LIBRARY_FILES } from '../src/ui/libraryFiles'
+import { isAssetFile, isJpeg } from './files'
 
 export interface Env {
   DB: D1Database
@@ -91,6 +97,9 @@ export const LIMITS = {
   assets: 20_000_000,
 }
 
+/** Uploads a project takes in a while: enough to share a big project a few times over. */
+export const UPLOAD_LIMIT = { count: 200, ms: 60 * 60 * 1000 }
+
 export const REPORT_REASONS = ['personal-info', 'mean', 'scary', 'other'] as const
 
 const ID_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789'
@@ -106,6 +115,8 @@ interface ProjectRow {
   reports: number
   size: number
   has_thumbnail: number
+  uploads: number
+  uploads_since: number
   created_at: number
   updated_at: number
 }
@@ -119,10 +130,16 @@ class HttpError extends Error {
   }
 }
 
+/** Read only as the type they are sent with, and run nothing if opened as a page. */
+const SAFE_HEADERS = { 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox" }
+
+/** A project's files are shown by this site only, not on others. */
+const OWN_SITE_ONLY = { 'cross-origin-resource-policy': 'same-origin' }
+
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...SAFE_HEADERS },
   })
 
 function randomId(): string {
@@ -219,8 +236,7 @@ function readThumbnail(body: Record<string, unknown>): Uint8Array | null {
   } catch {
     throw new HttpError(400, 'bad_thumbnail')
   }
-  // JPEG files start with FF D8 FF.
-  if (bytes.length < 3 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) throw new HttpError(400, 'bad_thumbnail')
+  if (!isJpeg(bytes)) throw new HttpError(400, 'bad_thumbnail')
   return bytes
 }
 
@@ -253,23 +269,33 @@ async function usedAssets(env: Env, id: string): Promise<Set<string>> {
   return object ? uploadedAssets(parseProject(JSON.parse(await object.text()))) : new Set()
 }
 
-const MAGIC: Record<AssetFormat, number[]> = {
-  png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
-  jpg: [0xff, 0xd8, 0xff],
-  // Binary glTF starts with "glTF".
-  glb: [0x67, 0x6c, 0x54, 0x46],
+/** Counts an upload to the project, or refuses it once the project has taken UPLOAD_LIMIT.count in a while. */
+async function countUpload(env: Env, id: string): Promise<void> {
+  const now = Date.now()
+  const since = now - UPLOAD_LIMIT.ms
+  const counted = await env.DB.prepare(
+    `UPDATE projects SET
+       uploads = CASE WHEN uploads_since <= ? THEN 1 ELSE uploads + 1 END,
+       uploads_since = CASE WHEN uploads_since <= ? THEN ? ELSE uploads_since END
+     WHERE id = ? AND (uploads_since <= ? OR uploads < ?)`,
+  )
+    .bind(since, since, now, id, since, UPLOAD_LIMIT.count)
+    .run()
+  if (counted.meta.changes === 0) throw new HttpError(429, 'rate_limited')
 }
 
 async function putAsset(env: Env, request: Request, id: string, file: string): Promise<Response> {
   await ownedProject(env, request, id)
   const m = ASSET_FILE.exec(file)
   if (!m || !(await usedAssets(env, id)).has(file)) throw new HttpError(404, 'not_found')
+  // Counted before the file is read, so files refused count too.
+  await countUpload(env, id)
   const format = m[2] as AssetFormat
   if (Number(request.headers.get('content-length') ?? 0) > LIMITS.asset) throw new HttpError(413, 'too_large')
   const bytes = new Uint8Array(await request.arrayBuffer())
   if (bytes.length > LIMITS.asset) throw new HttpError(413, 'too_large')
   // The contents must be what the name says: a picture of that format, with that hash.
-  if (!MAGIC[format].every((b, i) => bytes[i] === b) || (await hashAsset(bytes)) !== m[1]) throw new HttpError(400, 'bad_asset')
+  if (!isAssetFile(bytes, format) || (await hashAsset(bytes)) !== m[1]) throw new HttpError(400, 'bad_asset')
   const stored = await storedAssets(env, id)
   stored.delete(file)
   if ([...stored.values()].reduce((a, b) => a + b, bytes.length) > LIMITS.assets) throw new HttpError(413, 'too_large')
@@ -281,7 +307,9 @@ async function getAsset(env: Env, id: string, file: string, cache: string): Prom
   const m = ASSET_FILE.exec(file)
   const object = m && (await env.PROJECTS.get(assetPrefix(id) + file))
   if (!object) throw new HttpError(404, 'not_found')
-  return new Response(object.body, { headers: { 'content-type': ASSET_MIME[m[2] as AssetFormat], 'cache-control': cache } })
+  return new Response(object.body, {
+    headers: { 'content-type': ASSET_MIME[m[2] as AssetFormat], 'cache-control': cache, ...SAFE_HEADERS, ...OWN_SITE_ONLY },
+  })
 }
 
 async function putThumbnail(env: Env, id: string, bytes: Uint8Array): Promise<void> {
@@ -357,7 +385,8 @@ async function getThumbnail(env: Env, id: string): Promise<Response> {
   const object = await env.PROJECTS.get(thumbnailKey(id))
   if (!object) throw new HttpError(404, 'not_found')
   return new Response(object.body, {
-    headers: { 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=300' },
+    // Not kept to this site: link previews show it on others.
+    headers: { 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=300', ...SAFE_HEADERS },
   })
 }
 
@@ -376,11 +405,12 @@ async function getProject(env: Env, id: string): Promise<Response> {
   })
 }
 
-async function updateProject(env: Env, request: Request, id: string): Promise<Response> {
+async function updateProject(env: Env, deps: Deps, request: Request, id: string): Promise<Response> {
   await ownedProject(env, request, id)
   const body = await readBody(request)
   if (body.project === undefined) {
     const { title, notes } = readInfo(body)
+    await requireHuman(env, deps, body)
     await env.DB.prepare('UPDATE projects SET title = ?, notes = ?, updated_at = ? WHERE id = ?')
       .bind(title, notes, Date.now(), id)
       .run()
@@ -389,6 +419,7 @@ async function updateProject(env: Env, request: Request, id: string): Promise<Re
   const { title, notes, projectJson, assets } = readShare(body)
   // Without a new thumbnail the old one stays.
   const thumbnail = readThumbnail(body)
+  await requireHuman(env, deps, body)
   await env.PROJECTS.put(objectKey(id), projectJson, { httpMetadata: { contentType: 'application/json' } })
   if (thumbnail) await putThumbnail(env, id, thumbnail)
   await env.DB.prepare(
@@ -471,7 +502,7 @@ async function getForReview(env: Env, id: string): Promise<Response> {
 async function getThumbnailForReview(env: Env, id: string): Promise<Response> {
   const object = await env.PROJECTS.get(thumbnailKey(id))
   if (!object) throw new HttpError(404, 'not_found')
-  return new Response(object.body, { headers: { 'content-type': 'image/jpeg', 'cache-control': 'no-store' } })
+  return new Response(object.body, { headers: { 'content-type': 'image/jpeg', 'cache-control': 'no-store', ...SAFE_HEADERS, ...OWN_SITE_ONLY } })
 }
 
 async function setStatus(env: Env, id: string, status: 'shared' | 'hidden'): Promise<Response> {
@@ -500,7 +531,7 @@ export async function handleApi(request: Request, env: Env, deps: Deps = default
       const id = path[1]
       if (path.length === 1 && method === 'POST') return await createProject(env, deps, request)
       if (path.length === 2 && method === 'GET') return await getProject(env, id)
-      if (path.length === 2 && method === 'PUT') return await updateProject(env, request, id)
+      if (path.length === 2 && method === 'PUT') return await updateProject(env, deps, request, id)
       if (path.length === 2 && method === 'DELETE') {
         await ownedProject(env, request, id)
         return await deleteProject(env, id)

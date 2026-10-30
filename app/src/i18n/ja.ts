@@ -280,6 +280,7 @@ export const ja: Messages = {
     'share.errorTooLong': 'タイトルか、作品についての説明が長すぎます。',
     'share.errorTooLarge': 'この作品は大きすぎて共有できません。',
     'share.errorFailed': '共有できませんでした（{reason}）。',
+    'share.errorTooMany': 'この作品の絵を送った回数が多すぎます。1時間ほど待ってから、もう一度ためしてください。',
     'share.errorVerification': '上の確認を終えてから、もう一度ためしてください。',
     'share.errorUnavailable': '今は共有できません。時間をおいて、もう一度ためしてください。',
     'share.errorPictures': '作品は共有できましたが、送れなかった絵があります。「今の作品で更新」を押して、もう一度ためしてください。',

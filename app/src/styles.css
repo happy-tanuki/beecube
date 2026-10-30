@@ -1387,6 +1387,8 @@ body,
   flex-direction: column;
   gap: 12px;
   max-height: calc(100vh - 160px);
+  /* What a phone shows, without the part under its browser's address bar. */
+  max-height: calc(100dvh - 160px);
   padding: 16px 20px 4px;
   overflow-y: auto;
   font-size: 14px;

@@ -280,6 +280,7 @@ export const en = {
     'share.errorTooLong': 'The title or the text about the project is too long.',
     'share.errorTooLarge': 'This project is too large to share.',
     'share.errorFailed': 'The project could not be shared ({reason}).',
+    'share.errorTooMany': 'Too many pictures were sent for this project. Please wait an hour, then try again.',
     'share.errorVerification': 'Please finish the check above, then try again.',
     'share.errorUnavailable': 'Sharing is not available right now. Please try again later.',
     'share.errorPictures': 'The project is shared, but some pictures could not be sent. Press “Update with this project” to try again.',

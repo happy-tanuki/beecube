@@ -61,7 +61,8 @@ There are no accounts. Sharing returns an **edit key**:
 
 Changing a share (its title and notes, or its project) or stopping sharing
 requires the key, so it is possible only from the browser that shared the
-project. A request with a wrong key gets
+project. Changing one also needs the Turnstile check, as sharing does
+(section 4). A request with a wrong key gets
 "not found", the same as a missing project, so ids can't be probed.
 
 ## 4. Safety
@@ -73,9 +74,11 @@ project. A request with a wrong key gets
   school, or anything else about yourself, and don't use photos of yourself
   or your friends.
 - **Links only.** There is no gallery, search or list of shared projects.
-- **A person, not a script.** Sharing and reporting need a
+- **A person, not a script.** Sharing, changing a share and reporting need a
   [Turnstile](https://developers.cloudflare.com/turnstile/) token, which the
-  server checks with Cloudflare before acting. The visitor's IP address is
+  server checks with Cloudflare before acting. Settled on 2026-10-30:
+  changing a share needs it too, so a share can't be changed again and again
+  by a script, as a place to keep other files. The visitor's IP address is
   not sent with the check. Until the Turnstile keys are configured
   (`TURNSTILE_SITE_KEY` in `wrangler.toml`, the `TURNSTILE_SECRET` secret),
   sharing and reporting are refused. Cloudflare's script is loaded only when
@@ -101,9 +104,30 @@ project. A request with a wrong key gets
   - Requests: up to 2 MB.
   - The link-preview picture: JPEG only (checked by its first bytes), up
     to 300 KB.
-  - The project's pictures and 3D models: PNG, JPEG or binary glTF
-    (checked by their first bytes), named by the SHA-256 of their contents
-    (checked too), up to 5 MB each and 20 MB for a project.
+  - The project's pictures and 3D models: PNG, JPEG or binary glTF, named
+    by the SHA-256 of their contents (checked), up to 5 MB each and 20 MB
+    for a project. Settled on 2026-10-30, so that a file can't be a picture
+    with something else (a zip, a program) after it or inside it
+    (`app/server/files.ts`):
+    - Each is checked through: its parts as the format lays them out, the
+      last one right at the end of the file.
+    - Pictures are at most 8192 pixels across and down. They may have at
+      most 128 KB besides their pixels (color profiles, notes). The pictures
+      the editor uploads are re-encoded by the browser, so they have little.
+    - A 3D model's JSON must be glTF 2.0. Its binary chunk must be exactly
+      its buffer, and any file it refers to must be inside it (a `data:`
+      URI), so a model never fetches anything.
+    - The link-preview picture is checked as a JPEG the same way.
+  - Uploads: a project takes at most 200 in an hour (`UPLOAD_LIMIT`), counted
+    in D1, refused ones included. That is enough to share a big project a
+    few times over. This limits a project, not a person, so no IP address is
+    kept.
+- **Files are only what they are.** Pictures and models are served with
+  `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`,
+  so a browser never reads one as a page. They also carry
+  `Cross-Origin-Resource-Policy: same-origin`, so other sites can't show
+  them. The link-preview picture is the exception, since previews show it
+  elsewhere.
   - The project must pass the same validation as opening a file, and it is
     stored re-serialized, so unknown fields are dropped.
 - **The player shows only shared projects and bundled samples, by id.** It
@@ -115,7 +139,8 @@ project. A request with a wrong key gets
 To be settled before or at deployment:
 
 - **Limiting requests.** Turnstile stops scripts, but not a person sharing or
-  reporting many times. A `pages.dev` site has no zone of its own, so
+  reporting many times. Uploads are limited per project (section 4), not per
+  person. A `pages.dev` site has no zone of its own, so
   Cloudflare's WAF rate limiting can't be used. A rate-limiting binding may
   work if Pages Functions support it; limiting by IP address would need care,
   since no personal data is kept.
