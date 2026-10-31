@@ -16,7 +16,10 @@ BeeCube is a Scratch-style block programming environment in 3D:
 - Objects and the camera are handled like in Tinkercad.
 - Physics comes as an extension.
 
-The audience is children, as with Scratch. Section 7 lists what follows from that.
+The audience is children, as with Scratch: it is made to be safe and easy for
+them, but it is open to everyone, with no accounts or age checks. Children like
+what grown-ups enjoy, so it should not look or read as babyish. Section 7 lists
+what follows from that.
 
 ## 2. Relationship to Scratch
 
@@ -362,6 +365,9 @@ extensions are added from the menu bar, as in Scratch. The first is physics
 ([Rapier](https://rapier.rs)), which is loaded only by projects that use it.
 
 ## 7. Audience: children
+
+Made for children, not only for them: anyone can use it, and what follows
+keeps it safe for the youngest.
 
 - **No personal data.** There are no accounts. Nothing identifying the people
   who share or report projects is stored. Analytics, if added, must not use
