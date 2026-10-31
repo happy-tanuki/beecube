@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import * as ScratchBlocks from 'scratch-blocks'
 import { defineExtensionBlocks, extensionStyle } from '../blocks/extensions'
 import { createTheme, defineCustomBlocks, setBackdropNameSource, setCostumeNameSource, setSpriteNameSource, setSpriteVariableSource, setStageSource } from '../blocks/setup'
+import { getterFieldsAsXml } from '../blocks/getterFields'
 import { makeToolboxXml } from '../blocks/toolbox'
 import { BUILTIN_EXTENSIONS } from '../extensions'
-import type { BlockJson, WorkspaceJson } from '../engine/types'
+import { STAGE_ID, type BlockJson, type WorkspaceJson } from '../engine/types'
 import { t } from '../i18n'
 import { monitorKeyOf } from './monitors'
 import { installBlocklyDialogs, showAlert, showPrompt, showVariablePrompt } from './dialogs'
@@ -48,7 +49,7 @@ function loadSprite(ws: ScratchBlocks.WorkspaceSvg, store: ProjectStore): void {
     ...Object.entries(sprite.lists).map(([id, l]) => ({ id, name: l.name, type: LIST_TYPE })),
   ]
   const json: WorkspaceJson = {
-    ...(sprite.blocks ?? {}),
+    ...getterFieldsAsXml(sprite.blocks ?? {}),
     variables: [
       ...store.rt.variableDefs.map((v) => ({ id: v.id, name: v.name, type: '' })),
       ...store.rt.listDefs.map((v) => ({ id: v.id, name: v.name, type: LIST_TYPE })),
@@ -74,7 +75,10 @@ function loadSprite(ws: ScratchBlocks.WorkspaceSvg, store: ProjectStore): void {
   } finally {
     loading = false
   }
-  if (unloadable) void showAlert(t('sprite.blocksUnloadable', { name: sprite.name }))
+  if (unloadable) {
+    const name = store.editingId === STAGE_ID ? t('stage.title') : sprite.name
+    void showAlert(t('sprite.blocksUnloadable', { name }))
+  }
   ws.scrollCenter()
   // Sprite reporters' checkboxes refer to the sprite being edited.
   syncCheckboxes(ws, store)
