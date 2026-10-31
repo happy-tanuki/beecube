@@ -16,6 +16,12 @@ export const SOURCE_URL: string | null = 'https://github.com/happy-tanuki/beecub
 export const X_ACCOUNT: string | null = 'beecube_dev'
 
 /**
+ * Where grown-ups can give money to support the site (Buy Me a Coffee); null
+ * to leave it out. A plain link, so the site loads nothing from there.
+ */
+export const SUPPORT_URL: string | null = 'https://buymeacoffee.com/beecube'
+
+/**
  * How grown-ups reach the people running the site (to remove a project, or
  * ask about privacy): a mailto: or https: URL. The privacy policy leaves the
  * contact section out when it is null.

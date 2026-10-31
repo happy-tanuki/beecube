@@ -5,7 +5,8 @@
  *
  * `{app}` is replaced by the app's name and `{contact}` by CONTACT in
  * brand.ts, and `{x}` by a link to X_ACCOUNT; the sections with id "contact"
- * and "news" appear only when those are set.
+ * and "news" appear only when those are set, and "support" only when
+ * SUPPORT_URL is.
  * `[text](url)` becomes a link.
  */
 
@@ -52,6 +53,13 @@ export const en: Pages = {
         id: 'news',
         heading: 'News',
         paragraphs: ['News about {app} is posted on X: {x}'],
+      },
+      {
+        id: 'support',
+        heading: 'Supporting {app}',
+        paragraphs: [
+          '{app} is free, with no ads. Grown-ups who want to help keep it running can give a little money on Buy Me a Coffee, another site. You don’t have to: everything here stays free.',
+        ],
       },
     ],
   },

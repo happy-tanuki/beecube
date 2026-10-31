@@ -298,6 +298,7 @@ export const ja: Messages = {
     'player.reportFailed': '報告を送れませんでした。時間をおいて、もう一度ためしてください。',
     'footer.licenses': 'ライセンス',
     'footer.source': 'ソースコード',
+    'footer.support': '{app} を応援する',
     'touch.space': 'スペース',
     'about.about': 'このサイトについて',
     'about.privacy': 'プライバシー',

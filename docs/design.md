@@ -380,6 +380,10 @@ extensions are added from the menu bar, as in Scratch. The first is physics
   stay away from the editor, the stage and full screen. For now the pages
   carry only AdSense's site verification tag, and no ads; the privacy policy
   is updated before any ads appear.
+- **Support** from grown-ups goes through Buy Me a Coffee (`SUPPORT_URL` in
+  `app/src/brand.ts`): a section of the About page with a button, and a link
+  to it under the player. It is a plain link, so the site loads nothing from
+  there, and it stays out of the editor.
 
 ## 8. The player
 

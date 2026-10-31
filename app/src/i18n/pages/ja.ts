@@ -26,6 +26,13 @@ export const ja: Pages = {
         heading: 'お知らせ',
         paragraphs: ['{app} のお知らせは X にのせています: {x}'],
       },
+      {
+        id: 'support',
+        heading: '{app} を応援する',
+        paragraphs: [
+          '{app} は無料で、広告もありません。続けるのを手伝ってくださる大人の方は、別のサイトの Buy Me a Coffee から少しのお金で応援できます。しなくても、ここにあるものはずっと無料で使えます。',
+        ],
+      },
     ],
   },
   privacy: {

@@ -4,7 +4,7 @@
  * loaded), and its stage is play-only.
  */
 import { useEffect, useRef, useState } from 'react'
-import { APP_NAME, SOURCE_URL } from '../brand'
+import { APP_NAME, SOURCE_URL, SUPPORT_URL } from '../brand'
 import { loadProject, parseProject, ProjectFormatError } from '../engine/project'
 import { Runtime } from '../engine/runtime'
 import { findExtension } from '../extensions'
@@ -185,6 +185,9 @@ export function Player() {
         <a href={`${import.meta.env.BASE_URL}about.html#terms`}>{t('about.terms')}</a>
         <a href={`${import.meta.env.BASE_URL}licenses.txt`}>{t('footer.licenses')}</a>
         {SOURCE_URL && <a href={SOURCE_URL}>{t('footer.source')}</a>}
+        {SUPPORT_URL && (
+          <a href={`${import.meta.env.BASE_URL}about.html#support`}>{t('footer.support', { app: APP_NAME })}</a>
+        )}
       </footer>
     </div>
   )

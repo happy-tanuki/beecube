@@ -298,6 +298,7 @@ export const en = {
     'player.reportFailed': 'The report could not be sent. Please try again later.',
     'footer.licenses': 'Licenses',
     'footer.source': 'Source code',
+    'footer.support': 'Support {app}',
     'touch.space': 'space',
     'about.about': 'About',
     'about.privacy': 'Privacy',

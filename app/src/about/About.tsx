@@ -3,7 +3,7 @@
  * (#privacy) and the terms of use (#terms), from src/i18n/pages/.
  */
 import { Fragment, useEffect, type ReactNode } from 'react'
-import { APP_NAME, CONTACT, SOURCE_URL, X_ACCOUNT } from '../brand'
+import { APP_NAME, CONTACT, SOURCE_URL, SUPPORT_URL, X_ACCOUNT } from '../brand'
 import { pageContent, t } from '../i18n'
 import type { PageContent } from '../i18n/pages/en'
 
@@ -13,7 +13,7 @@ const LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g
 const href = (url: string) => (/^(https?:|mailto:)/.test(url) ? url : `${import.meta.env.BASE_URL}${url}`)
 
 /** Sections that appear only when brand.ts sets what they point to. */
-const OPTIONAL_SECTIONS: Record<string, unknown> = { contact: CONTACT, news: X_ACCOUNT }
+const OPTIONAL_SECTIONS: Record<string, unknown> = { contact: CONTACT, news: X_ACCOUNT, support: SUPPORT_URL }
 
 /** Text with `{app}`, `{contact}` and `{x}` filled in and `[text](url)` made into links. */
 function rich(text: string): ReactNode[] {
@@ -44,13 +44,20 @@ function Page({ id, page }: { id: string; page: PageContent }) {
         .filter((s) => !(s.id in OPTIONAL_SECTIONS) || OPTIONAL_SECTIONS[s.id])
         .map((s) => (
           <Fragment key={s.id}>
-            <h2>{rich(s.heading)}</h2>
+            <h2 id={s.id}>{rich(s.heading)}</h2>
             {s.paragraphs.map((p, i) => (
               <p key={i}>{rich(p)}</p>
             ))}
             {s.id === 'source' && SOURCE_URL && (
               <p>
                 <a href={SOURCE_URL}>{t('footer.source')}</a>
+              </p>
+            )}
+            {s.id === 'support' && SUPPORT_URL && (
+              <p>
+                <a className="about-support" href={SUPPORT_URL} target="_blank" rel="noopener">
+                  {t('footer.support', { app: APP_NAME })}
+                </a>
               </p>
             )}
           </Fragment>
