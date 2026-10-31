@@ -66,6 +66,15 @@ async function request(method: string, url: string, body?: unknown, editKey?: st
 /** The page where a shared project plays. */
 export const shareUrl = (id: string) => new URL(`${import.meta.env.BASE_URL}p/${id}`, location.href).href
 
+/** Size of an embedded player: the stage, its buttons above and the bar below. Narrower, it keeps this aspect. */
+const EMBED_SIZE = { width: 488, height: 446 }
+
+/** HTML that shows a shared project in another page (the player in its embed mode, see player/Player.tsx). */
+export function embedCode(id: string, title: string): string {
+  const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+  return `<iframe src="${shareUrl(id)}?embed" width="${EMBED_SIZE.width}" height="${EMBED_SIZE.height}" title="${attr(title)}" style="width: 100%; max-width: ${EMBED_SIZE.width}px; height: auto; aspect-ratio: ${EMBED_SIZE.width} / ${EMBED_SIZE.height}; border: 0;"></iframe>`
+}
+
 /** The API URL of a shared project (what the player and the editor fetch). */
 export const projectApiUrl = (id: string) => `${API}/${encodeURIComponent(id)}`
 

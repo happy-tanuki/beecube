@@ -4,6 +4,7 @@
  * current project, or stop sharing them).
  */
 import { useRef, useState } from 'react'
+import { APP_NAME } from '../brand'
 import type { AssetRef } from '../engine/assets'
 import { t, type MessageKey } from '../i18n'
 import {
@@ -11,6 +12,7 @@ import {
   AssetUploadError,
   createShare,
   deleteShare,
+  embedCode,
   loadShares,
   shareUrl,
   updateShare,
@@ -74,6 +76,48 @@ function LinkRow({ id }: { id: string }) {
         {t('share.open')}
       </a>
     </div>
+  )
+}
+
+/** Ways to pass a new share on: a post on X, the device's own share sheet, and code to embed it in a page. */
+function PassOn({ id, title }: { id: string; title: string }) {
+  const [embedding, setEmbedding] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const url = shareUrl(id)
+  const text = t('share.postText', { title, app: APP_NAME })
+  const post = `https://x.com/intent/tweet?${new URLSearchParams({ text, url, hashtags: APP_NAME })}`
+  const code = embedCode(id, title)
+  return (
+    <>
+      <div className="share-pass-on">
+        <a href={post} target="_blank" rel="noopener">
+          {t('share.postX')}
+        </a>
+        {typeof navigator.share === 'function' && (
+          <button type="button" onClick={() => void navigator.share({ title, text, url }).catch(() => {})}>
+            {t('share.sendOther')}
+          </button>
+        )}
+        <button type="button" aria-expanded={embedding} onClick={() => setEmbedding((e) => !e)}>
+          {t('share.embed')}
+        </button>
+      </div>
+      <p className="share-note">{t('share.postNote')}</p>
+      {embedding && (
+        <div className="share-embed">
+          <p className="share-note">{t('share.embedNote')}</p>
+          <textarea readOnly rows={3} value={code} onFocus={(e) => e.target.select()} aria-label={t('share.embed')} />
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard?.writeText(code).then(() => setCopied(true))
+            }}
+          >
+            {copied ? t('share.copied') : t('share.copyCode')}
+          </button>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -219,6 +263,7 @@ export function ShareDialog({ store, snapshot, onClose }: Props) {
             <section className="share-done">
               <p>{t('share.done')}</p>
               <LinkRow id={justShared.id} />
+              <PassOn id={justShared.id} title={justShared.title} />
             </section>
           ) : (
             <>

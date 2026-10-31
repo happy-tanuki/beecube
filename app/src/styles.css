@@ -1446,8 +1446,35 @@ body,
   min-width: 0;
 }
 
+.share-pass-on {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.share-embed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.share-embed .share-note {
+  align-self: stretch;
+}
+
+.share-embed textarea {
+  align-self: stretch;
+  font: 12px ui-monospace, monospace;
+  resize: none;
+}
+
 .share-link button,
 .share-link a,
+.share-pass-on button,
+.share-pass-on a,
+.share-embed button,
 .share-actions button {
   padding: 6px 12px;
   border: 1px solid #ddd;

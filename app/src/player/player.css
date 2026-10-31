@@ -181,6 +181,60 @@ body {
   color: #8a91a6;
 }
 
+/* Embedded in another page: the stage fitted to the window, keeping its
+   aspect, above a bar (the window less the stage's buttons and the bar). */
+.player.embed {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.player.embed .stage-panel:not(.fullscreen) {
+  width: min(100%, calc((100vh - 80px) * 488 / 366));
+  margin: 0 auto;
+  padding: 0;
+  border-radius: 0;
+}
+
+.player.embed .stage-header {
+  height: 44px;
+}
+
+.player-embed-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 32px;
+  margin-top: auto;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.player-embed-bar a {
+  color: var(--menu-bar-dark);
+  text-decoration: none;
+}
+
+.player-embed-title {
+  overflow: hidden;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.player-embed-bar .brand {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.player-embed-bar .brand img {
+  height: 20px;
+}
+
 /* On phones the stage goes edge to edge. */
 @media (max-width: 600px) {
   .player-main {

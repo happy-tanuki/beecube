@@ -2,6 +2,10 @@
  * The share page: a project's stage, title and notes, for phones as well as
  * desktops. It runs projects without the blocks editor (scratch-blocks isn't
  * loaded), and its stage is play-only.
+ *
+ * With `?embed` (the code from the share dialog puts it in an iframe) it
+ * shows only the stage, fitted to the window, with a bar linking to the
+ * project's page and to the site.
  */
 import { useEffect, useRef, useState } from 'react'
 import { APP_NAME, SOURCE_URL, SUPPORT_URL } from '../brand'
@@ -102,6 +106,35 @@ function ReportPanel({ id }: { id: string }) {
   )
 }
 
+/** The player in another page: the stage and a bar below it. */
+function Embedded({ state }: { state: State }) {
+  const page = state.kind === 'ready' && state.sharedId ? `${import.meta.env.BASE_URL}p/${state.sharedId}` : null
+  return (
+    <div className="player embed">
+      {state.kind === 'loading' && <p className="player-message">{t('player.loading')}</p>}
+      {state.kind === 'error' && <p className="player-message">{state.message}</p>}
+      {state.kind === 'ready' && (
+        <StageView rt={state.rt} fit startOverlay>
+          <TouchKeys rt={state.rt} keys={state.keys} />
+        </StageView>
+      )}
+      <footer className="player-embed-bar">
+        {page ? (
+          <a className="player-embed-title" href={page} target="_blank" rel="noopener">
+            {state.kind === 'ready' && state.title}
+          </a>
+        ) : (
+          <span className="player-embed-title">{state.kind === 'ready' && state.title}</span>
+        )}
+        <a className="brand" href={import.meta.env.BASE_URL} target="_blank" rel="noopener">
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" />
+          {t('player.madeWith', { app: APP_NAME })}
+        </a>
+      </footer>
+    </div>
+  )
+}
+
 export function Player() {
   const [state, setState] = useState<State>({ kind: 'loading' })
 
@@ -145,6 +178,7 @@ export function Player() {
     document.title = title ? `${title} - ${APP_NAME}` : APP_NAME
   }, [title])
 
+  if (new URLSearchParams(location.search).has('embed')) return <Embedded state={state} />
   return (
     <div className="player">
       <header className="player-bar">

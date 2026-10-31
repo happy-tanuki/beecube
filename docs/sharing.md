@@ -39,6 +39,15 @@ open, including on a phone. The audience is children (see
     previews don't show an old picture.
   - `/?open=<id>` ("See inside" on the player) opens a shared project in the
     editor, after asking, since it replaces the project being edited.
+  - `/p/<id>?embed` is the player for other pages: only the stage, fitted
+    to the window, with a bar linking to the project's page and to the site.
+    Once shared, the dialog gives the `<iframe>` code for it, which keeps the
+    stage's aspect when narrower than 488 pixels.
+- **Passing a link on.** Once shared, the dialog also has a button that
+  opens a post on X (the title, the link and #BeeCube, through X's web
+  intent, so the site loads nothing from X) and, where the browser has one,
+  a button for the device's own share sheet (LINE, mail and so on). A note
+  beside them asks children to post on social media with a grown-up.
 - **Ids** are 10 random characters from an alphabet without look-alikes
   (no `0`, `1`, `l`, `o`).
 
