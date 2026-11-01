@@ -90,10 +90,10 @@ export const COSTUME_CATEGORIES: Record<string, SpriteCategory> = {
   pizza: 'food',
 }
 
-/** Library sprites that come with costumes of a move of their model: its animation, and how many moments of it. */
-export const SPRITE_MOVES: Record<string, { clip: string; frames: number }> = {
-  girl: { clip: 'walk', frames: 4 },
-  boy: { clip: 'walk', frames: 4 },
+/** Library sprites that come with a costume of a move of their model: its animation. */
+export const SPRITE_MOVES: Record<string, { clip: string }> = {
+  girl: { clip: 'walk' },
+  boy: { clip: 'walk' },
 }
 
 export const libraryAssetUrl = (ref: AssetRef): string => `${import.meta.env.BASE_URL}library/${assetFileName(ref)}`

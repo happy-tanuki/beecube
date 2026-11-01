@@ -9,7 +9,7 @@ import type { RenderColumns } from '../stage/instances'
 const FLOATS = [
   'x', 'y', 'z', 'direction', 'pitch', 'roll', 'size',
   'px', 'py', 'pz', 'pdirection', 'ppitch', 'proll', 'psize',
-  'width', 'depth', 'height',
+  'width', 'depth', 'height', 'costumeTick',
 ] as const
 
 /** Header (float64): tick, time of the tick (ms since the epoch), highWater, count, logic ms/tick, write ms. */
@@ -40,6 +40,7 @@ export class Snapshot implements RenderColumns {
   width!: Float64Array
   depth!: Float64Array
   height!: Float64Array
+  costumeTick!: Float64Array
   readonly color: Uint32Array
   readonly look: Uint16Array
   readonly flags: Uint8Array

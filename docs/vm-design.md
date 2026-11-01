@@ -472,6 +472,11 @@ collision, determinism in stage 8), not for the compiler.
   store: it notices changed colors and looks by comparing them with what it
   last wrote, so it can draw from a snapshot as well (10). Edits between
   ticks (dragging, the sprite pane) show at the next tick.
+- **Moving costumes** (a model's keyframes or animation, design.md 3) are
+  the exception: their bones are skinned in the vertex shader from a
+  texture of bone matrices sampled thirty times a second, and every frame
+  writes each such instance's time in its costume (one float), from the
+  tick it was put on (the store's `costumeTick`).
 - **Selection outline and direction marker**: only on the selected sprite.
   (They used to be three meshes per sprite.)
 - **Speech bubbles**: DOM (CSS2D) bubbles are pooled; at most 64 are shown,
@@ -520,7 +525,7 @@ collision, determinism in stage 8), not for the compiler.
   a page that draws a benchmark scenario alone, with its logic on the main
   thread or in `src/worker/logic.worker.ts`. After each tick the worker
   copies the columns drawing reads (pose, previous pose, color, look,
-  flags; 143 bytes per slot) into a snapshot (`src/worker/snapshot.ts`).
+  the costume's tick, flags; 151 bytes per slot) into a snapshot (`src/worker/snapshot.ts`).
   - `worker`: three shared snapshots (triple buffering with one atomic
     exchange per hand-over): the worker writes one, the page reads one, and
     the third holds the newest finished one.

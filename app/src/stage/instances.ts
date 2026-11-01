@@ -5,7 +5,8 @@
  *
  * An entity whose pose did not change in the last tick and that was already
  * drawn at that pose is skipped. Poses are interpolated between the start
- * and end of the last tick in the vertex shader.
+ * and end of the last tick in the vertex shader. Only a moving costume's
+ * instances (a model's motion) are written every frame: their time in it.
  */
 import * as THREE from 'three'
 import { APP_ID } from '../brand'
@@ -13,8 +14,8 @@ import { wrapDirection } from '../engine/ops'
 import { F_ALIVE, F_VISIBLE } from '../engine/store'
 import { Assets } from '../engine/assets'
 import { plainLook, type Look } from '../engine/costume'
-import { BASE_SIZE, SHAPES, type ShapeKind } from '../engine/types'
-import { LookResources } from './looks'
+import { BASE_SIZE, SHAPES, TICKS_PER_SECOND, type ShapeKind } from '../engine/types'
+import { isMovingLook, LookResources } from './looks'
 
 type Floats = Float64Array<ArrayBufferLike>
 
@@ -43,6 +44,8 @@ export interface RenderColumns {
   readonly width: Floats
   readonly depth: Floats
   readonly height: Floats
+  /** The tick each costume was put on. */
+  readonly costumeTick: Floats
 }
 
 /** Pose values EntityInstances remembers per slot: x, y, z, direction, pitch, roll, size, width, depth, height. */
@@ -140,6 +143,7 @@ attribute vec4 poseTo;
 attribute vec3 turnFrom;
 attribute vec3 turnTo;
 attribute vec3 stretch;
+attribute float motionTime;
 uniform float poseAlpha;
 float shortestTurn(float d) { return d - 360.0 * floor((d + 180.0) / 360.0); }
 mat4 entityMatrix() {
@@ -183,13 +187,21 @@ const POSE_ATTRIBUTES = [
   ['turnFrom', 3],
   ['turnTo', 3],
   ['stretch', 3],
+  ['motionTime', 1],
 ] as const
 
-/** Something a batch draws for each instance: a geometry, its material, and whether instances color it (a model keeps its own colors). */
+const MOTION_TIME = POSE_ATTRIBUTES.findIndex(([name]) => name === 'motionTime')
+
+/**
+ * Something a batch draws for each instance: a geometry, its material, and
+ * whether instances color it (a model keeps its own colors); a moving part
+ * has its own material for shadows.
+ */
 export interface BatchPart {
   geometry: THREE.BufferGeometry
   material: THREE.Material | THREE.Material[]
   tinted: boolean
+  depthMaterial?: THREE.Material
 }
 
 /**
@@ -210,6 +222,10 @@ export class ShapeBatch {
   turnFrom = new Float32Array(0)
   turnTo = new Float32Array(0)
   stretch = new Float32Array(0)
+  /** Seconds in its costume, for a moving one. */
+  motionTime = new Float32Array(0)
+  /** Whether the look moves, so motionTime is written every frame. */
+  moving = false
   /** Linear RGB, per instance. */
   colors = new Float32Array(0)
   private attributes: THREE.InstancedBufferAttribute[] = []
@@ -281,7 +297,7 @@ export class ShapeBatch {
       // The matrix comes from the pose attributes, so instanceMatrix is never uploaded.
       const mesh = new THREE.InstancedMesh(geometry, part.material, this.capacity)
       if (part.tinted) mesh.instanceColor = this.colorAttribute
-      mesh.customDepthMaterial = this.depthMaterial
+      mesh.customDepthMaterial = part.depthMaterial ?? this.depthMaterial
       mesh.count = this.count
       mesh.castShadow = this.castShadow
       mesh.frustumCulled = false
@@ -352,13 +368,21 @@ export class ShapeBatch {
     this.stretch[t + 2] = E.height[i]
   }
 
-  /** Writes a pose that doesn't move (a stamp): x, y, z, direction, pitch, roll, size, width, depth, height. */
+  /** Writes a pose that doesn't move (a stamp): x, y, z, direction, pitch, roll, size, width, depth, height, and seconds in its costume. */
   writeStill(index: number, p: ArrayLike<number>, o: number): void {
     this.writePoses(index, p[o], p[o + 1], p[o + 2], p[o + 6], p[o + 3], p[o + 4], p[o + 5], p[o], p[o + 1], p[o + 2], p[o + 6], p[o + 3], p[o + 4], p[o + 5])
     const t = index * 3
     this.stretch[t] = p[o + 7]
     this.stretch[t + 1] = p[o + 8]
     this.stretch[t + 2] = p[o + 9]
+    this.motionTime[index] = p[o + 10]
+  }
+
+  /** For a moving look, writes each instance's seconds in its costume at `now` (in ticks) and uploads them. */
+  writeTimes(costumeTick: Floats, now: number): void {
+    if (!this.moving || this.count === 0) return
+    for (let j = 0; j < this.count; j++) this.motionTime[j] = Math.max(0, (now - costumeTick[this.slots[j]]) / TICKS_PER_SECOND)
+    this.markUsed(this.attributes[MOTION_TIME], 1)
   }
 
   private writePoses(
@@ -453,6 +477,7 @@ export class EntityInstances {
     while (this.batches.length <= look) {
       const l = looks[this.batches.length] ?? looks[0]
       const b: ShapeBatch = new ShapeBatch(this.scene, this.resources.parts(l, (parts) => b.setParts(parts)), this.depthMaterial)
+      b.moving = isMovingLook(l)
       this.batches.push(b)
     }
     return this.batches[look]
@@ -489,6 +514,7 @@ export class EntityInstances {
     this.poseAlpha.value = alpha
     // Poses only change in ticks; edits between ticks (dragging, the sprite pane) show at the next one.
     if (source.tick === this.syncedTick && hidden === this.syncedHidden) {
+      this.writeTimes(source, alpha)
       for (const b of this.batches) b.upload(this.visibleCount <= SHADOW_LIMIT)
       return
     }
@@ -551,6 +577,13 @@ export class EntityInstances {
     }
     this.drawnHighWater = E.highWater
     this.visibleCount = visible
+    this.writeTimes(source, alpha)
     for (const b of this.batches) b.upload(visible <= SHADOW_LIMIT)
+  }
+
+  /** Moving costumes' times, as drawn: the end of the last tick at `alpha` 1, its start at 0. */
+  private writeTimes(source: PoseSource, alpha: number): void {
+    const now = source.tick - 1 + alpha
+    for (const b of this.batches) b.writeTimes(source.store.costumeTick, now)
   }
 }

@@ -1,4 +1,5 @@
 import type { EntityStore } from './store'
+import { TICKS_PER_SECOND } from './types'
 
 export interface Vec3 {
   x: number
@@ -7,7 +8,7 @@ export interface Vec3 {
 }
 
 /** Values per stamp in `PenBuffer.stampPoses`. */
-export const STAMP_POSE = 10
+export const STAMP_POSE = 11
 
 /**
  * Pen strokes as 3D line segments, and stamps, in growable typed arrays. Both
@@ -23,7 +24,7 @@ export class PenBuffer {
   styles = new Float32Array(2 * 256)
   segmentCount = 0
 
-  /** x, y, z, direction, pitch, roll, size, width, depth and height of each stamp. */
+  /** x, y, z, direction, pitch, roll, size, width, depth and height of each stamp, and the seconds its costume had been worn (for a moving one). */
   stampPoses = new Float32Array(STAMP_POSE * 64)
   /** Index into the runtime's looks (costume.ts); a plain shape's is its index in SHAPES. */
   stampLooks = new Uint16Array(64)
@@ -71,8 +72,8 @@ export class PenBuffer {
     }
   }
 
-  /** Leaves a copy of entity `i`'s look where it is. */
-  stamp(E: EntityStore, i: number): void {
+  /** Leaves a copy of entity `i`'s look where it is, as it is at `tick`. */
+  stamp(E: EntityStore, i: number, tick: number): void {
     if (this.stampCount === this.stampLooks.length) this.growStamps()
     const n = this.stampCount++
     const p = this.stampPoses
@@ -87,6 +88,7 @@ export class PenBuffer {
     p[o + 7] = E.width[i]
     p[o + 8] = E.depth[i]
     p[o + 9] = E.height[i]
+    p[o + 10] = Math.max(0, (tick - E.costumeTick[i]) / TICKS_PER_SECOND)
     this.stampLooks[n] = E.look[i]
     this.stampColors[n] = E.color[i]
   }

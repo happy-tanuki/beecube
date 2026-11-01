@@ -7,7 +7,7 @@
 import { APP_ID, APP_NAME } from '../brand'
 import { assetFileName, isAssetId, PICTURE_FORMATS, type AssetFormat, type AssetRef } from './assets'
 import { FACES, type BackdropData, type Face, type FaceName } from './backdrop'
-import { clampCostumeDimension, COSTUME_LAYOUTS, naturalDimensions, plainCostume, sameDimensions, type Costume, type CostumeDimensions, type CostumeLayout, type CostumeModel, type ModelPose } from './costume'
+import { clampCostumeDimension, COSTUME_LAYOUTS, isRestMotion, MAX_KEYFRAME_INTERVAL, MAX_KEYFRAMES, MIN_KEYFRAME_INTERVAL, naturalDimensions, plainCostume, restMotion, sameDimensions, type Costume, type CostumeDimensions, type CostumeLayout, type CostumeModel, type ModelMotion, type ModelPose } from './costume'
 import { isColorString } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
@@ -197,8 +197,34 @@ function parseModel(v: unknown, where: string): CostumeModel | null {
   if (!Array.isArray(size) || size.length !== 3 || !size.every((n) => typeof n === 'number' && n > 0 && n <= 1)) {
     fail(`${where}.size must be three fractions`)
   }
+  // Older files kept one pose.
   const pose = parsePose(v.pose, `${where}.pose`)
-  return { asset, size: size as [number, number, number], ...(pose && { pose }) }
+  const motion = v.motion !== undefined ? parseMotion(v.motion, `${where}.motion`) : pose && { ...restMotion(), keyframes: [pose] }
+  return { asset, size: size as [number, number, number], ...(motion && !isRestMotion(motion) && { motion }) }
+}
+
+/** The longest an animation's part can be, in seconds. */
+const MAX_CLIP_SECONDS = 3600
+
+/** Missing means at rest. */
+function parseMotion(v: unknown, where: string): ModelMotion | undefined {
+  if (v === undefined || v === null) return undefined
+  if (!isObj(v)) fail(`${where} must be an object`)
+  const once = v.once === undefined ? false : typeof v.once === 'boolean' ? v.once : fail(`${where}.once must be true or false`)
+  const from = num(v, 'from', where)
+  const to = num(v, 'to', where)
+  if (v.clip !== undefined) {
+    const clip = str(v, 'clip', where)
+    if (!(from >= 0 && from <= to && to <= MAX_CLIP_SECONDS)) fail(`${where} must play a part of the animation`)
+    return { clip, from, to, ...(once && { once }) }
+  }
+  if (!Array.isArray(v.keyframes) || v.keyframes.length === 0) fail(`${where}.keyframes must be a list of at least one pose`)
+  if (v.keyframes.length > MAX_KEYFRAMES) fail(`${where}.keyframes has more than ${MAX_KEYFRAMES} poses`)
+  const keyframes = v.keyframes.map((k, i) => parsePose(k, `${where}.keyframes[${i}]`) ?? {})
+  const interval = num(v, 'interval', where)
+  if (!(interval >= MIN_KEYFRAME_INTERVAL && interval <= MAX_KEYFRAME_INTERVAL)) fail(`${where}.interval must be ${MIN_KEYFRAME_INTERVAL} to ${MAX_KEYFRAME_INTERVAL} seconds`)
+  if (!(Number.isInteger(from) && Number.isInteger(to) && from >= 0 && from <= to && to < keyframes.length)) fail(`${where} must play keyframes it has`)
+  return { keyframes, interval, from, to, ...(once && { once }) }
 }
 
 /** The most bones a pose can name. */

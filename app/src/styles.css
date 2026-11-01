@@ -1014,6 +1014,119 @@ body,
   font-variant-numeric: tabular-nums;
 }
 
+/* Two handles on one track: the inputs lie on each other, and only their thumbs take presses. */
+.part-slider {
+  position: relative;
+  width: 180px;
+  height: 20px;
+}
+
+.part-slider::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 0;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--border) var(--from), var(--menu-bar) var(--from), var(--menu-bar) var(--to), var(--border) var(--to));
+}
+
+.part-slider input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.part-slider input::-webkit-slider-runnable-track {
+  background: none;
+}
+
+.part-slider input::-moz-range-track {
+  background: none;
+}
+
+.part-slider input::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--menu-bar);
+  border-radius: 50%;
+  background: var(--panel);
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.part-slider input::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--menu-bar);
+  border-radius: 50%;
+  background: var(--panel);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.costume-part output {
+  font-variant-numeric: tabular-nums;
+}
+
+.keyframe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.keyframe-list ol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 168px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.keyframe-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.keyframe-list button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.keyframe-list button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.keyframe-list .keyframe-choose {
+  min-width: 112px;
+  text-align: left;
+}
+
+.keyframe-list li.chosen .keyframe-choose {
+  border-color: var(--menu-bar);
+  background: var(--flag-hover);
+  font-weight: bold;
+}
+
 .costume-note {
   max-width: 360px;
   margin: 0;

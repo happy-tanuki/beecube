@@ -75,6 +75,8 @@ export class EntityStore {
   costume = new Uint16Array(0)
   /** What the stage draws: index into the runtime's looks (costume.ts), set with the costume. */
   look = new Uint16Array(0)
+  /** The tick the look was put on, which a moving costume (a model's motion) plays from. */
+  costumeTick = new Float64Array(0)
   /**
    * The look's own extent along the local axes, as fractions: 1 for the
    * shapes, a model's box in a cube. Collisions and physics stretch the
@@ -135,6 +137,7 @@ export class EntityStore {
     this.shape = grow(this.shape, (n) => new Uint8Array(n))
     this.costume = grow(this.costume, (n) => new Uint16Array(n))
     this.look = grow(this.look, (n) => new Uint16Array(n))
+    this.costumeTick = grow(this.costumeTick, f64)
     this.extentX = grow(this.extentX, f64)
     this.extentY = grow(this.extentY, f64)
     this.extentZ = grow(this.extentZ, f64)
@@ -228,6 +231,7 @@ export class EntityStore {
     this.shape[to] = this.shape[from]
     this.costume[to] = this.costume[from]
     this.look[to] = this.look[from]
+    this.costumeTick[to] = this.costumeTick[from]
     this.extentX[to] = this.extentX[from]
     this.extentY[to] = this.extentY[from]
     this.extentZ[to] = this.extentZ[from]

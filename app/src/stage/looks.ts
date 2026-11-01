@@ -13,10 +13,10 @@
 import * as THREE from 'three'
 import { APP_ID } from '../brand'
 import { ASSET_MIME, assetFileName, type AssetRef, type Assets } from '../engine/assets'
-import { NET_COLUMNS, NET_ROWS, poseKey, type CostumeLayout, type Look } from '../engine/costume'
+import { isStill, motionKey, NET_COLUMNS, NET_ROWS, type CostumeLayout, type Look } from '../engine/costume'
 import { BASE_SIZE, SHAPES } from '../engine/types'
 import type { BatchPart } from './instances'
-import { modelParts, readModel, type Model } from './models'
+import { modelParts, motionPose, movingModelParts, readModel, type Model, type MovingPart } from './models'
 
 /** A part of the picture, in texture coordinates (v up): left, bottom, width, height. */
 type Region = [number, number, number, number]
@@ -173,12 +173,70 @@ export async function loadPictureTexture(assets: Assets, ref: AssetRef): Promise
 
 const isStretchedLook = (look: Look) => look.stretch.some((n) => n !== 1)
 
+/** Whether a look moves (a model's motion that isn't one pose), so its instances need their time each frame. */
+export const isMovingLook = (look: Look): boolean => look.model !== null && !isStill(look.motion)
+
+/**
+ * Skinning a moving model's part (models.ts's MovingPart) by its bones'
+ * matrices at the instance's time in its costume (`motionTime`, seconds,
+ * an instance attribute the pose attributes declare): between the two
+ * samples around it, over and over or once.
+ */
+const MOTION_DECLARATIONS = /* glsl */ `
+attribute vec4 motionBones;
+attribute vec4 motionWeights;
+uniform highp sampler2D motionMatrices;
+uniform float motionSamples;
+uniform float motionSeconds;
+uniform float motionOnce;
+mat4 motionBone(float bone, int row) {
+  int x = int(bone + 0.5) * 4;
+  return mat4(
+    texelFetch(motionMatrices, ivec2(x, row), 0),
+    texelFetch(motionMatrices, ivec2(x + 1, row), 0),
+    texelFetch(motionMatrices, ivec2(x + 2, row), 0),
+    texelFetch(motionMatrices, ivec2(x + 3, row), 0)
+  );
+}
+mat4 motionSkin(int row) {
+  return motionWeights.x * motionBone(motionBones.x, row) + motionWeights.y * motionBone(motionBones.y, row) +
+    motionWeights.z * motionBone(motionBones.z, row) + motionWeights.w * motionBone(motionBones.w, row);
+}
+mat4 motionMatrix() {
+  float t = motionOnce > 0.5 ? min(motionTime, motionSeconds) : mod(motionTime, motionSeconds);
+  float u = t / motionSeconds * (motionSamples - 1.0);
+  int a = min(int(floor(u)), int(motionSamples) - 1);
+  int b = min(a + 1, int(motionSamples) - 1);
+  float f = u - float(a);
+  return motionSkin(a) * (1.0 - f) + motionSkin(b) * f;
+}
+`
+
+/** Makes a material skin a moving part; chained after `onBeforeCompile` (the pose attributes). */
+function useMotion(material: THREE.Material, part: MovingPart, samples: number, seconds: number, once: boolean): void {
+  const before = material.onBeforeCompile.bind(material)
+  const key = material.customProgramCacheKey.bind(material)
+  material.onBeforeCompile = (shader, renderer) => {
+    before(shader, renderer)
+    shader.uniforms.motionMatrices = { value: part.matrices }
+    shader.uniforms.motionSamples = { value: samples }
+    shader.uniforms.motionSeconds = { value: seconds }
+    shader.uniforms.motionOnce = { value: once ? 1 : 0 }
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', `${MOTION_DECLARATIONS}\nvoid main() {\nmat4 motionM = motionMatrix();`)
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nobjectNormal = inverse(transpose(mat3(motionM))) * objectNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = (motionM * vec4(transformed, 1.0)).xyz;')
+  }
+  material.customProgramCacheKey = () => `${key()}-${APP_ID}-motion`
+}
+
 /**
  * What to draw for each look (a batch's parts), made when first asked for
  * and kept: a plain shape, a shape with its picture, or a model's meshes
- * in a pose (each model is read once, for all its poses).
+ * in a pose or moving (each model is read once, for all its looks).
  * `prepare` readies each material for how the caller draws (the pose
- * attributes).
+ * attributes); moving parts have depth materials of their own, for their
+ * shadows to move too.
  */
 export class LookResources {
   private readonly plainMaterial: THREE.MeshStandardMaterial
@@ -187,6 +245,8 @@ export class LookResources {
   private readonly textures = new Map<string, THREE.Texture>()
   private readonly models = new Map<string, Promise<Model | null>>()
   private readonly posed = new Map<string, Promise<BatchPart[]>>()
+  /** Moving parts' bone matrices and depth materials. */
+  private readonly disposables: { dispose(): void }[] = []
 
   constructor(
     private readonly assets: Assets,
@@ -264,21 +324,39 @@ export class LookResources {
   }
 
   private modelParts(look: Look): Promise<BatchPart[]> {
-    const key = `${assetFileName(look.model!)}:${poseKey(look.pose)}:${look.stretch.join(',')}`
+    const key = `${assetFileName(look.model!)}:${motionKey(look.motion)}:${look.stretch.join(',')}`
     let parts = this.posed.get(key)
     if (!parts) {
-      parts = this.model(look.model!).then((model) =>
-        model
-          ? modelParts(model, look.pose).map(({ geometry, material }) => {
-              if (isStretchedLook(look)) geometry.scale(...look.stretch)
-              for (const m of Array.isArray(material) ? material : [material]) this.prepare(m)
-              return { geometry, material, tinted: false }
-            })
-          : [],
-      )
+      parts = this.model(look.model!).then((model) => {
+        if (!model) return []
+        if (isMovingLook(look)) return this.movingParts(model, look)
+        return modelParts(model, motionPose(model, look.motion)).map(({ geometry, material }) => {
+          if (isStretchedLook(look)) geometry.scale(...look.stretch)
+          for (const m of Array.isArray(material) ? material : [material]) this.prepare(m)
+          return { geometry, material, tinted: false }
+        })
+      })
       this.posed.set(key, parts)
     }
     return parts
+  }
+
+  private movingParts(model: Model, look: Look): BatchPart[] {
+    const moving = movingModelParts(model, look.motion, look.stretch)
+    if (!moving) return []
+    const once = look.motion.once === true
+    return moving.parts.map((part) => {
+      const { geometry, material } = part
+      for (const m of Array.isArray(material) ? material : [material]) {
+        this.prepare(m)
+        useMotion(m, part, moving.samples, moving.seconds, once)
+      }
+      const depthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking })
+      this.prepare(depthMaterial)
+      useMotion(depthMaterial, part, moving.samples, moving.seconds, once)
+      this.disposables.push(part.matrices, depthMaterial)
+      return { geometry, material, tinted: false, depthMaterial }
+    })
   }
 
   private async load(ref: AssetRef): Promise<THREE.Texture | null> {
@@ -295,6 +373,7 @@ export class LookResources {
     for (const g of this.geometries.values()) g.dispose()
     for (const m of this.materials.values()) m.dispose()
     for (const t of this.textures.values()) t.dispose()
+    for (const d of this.disposables) d.dispose()
     for (const parts of this.posed.values()) {
       void parts.then((ps) => {
         for (const p of ps) {

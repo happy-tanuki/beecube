@@ -1,7 +1,7 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
 import { ASSET_MIME, assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
-import { clampCostumeDimension, costumeDimensions, naturalDimensions, plainCostume, sameDimensions, type Costume, type CostumeDimensions, type CostumeModel, type ModelPose } from '../engine/costume'
+import { clampCostumeDimension, costumeDimensions, isClipMotion, isRestMotion, MAX_KEYFRAMES, naturalDimensions, plainCostume, sameDimensions, type Costume, type CostumeDimensions, type CostumeModel, type ModelMotion } from '../engine/costume'
 import { availableName, availableSpriteName } from '../engine/rename'
 import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
@@ -14,7 +14,7 @@ import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenario
 import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
 import { isLibraryAsset, libraryCostumeName, libraryRoomName, librarySceneryName, loadLibraryAsset, SPRITE_MOVES, type LibraryCostume, type LibraryRoom, type LibraryScenery } from './library'
 import { clipLabel } from './modelNames'
-import { clipPose, modelClips, modelSize, readModel } from '../stage/models'
+import { clipKeyframes, findClip, modelSize, readModel } from '../stage/models'
 import { loadModel } from './costumeThumbnails'
 import { costumePicture, facePicture, panoramaPicture, type Picture } from './pictures'
 import { readProjectFile, writeProjectFile } from './projectFile'
@@ -62,9 +62,9 @@ function libraryCostume(entry: LibraryCostume): Costume {
   return c
 }
 
-/** The model in a pose; an empty pose is left out, as the file has it. */
-function withPose({ asset, size }: CostumeModel, pose: ModelPose): CostumeModel {
-  return Object.keys(pose).length > 0 ? { asset, size, pose } : { asset, size }
+/** The model moving so; at rest, the motion is left out. */
+function withMotion({ asset, size }: CostumeModel, motion: ModelMotion): CostumeModel {
+  return isRestMotion(motion) ? { asset, size } : { asset, size, motion }
 }
 
 export class ProjectStore {
@@ -247,8 +247,8 @@ export class ProjectStore {
   async addLibrarySprite(entry: LibraryCostume): Promise<void> {
     const costume = libraryCostume(entry)
     const moves = SPRITE_MOVES[entry.key]
-    const more = moves && costume.model ? await this.clipCostumes(costume.model, moves.clip, moves.frames, [costume.name]) : []
-    this.pushSprite(this.spriteWearing([costume, ...more]))
+    const move = moves && costume.model ? await this.clipCostume(costume.model, moves.clip, [costume.name]) : null
+    this.pushSprite(this.spriteWearing(move ? [costume, move] : [costume]))
   }
 
   /** Adds a sprite wearing a costume from a file (see uploadCostume), named after it, and selects it. */
@@ -470,43 +470,50 @@ export class ProjectStore {
     this.updateCostume(index, { dimensions: sameDimensions(dimensions, naturalDimensions(costume)) ? undefined : dimensions })
   }
 
-  /** Stands a model costume in a pose (empty for as the file has it). */
-  setModelPose(index: number, pose: ModelPose): void {
+  /** Sets how a model costume's bones move. */
+  setModelMotion(index: number, motion: ModelMotion): void {
     const model = this.editing.costumes[index]?.model
     if (!model) return
-    this.updateCostume(index, { model: withPose(model, pose) })
+    this.updateCostume(index, { model: withMotion(model, motion) })
   }
 
   /**
-   * Adds costumes of a model costume's model in the poses of moments of one
-   * of its animations, evenly through it, and wears the first: switched one
-   * after another, they move as it does. Does nothing if the animation
-   * isn't found.
+   * Adds a costume of a model costume's model playing one of its
+   * animations, all of it over and over, after that costume, and wears it.
+   * Does nothing if the animation isn't found.
    */
-  async addClipCostumes(index: number, clipName: string, frames: number): Promise<void> {
+  async addClipCostume(index: number, clipName: string): Promise<void> {
     const sprite = this.editing
-    const model = sprite.costumes[index]?.model
-    const dimensions = sprite.costumes[index]?.dimensions
-    const added = (model ? await this.clipCostumes(model, clipName, frames, sprite.costumes.map((o) => o.name)) : []).map((c) => ({ ...c, ...(dimensions && { dimensions }) }))
-    if (added.length === 0) return
-    sprite.costume = sprite.costumes.length
-    sprite.costumes = [...sprite.costumes, ...added]
+    const costume = sprite.costumes[index]
+    const made = costume?.model && (await this.clipCostume(costume.model, clipName, sprite.costumes.map((o) => o.name)))
+    if (!made || this.editing !== sprite) return
+    const added: Costume = { ...made, ...(costume.dimensions && { dimensions: [...costume.dimensions] as CostumeDimensions }) }
+    const at = Math.min(index + 1, sprite.costumes.length)
+    sprite.costumes = [...sprite.costumes.slice(0, at), added, ...sprite.costumes.slice(at)]
+    sprite.costume = at
     this.notify()
   }
 
-  /** Costumes of a model in moments of an animation (see addClipCostumes), named after it and unlike the names taken. */
-  private async clipCostumes(model: CostumeModel, clipName: string, frames: number, taken: string[]): Promise<Costume[]> {
+  /** A costume of a model playing all of an animation over and over, named after it and unlike the names taken; null if it isn't found. */
+  private async clipCostume(model: CostumeModel, clipName: string, taken: string[]): Promise<Costume | null> {
     const read = await loadModel(this.rt.assets, model.asset)
-    const clip = read && modelClips(read).find((c) => c.name === clipName)
-    if (!read || !clip) return []
-    const names = [...taken]
-    const costumes: Costume[] = []
-    for (let i = 0; i < frames; i++) {
-      const name = availableName(`${clipLabel(clip.name)}${i + 1}`, names) ?? clip.name
-      names.push(name)
-      costumes.push({ ...plainCostume(name, 'cube'), model: withPose(model, clipPose(read, clip, (clip.duration * i) / frames)) })
-    }
-    return costumes
+    const clip = read && findClip(read, clipName)
+    if (!clip) return null
+    const name = availableName(clipLabel(clip.name), taken) ?? clip.name
+    return { ...plainCostume(name, 'cube'), model: withMotion(model, { clip: clip.name, from: 0, to: clip.duration }) }
+  }
+
+  /** Turns a costume playing an animation into keyframes sampled from it (see clipKeyframes); it can't be turned back. */
+  async convertToKeyframes(index: number): Promise<void> {
+    const sprite = this.editing
+    const model = sprite.costumes[index]?.model
+    const motion = model?.motion
+    if (!model || !motion || !isClipMotion(motion)) return
+    const read = await loadModel(this.rt.assets, model.asset)
+    const keyframes = read && clipKeyframes(read, motion, MAX_KEYFRAMES)
+    // Unless the costume changed meanwhile.
+    if (!keyframes || this.editing !== sprite || sprite.costumes[index]?.model?.motion !== motion) return
+    this.setModelMotion(index, keyframes)
   }
 
   /** Takes the model off a costume: it is its shape again. */

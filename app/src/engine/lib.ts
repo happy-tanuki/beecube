@@ -229,7 +229,7 @@ export function makeLib(rt: Runtime) {
     penRgb: (i: number, rgb: number): void => E().setPenRgb(i, rgb),
     penParam: (i: number, param: PenParam, v: number, change: boolean): void => E().setPenParam(i, param, v, change),
     clampPenSize,
-    stamp: (i: number): void => rt.pen.stamp(E(), i),
+    stamp: (i: number): void => rt.pen.stamp(E(), i, rt.tick),
     drawCube(i: number, size: number): void {
       const h = size / 2
       const corners = [

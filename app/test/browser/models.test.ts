@@ -1,45 +1,13 @@
 /**
  * 3D models in a real browser (glTF is read and written with the page's
  * Blob and FileReader): poses of a model with a skeleton, set by hand and
- * taken from its animations.
+ * taken from its animations, and its motion sampled for the GPU.
  */
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
-import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
-import { clipPose, modelBones, modelClips, modelParts, modelSize, readModel } from '../../src/stage/models'
-import type { ModelPose } from '../../src/engine/costume'
-
-/**
- * A stick 2 high (glTF y, the sprite's up) with a bone at its foot and one
- * halfway up, which moves its top half; and an animation that bends the
- * top half by 90° about glTF x (the sprite's y, its left) in a second.
- */
-async function stick(): Promise<Uint8Array> {
-  const geometry = new THREE.BoxGeometry(0.2, 2, 0.2, 1, 4, 1).translate(0, 1, 0)
-  const position = geometry.getAttribute('position')
-  const skinIndex: number[] = []
-  const skinWeight: number[] = []
-  for (let i = 0; i < position.count; i++) {
-    skinIndex.push(position.getY(i) > 1.001 ? 1 : 0, 0, 0, 0)
-    skinWeight.push(1, 0, 0, 0)
-  }
-  geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndex, 4))
-  geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeight, 4))
-  const foot = new THREE.Bone()
-  foot.name = 'foot'
-  const middle = new THREE.Bone()
-  middle.name = 'middle'
-  middle.position.y = 1
-  foot.add(middle)
-  const mesh = new THREE.SkinnedMesh(geometry, new THREE.MeshStandardMaterial({ color: '#e02020' }))
-  mesh.add(foot)
-  mesh.bind(new THREE.Skeleton([foot, middle]))
-  const scene = new THREE.Scene()
-  scene.add(mesh)
-  const bent = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)
-  const bend = new THREE.AnimationClip('bend', 1, [new THREE.QuaternionKeyframeTrack('middle.quaternion', [0, 1], [0, 0, 0, 1, ...bent.toArray()])])
-  return new Uint8Array((await new GLTFExporter().parseAsync(scene, { binary: true, animations: [bend] })) as ArrayBuffer)
-}
+import { clipKeyframes, clipPose, modelBones, modelClips, modelParts, modelSize, movingModelParts, readModel, type MovingModel } from '../../src/stage/models'
+import type { ModelMotion, ModelPose } from '../../src/engine/costume'
+import { stick } from './stick'
 
 /** The box around the model's parts drawn in a pose, in sprite space. */
 function partsBox(model: Awaited<ReturnType<typeof readModel>>, pose?: ModelPose): THREE.Box3 {
@@ -80,5 +48,68 @@ describe('model poses', () => {
     expect(clipPose(model, bend, 0)).toEqual({})
     // Its top (20 up, 2 thick) is then at 20 · sin 45° + 2 · cos 45° to the front and as high.
     expect(rounded(partsBox(model, halfway).max)).toEqual([16, 2, 16])
+  })
+})
+
+/** The box around a moving model's parts at a sample, skinned on the CPU as the shader does. */
+function sampleBox(moving: MovingModel, k: number): THREE.Box3 {
+  const box = new THREE.Box3()
+  const m = new THREE.Matrix4()
+  const sum = new THREE.Matrix4()
+  const v = new THREE.Vector3()
+  for (const { geometry, matrices } of moving.parts) {
+    const data = matrices.image.data as Float32Array
+    const row = matrices.image.width * 4 * k
+    const position = geometry.getAttribute('position')
+    const bones = geometry.getAttribute('motionBones')
+    const weights = geometry.getAttribute('motionWeights')
+    for (let i = 0; i < position.count; i++) {
+      sum.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+      for (let j = 0; j < 4; j++) {
+        const w = weights.getComponent(i, j)
+        if (w === 0) continue
+        m.fromArray(data, row + bones.getComponent(i, j) * 16)
+        for (let e = 0; e < 16; e++) sum.elements[e] += m.elements[e] * w
+      }
+      box.expandByPoint(v.fromBufferAttribute(position, i).applyMatrix4(sum))
+    }
+  }
+  return box
+}
+
+describe('model motion', () => {
+  it('samples keyframes, turning bones smoothly between them, stretched as asked', async () => {
+    const model = await readModel(await stick())
+    const nod: ModelMotion = { keyframes: [{}, { middle: [0, 90, 0] }], interval: 1, from: 0, to: 1 }
+    const moving = movingModelParts(model, nod)!
+    // Thirty times a second, both ends included.
+    expect([moving.samples, moving.seconds]).toEqual([31, 1])
+    expect(rounded(sampleBox(moving, 0).max)).toEqual([2, 2, 20])
+    // Halfway, 45° (as the animation's pose there), and at the end, the top half points to the front.
+    expect(rounded(sampleBox(moving, 15).max)).toEqual([16, 2, 16])
+    expect(rounded(sampleBox(moving, 30).max)).toEqual([20, 2, 2])
+    // Stretched twice as high.
+    expect(rounded(sampleBox(movingModelParts(model, nod, [1, 1, 2])!, 0).max)).toEqual([2, 2, 40])
+    // Only the part that plays is sampled.
+    const second = movingModelParts(model, { ...nod, keyframes: [{}, {}, { middle: [0, 90, 0] }], from: 1, to: 2 })!
+    expect(rounded(sampleBox(second, 0).max)).toEqual([2, 2, 20])
+    expect(rounded(sampleBox(second, 30).max)).toEqual([20, 2, 2])
+  })
+
+  it('samples a part of an animation, and turns an animation into keyframes', async () => {
+    const model = await readModel(await stick())
+    const moving = movingModelParts(model, { clip: 'bend', from: 0.5, to: 1 })!
+    expect([moving.samples, moving.seconds]).toEqual([16, 0.5])
+    expect(rounded(sampleBox(moving, 0).max)).toEqual([16, 2, 16])
+    expect(rounded(sampleBox(moving, 15).max)).toEqual([20, 2, 2])
+    // An animation that isn't in the file stands at rest.
+    expect(movingModelParts(model, { clip: 'jump', from: 0, to: 1 })!.seconds).toBe(0)
+    // Ten keyframes a second, the part moved to the keyframes nearest it.
+    const keys = clipKeyframes(model, { clip: 'bend', from: 0.5, to: 1, once: true }, 600)!
+    expect(keys.keyframes).toHaveLength(11)
+    expect(keys.interval).toBeCloseTo(0.1)
+    expect([keys.from, keys.to, keys.once]).toEqual([5, 10, true])
+    expect(keys.keyframes[5]).toEqual({ middle: [0, 45, 0] })
+    expect(clipKeyframes(model, { clip: 'jump', from: 0, to: 1 }, 600)).toBeNull()
   })
 })

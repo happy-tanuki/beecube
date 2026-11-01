@@ -3,15 +3,16 @@
  * libraries, the moderation page): each drawn once in 3D, from the front
  * and a little to the side and above, as the home view sees a sprite
  * heading towards it, and kept as a data URL. A shape is drawn in a color
- * with its picture; a model in a pose. A stretched costume keeps its
- * proportions, scaled to fit. Each model is read once for all its poses.
+ * with its picture; a model in the pose its motion starts in. A stretched
+ * costume keeps its proportions, scaled to fit. Each model is read once for
+ * all its poses.
  */
 import * as THREE from 'three'
 import { assetFileName, type AssetRef, type Assets } from '../engine/assets'
-import { costumeStretch, poseKey, type Costume, type CostumeLayout, type ModelPose } from '../engine/costume'
+import { costumeStretch, modelMotion, motionKey, type Costume, type CostumeLayout, type ModelMotion } from '../engine/costume'
 import { BASE_SIZE, SHAPES, type ShapeKind } from '../engine/types'
 import { loadPictureTexture, texturedGeometry, usePictureOverColor } from '../stage/looks'
-import { modelParts, readModel, type Model } from '../stage/models'
+import { modelParts, motionPose, readModel, type Model } from '../stage/models'
 import type { LibraryCostume } from './library'
 
 const WIDTH = 160
@@ -90,14 +91,16 @@ export function loadModel(assets: Assets, ref: AssetRef): Promise<Model | null> 
 }
 
 /**
- * A picture of a model in a pose, or null until it has been made (it is
- * asked for; show it on a later render) or if it can't be. `zoom` draws it
- * that many times larger, to be shown large.
+ * A picture of a model in the pose a motion starts in (at rest without
+ * one), or null until it has been made (it is asked for; show it on a later
+ * render) or if it can't be. `zoom` draws it that many times larger, to be
+ * shown large.
  */
-export function modelThumbnail(assets: Assets, ref: AssetRef, pose?: ModelPose, stretch: Stretch = NO_STRETCH, zoom = 1): string | null {
-  return thumbnail(`${assetFileName(ref)}:${poseKey(pose)}${stretchKey(stretch)}${zoom === 1 ? '' : `@${zoom}`}`, async () => {
+export function modelThumbnail(assets: Assets, ref: AssetRef, motion?: ModelMotion, stretch: Stretch = NO_STRETCH, zoom = 1): string | null {
+  const start = motion && { ...motion, to: motion.from }
+  return thumbnail(`${assetFileName(ref)}:${start ? motionKey(start) : ''}${stretchKey(stretch)}${zoom === 1 ? '' : `@${zoom}`}`, async () => {
     const model = await loadModel(assets, ref)
-    return model && render(modelParts(model, pose ?? {}), stretch, zoom)
+    return model && render(modelParts(model, start ? motionPose(model, start) : {}), stretch, zoom)
   })
 }
 
@@ -126,7 +129,7 @@ export function shapeThumbnail(
 /** A picture of a costume as a sprite of this color wears it, or null until it has been made; a model can be drawn `zoom` times larger. */
 export function costumeThumbnail(assets: Assets, c: Costume, color: string, zoom = 1): string | null {
   const stretch = costumeStretch(c)
-  if (c.model) return modelThumbnail(assets, c.model.asset, c.model.pose, stretch, zoom)
+  if (c.model) return modelThumbnail(assets, c.model.asset, modelMotion(c.model), stretch, zoom)
   return shapeThumbnail(assets, c.shape, c.picture, c.layout, color, stretch)
 }
 

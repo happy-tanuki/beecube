@@ -273,6 +273,7 @@ export class Runtime {
     s.penTransparency[slot] = clampPercent(data.pen.transparency ?? 0)
     s.penSize[slot] = clampPenSize(data.pen.size ?? 1)
     s.costume[slot] = 0
+    s.costumeTick[slot] = this.tick
     s.flags[slot] = F_ALIVE | (data.visible ? F_VISIBLE : 0) | (data.pen.down ? F_PEN : 0)
     const sprite = new Sprite(this, slot, data.id, data.name, structuredClone(data.blocks))
     const kind = new Kind(this.kinds.length - 1, sprite)
@@ -396,6 +397,8 @@ export class Runtime {
     const costume = Math.min(Math.max(0, Math.floor(index) || 0), n - 1)
     const look = sprite.lookOf[costume]
     const { shape, extent } = this.looks.list[look]
+    // Its motion starts again only when the look changes, so "switch costume" in a loop doesn't hold it still.
+    if (s.costume[slot] !== costume || s.look[slot] !== look) s.costumeTick[slot] = this.tick
     s.costume[slot] = costume
     s.look[slot] = look
     if (s.shape[slot] !== shape || s.extentX[slot] !== extent[0] || s.extentY[slot] !== extent[1] || s.extentZ[slot] !== extent[2]) {

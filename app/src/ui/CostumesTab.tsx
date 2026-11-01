@@ -2,20 +2,34 @@
  * A sprite's Costumes tab, as Scratch's: the list (choosing one puts it on
  * the sprite), adding one (from the library, uploaded, painted, a 3D model,
  * or without a picture), and the chosen one's name, shape, width, depth and height, picture
- * and how the picture wraps the shape, or its model and the model's pose
- * (engine/costume.ts).
+ * and how the picture wraps the shape, or its model and how the model's
+ * bones move (engine/costume.ts).
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { assetFileName, type AssetRef, type Assets } from '../engine/assets'
-import { COSTUME_LAYOUTS, costumeDimensions, type Costume, type CostumeLayout } from '../engine/costume'
+import {
+  COSTUME_LAYOUTS,
+  costumeDimensions,
+  costumeStretch,
+  isClipMotion,
+  MAX_KEYFRAME_INTERVAL,
+  MAX_KEYFRAMES,
+  MIN_KEYFRAME_INTERVAL,
+  modelMotion,
+  type Costume,
+  type CostumeLayout,
+  type KeyframeMotion,
+  type ModelMotion,
+  type ModelPose,
+} from '../engine/costume'
 import { t, type MessageKey } from '../i18n'
 import { COSTUME_FILE_TYPES, Library, useImagePicker, useTicker } from './BackdropsTab'
 import { AddMenu } from './AddMenu'
 import { COSTUME_LIBRARY, libraryCostumeName } from './library'
 import { costumeGuide, newCostumeSize } from './paint'
 import { PaintEditor } from './PaintEditor'
-import { costumeThumbnail, libraryThumbnail, loadModel, shapeThumbnail } from './costumeThumbnails'
-import { modelBones, modelClips, type Model } from '../stage/models'
+import { costumeThumbnail, libraryThumbnail, loadModel, modelThumbnail, shapeThumbnail } from './costumeThumbnails'
+import { findClip, modelBones, modelClips, type Model } from '../stage/models'
 import { NumberField } from './fields'
 import { SHAPE_ICONS } from './SpritePane'
 import { SHAPES, shapeName, type ProjectStore } from './store'
@@ -64,14 +78,25 @@ function useModel(assets: Assets, ref: AssetRef): Model | null {
 /** The sliders' labels: turning about the sprite's x (front), y (left) and z (up), as a pose has them. */
 const TURNS: MessageKey[] = ['costume.turnSideways', 'costume.turnForward', 'costume.turnAround']
 
-/** Turning a model's bones, one at a time; the costume changes as a slider is let go. */
-function PoseEditor({ store, index, costume, bones }: { store: ProjectStore; index: number; costume: Costume; bones: string[] }) {
+/**
+ * Calls `commit` once a slider is let go: anywhere, not only over it (a
+ * pointer), or as a key is released or focus leaves it.
+ */
+function commitOnRelease(commit: () => void) {
+  return {
+    onPointerDown: () => window.addEventListener('pointerup', commit, { once: true }),
+    onKeyUp: commit,
+    onBlur: commit,
+  }
+}
+
+/** Turning a model's bones in a pose, one at a time; `onChange` gets the pose as a slider is let go. */
+function PoseEditor({ pose, bones, onChange }: { pose: ModelPose; bones: string[]; onChange: (pose: ModelPose) => void }) {
   const [chosen, setChosen] = useState(bones[0])
   const [draft, setDraft] = useState<[number, number, number] | null>(null)
-  // Read when the slider is let go, which may be after this render (see onPointerDown).
+  // Read when the slider is let go, which may be after this render (see commitOnRelease).
   const latest = useRef(draft)
   latest.current = draft
-  const pose = costume.model?.pose ?? {}
   const bone = bones.includes(chosen) ? chosen : bones[0]
   const angles = draft ?? pose[bone] ?? [0, 0, 0]
   const commit = () => {
@@ -82,7 +107,7 @@ function PoseEditor({ store, index, costume, bones }: { store: ProjectStore; ind
     else next[bone] = turn
     latest.current = null
     setDraft(null)
-    store.setModelPose(index, next)
+    onChange(next)
   }
   return (
     <>
@@ -95,7 +120,7 @@ function PoseEditor({ store, index, costume, bones }: { store: ProjectStore; ind
             </option>
           ))}
         </select>
-        <button disabled={Object.keys(pose).length === 0} onClick={() => store.setModelPose(index, {})}>
+        <button disabled={Object.keys(pose).length === 0} onClick={() => onChange({})}>
           {t('costume.resetPose')}
         </button>
       </div>
@@ -113,10 +138,7 @@ function PoseEditor({ store, index, costume, bones }: { store: ProjectStore; ind
               next[k] = Number(e.target.value)
               setDraft(next)
             }}
-            // Let go anywhere, not only over the slider.
-            onPointerDown={() => window.addEventListener('pointerup', commit, { once: true })}
-            onKeyUp={commit}
-            onBlur={commit}
+            {...commitOnRelease(commit)}
           />
           <output>{Math.round(angles[k])}°</output>
         </label>
@@ -125,14 +147,225 @@ function PoseEditor({ store, index, costume, bones }: { store: ProjectStore; ind
   )
 }
 
-const MIN_FRAMES = 2
-const MAX_FRAMES = 16
+/**
+ * The part of a motion that plays, as two handles on its timeline (its
+ * keyframes, or its animation's seconds). `onMove` gets the value of the
+ * handle being moved, to show the pose there, and null when let go;
+ * `onChange` gets the part then.
+ */
+function PartSlider({ max, step, from, to, format, onMove, onChange }: {
+  max: number
+  step: number
+  from: number
+  to: number
+  format: (v: number) => string
+  onMove: (v: number | null) => void
+  onChange: (from: number, to: number) => void
+}) {
+  const [draft, setDraft] = useState<[number, number] | null>(null)
+  const latest = useRef(draft)
+  latest.current = draft
+  const [a, b] = draft ?? [from, to]
+  const commit = () => {
+    const part = latest.current
+    latest.current = null
+    setDraft(null)
+    onMove(null)
+    if (part) onChange(part[0], part[1])
+  }
+  const handle = (which: 0 | 1, value: number) => (
+    <input
+      type="range"
+      min={0}
+      max={max}
+      step={step}
+      value={value}
+      aria-label={t(which === 0 ? 'costume.partStart' : 'costume.partEnd')}
+      onChange={(e) => {
+        const v = Number(e.target.value)
+        // A handle stops at the other.
+        const next: [number, number] = which === 0 ? [Math.min(v, b), b] : [a, Math.max(v, a)]
+        setDraft(next)
+        onMove(next[which])
+      }}
+      {...commitOnRelease(commit)}
+    />
+  )
+  const left = max > 0 ? (a / max) * 100 : 0
+  const right = max > 0 ? (b / max) * 100 : 0
+  return (
+    <div className="field costume-part">
+      <span>{t('costume.part')}</span>
+      <div className="part-slider" style={{ '--from': `${left}%`, '--to': `${right}%` } as CSSProperties}>
+        {handle(0, a)}
+        {handle(1, b)}
+      </div>
+      <output>{a === b ? format(a) : `${format(a)} – ${format(b)}`}</output>
+    </div>
+  )
+}
 
-/** Making costumes from moments of one of the model's animations. */
-function ClipCostumes({ store, index, clips }: { store: ProjectStore; index: number; clips: string[] }) {
+/** Whether the motion plays its part over and over or once. */
+function OnceField({ once, onChange }: { once: boolean; onChange: (once: boolean) => void }) {
+  return (
+    <label className="field costume-pose">
+      <span>{t('costume.ending')}</span>
+      <select value={once ? 'once' : 'repeat'} onChange={(e) => onChange(e.target.value === 'once')}>
+        <option value="repeat">{t('costume.repeat')}</option>
+        <option value="once">{t('costume.once')}</option>
+      </select>
+    </label>
+  )
+}
+
+/** A costume's keyframes, one chosen to turn its bones; each can be copied after itself or deleted. */
+function KeyframeList({ motion, chosen, onChoose, onChange }: {
+  motion: KeyframeMotion
+  chosen: number
+  onChoose: (i: number) => void
+  onChange: (motion: KeyframeMotion, chosen: number) => void
+}) {
+  const n = motion.keyframes.length
+  const add = (i: number) => {
+    const keyframes = [...motion.keyframes.slice(0, i + 1), structuredClone(motion.keyframes[i]), ...motion.keyframes.slice(i + 1)]
+    // Keyframes after it move along; one added after the last that plays plays too.
+    const from = motion.from > i ? motion.from + 1 : motion.from
+    const to = motion.to >= i ? motion.to + 1 : motion.to
+    onChange({ ...motion, keyframes, from, to }, i + 1)
+  }
+  const remove = (i: number) => {
+    const keyframes = motion.keyframes.filter((_, k) => k !== i)
+    const last = keyframes.length - 1
+    const from = Math.min(last, motion.from > i ? motion.from - 1 : motion.from)
+    const to = Math.min(last, Math.max(from, motion.to >= i ? motion.to - 1 : motion.to))
+    onChange({ ...motion, keyframes, from, to }, Math.min(i, last))
+  }
+  return (
+    <div className="keyframe-list">
+      <span>{t('costume.keyframes')}</span>
+      <ol>
+        {motion.keyframes.map((_, i) => (
+          <li key={i} className={i === chosen ? 'chosen' : undefined}>
+            <button className="keyframe-choose" aria-pressed={i === chosen} onClick={() => onChoose(i)}>
+              {t('costume.keyframe', { n: String(i + 1) })}
+            </button>
+            <button title={t('costume.addKeyframe')} disabled={n >= MAX_KEYFRAMES} onClick={() => add(i)}>
+              +
+            </button>
+            <button title={t('costume.removeKeyframe')} disabled={n === 1} onClick={() => remove(i)}>
+              ×
+            </button>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+const formatSeconds = (s: number) => t('costume.seconds', { n: String(Math.round(s * 100) / 100) })
+
+/** Seconds on an animation's timeline: to a thirtieth of a second, as the stage samples it. */
+const CLIP_STEP = 1 / 30
+
+/**
+ * How a model costume's bones move, and the pose the view shows: the
+ * keyframe chosen, or where a handle is being moved. Keyframes have their
+ * list and turn their bones; an animation can be turned into them.
+ */
+function MotionEditor({ store, index, costume, model, bones }: { store: ProjectStore; index: number; costume: Costume; model: Model; bones: string[] }) {
+  const motion = modelMotion(costume.model!)
+  const [chosen, setChosen] = useState(0)
+  const [held, setHeld] = useState<number | null>(null)
+  const set = (m: ModelMotion) => store.setModelMotion(index, m)
+  if (isClipMotion(motion)) {
+    const clip = findClip(model, motion.clip)
+    const duration = clip?.duration ?? motion.to
+    const at = held ?? motion.from
+    return (
+      <>
+        <ModelView store={store} costume={costume} motion={{ ...motion, from: at, to: at }} />
+        <div className="costume-model-pose">
+          <div className="field costume-pose">
+            <span>{t('costume.move')}</span>
+            <strong>{clipLabel(motion.clip)}</strong>
+            <button onClick={() => void store.convertToKeyframes(index)} disabled={!clip}>
+              {t('costume.toKeyframes')}
+            </button>
+          </div>
+          <PartSlider
+            max={Math.round(duration * 1000) / 1000}
+            step={CLIP_STEP}
+            from={motion.from}
+            to={motion.to}
+            format={formatSeconds}
+            onMove={setHeld}
+            onChange={(from, to) => set({ ...motion, from, to })}
+          />
+          <OnceField once={motion.once === true} onChange={(once) => set({ ...motion, once })} />
+          <p className="costume-note">{t('costume.toKeyframesNote')}</p>
+          <MoveCostume store={store} index={index} model={model} />
+          <p className="costume-note">{t('costume.modelNote')}</p>
+        </div>
+      </>
+    )
+  }
+  const last = motion.keyframes.length - 1
+  const keyframe = Math.min(chosen, last)
+  const at = held ?? keyframe
+  return (
+    <>
+      <ModelView store={store} costume={costume} motion={{ ...motion, from: at, to: at }} />
+      <div className="costume-model-pose">
+        {last > 0 && (
+          <>
+            <PartSlider
+              max={last}
+              step={1}
+              from={motion.from}
+              to={motion.to}
+              format={(v) => String(v + 1)}
+              onMove={setHeld}
+              onChange={(from, to) => set({ ...motion, from, to })}
+            />
+            <div className="field costume-pose">
+              <OnceField once={motion.once === true} onChange={(once) => set({ ...motion, once })} />
+              <NumberField
+                label={t('costume.interval')}
+                value={motion.interval}
+                onChange={(v) => set({ ...motion, interval: Math.min(MAX_KEYFRAME_INTERVAL, Math.max(MIN_KEYFRAME_INTERVAL, v)) })}
+              />
+            </div>
+          </>
+        )}
+        <KeyframeList
+          motion={motion}
+          chosen={keyframe}
+          onChoose={setChosen}
+          onChange={(m, i) => {
+            set(m)
+            setChosen(i)
+          }}
+        />
+        <PoseEditor
+          key={`${index}:${keyframe}`}
+          pose={motion.keyframes[keyframe]}
+          bones={bones}
+          onChange={(pose) => set({ ...motion, keyframes: motion.keyframes.map((p, i) => (i === keyframe ? pose : p)) })}
+        />
+        <p className="costume-note">{t('costume.poseNote')}</p>
+        <MoveCostume store={store} index={index} model={model} />
+        <p className="costume-note">{t('costume.modelNote')}</p>
+      </div>
+    </>
+  )
+}
+
+/** Adding a costume of the model playing one of its animations. */
+function MoveCostume({ store, index, model }: { store: ProjectStore; index: number; model: Model }) {
+  const clips = modelClips(model).map((c) => c.name)
   // Walking first, if the model can.
   const [chosen, setChosen] = useState(clips.includes('walk') ? 'walk' : clips[0])
-  const [frames, setFrames] = useState(8)
+  if (clips.length === 0) return null
   const clip = clips.includes(chosen) ? chosen : clips[0]
   return (
     <div className="field costume-pose">
@@ -144,17 +377,17 @@ function ClipCostumes({ store, index, clips }: { store: ProjectStore; index: num
           </option>
         ))}
       </select>
-      <input
-        type="number"
-        min={MIN_FRAMES}
-        max={MAX_FRAMES}
-        value={frames}
-        onChange={(e) => setFrames(Math.min(MAX_FRAMES, Math.max(MIN_FRAMES, Math.round(Number(e.target.value)) || MIN_FRAMES)))}
-      />
-      <span>{t('costume.frames')}</span>
-      <button onClick={() => void store.addClipCostumes(index, clip, frames)}>{t('costume.makeFrames')}</button>
+      <button onClick={() => void store.addClipCostume(index, clip)}>{t('costume.addMove')}</button>
     </div>
   )
+}
+
+/** The model drawn large, in a pose of its motion; the last picture stays while the next is drawn. */
+function ModelView({ store, costume, motion }: { store: ProjectStore; costume: Costume; motion: ModelMotion }) {
+  const url = modelThumbnail(store.rt.assets, costume.model!.asset, motion, costumeStretch(costume), 2)
+  const shown = useRef<string | null>(null)
+  if (url) shown.current = url
+  return <span className="costume-model-view" style={shown.current ? { backgroundImage: `url("${shown.current}")` } : undefined} />
 }
 
 /** A costume's width, depth and height, in stage units (a cube's are 40). */
@@ -173,13 +406,11 @@ function DimensionFields({ store, index, costume }: { store: ProjectStore; index
 /**
  * A model costume: its name, width, depth and height and the model (which
  * can be taken off to leave the shape) above; the model drawn large, and
- * its pose if it has bones, below.
+ * how its bones move if it has them, below.
  */
 function ModelCostume({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
-  const url = costumeThumbnail(store.rt.assets, costume, store.editing.color, 2)
   const model = useModel(store.rt.assets, costume.model!.asset)
   const bones = model ? modelBones(model) : []
-  const clips = model ? modelClips(model).map((c) => c.name) : []
   return (
     <div className="costume-main">
       <div className="costume-header">
@@ -197,17 +428,16 @@ function ModelCostume({ store, index, costume }: { store: ProjectStore; index: n
         </div>
       </div>
       <div className="costume-model">
-        <span className="costume-model-view" style={url ? { backgroundImage: `url("${url}")` } : undefined} />
-        <div className="costume-model-pose">
-          {bones.length > 0 && (
-            <>
-              <PoseEditor key={index} store={store} index={index} costume={costume} bones={bones} />
-              {clips.length > 0 && <ClipCostumes store={store} index={index} clips={clips} />}
-              <p className="costume-note">{t('costume.poseNote')}</p>
-            </>
-          )}
-          <p className="costume-note">{t('costume.modelNote')}</p>
-        </div>
+        {model && bones.length > 0 ? (
+          <MotionEditor key={index} store={store} index={index} costume={costume} model={model} bones={bones} />
+        ) : (
+          <>
+            <ModelView store={store} costume={costume} motion={modelMotion(costume.model!)} />
+            <div className="costume-model-pose">
+              <p className="costume-note">{t('costume.modelNote')}</p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

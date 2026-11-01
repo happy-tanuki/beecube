@@ -24,10 +24,13 @@
  * a cube's. Its front is glTF's (+z) and its up glTF's (+y). It touches
  * things as a box around it (`size`), and the sprite's color doesn't show.
  *
- * A model with a skeleton can stand in a pose: its bones turned from how
- * the file has them. Costumes of one model in different poses make it move
- * as they are switched, as a flip book does; its box stays as the file has
- * it, so switching doesn't change what it touches.
+ * A model with a skeleton can move (its motion): through keyframes, poses
+ * with its bones turned from how the file has them, or as one of the
+ * file's animations plays. Either way the costume plays a part of it, over
+ * and over or once; a part of no length is one pose. Costumes of one model
+ * in different poses make it move as they are switched, as a flip book
+ * does. Its box stays as the file has it, so moving doesn't change what it
+ * touches.
  *
  * A costume has a width, depth and height in stage units, which can differ
  * from its shape's (a cube is BASE_SIZE each way) or its model's box: a
@@ -47,8 +50,8 @@ export interface CostumeModel {
   asset: AssetRef
   /** The box around it along the sprite's x (front), y (left) and z (up), as fractions of the longest. */
   size: [number, number, number]
-  /** Its bones turned from how the file has them; missing or empty for none. */
-  pose?: ModelPose
+  /** How its bones move; missing to stand as the file has it. */
+  motion?: ModelMotion
 }
 
 /**
@@ -66,6 +69,70 @@ export function poseKey(pose: ModelPose | undefined): string {
     .map((bone) => `${bone}:${pose[bone].join(',')}`)
     .join(';')
 }
+
+/**
+ * How a model's bones move: through keyframes, or as one of the file's
+ * animations (by name). The part from `from` to `to` (keyframe numbers from
+ * 0, or seconds) plays over and over, or once to stay at its end; when they
+ * are the same, the model stands in that pose.
+ */
+export type ModelMotion = KeyframeMotion | ClipMotion
+
+export interface KeyframeMotion {
+  /** At least one; evenly spaced. */
+  keyframes: ModelPose[]
+  /** Seconds from one keyframe to the next. */
+  interval: number
+  from: number
+  to: number
+  once?: boolean
+}
+
+export interface ClipMotion {
+  /** The animation's name in the file. */
+  clip: string
+  from: number
+  to: number
+  once?: boolean
+}
+
+export const isClipMotion = (m: ModelMotion): m is ClipMotion => 'clip' in m
+
+/** Seconds between keyframes, at first and at most. */
+export const DEFAULT_KEYFRAME_INTERVAL = 0.5
+export const MIN_KEYFRAME_INTERVAL = 0.05
+export const MAX_KEYFRAME_INTERVAL = 10
+
+/** The most keyframes a costume can have. */
+export const MAX_KEYFRAMES = 600
+
+/** A model at rest: one keyframe without a turn. */
+export const restMotion = (): KeyframeMotion => ({ keyframes: [{}], interval: DEFAULT_KEYFRAME_INTERVAL, from: 0, to: 0 })
+
+/** A model costume's motion, at rest if it has none. */
+export const modelMotion = (model: CostumeModel): ModelMotion => model.motion ?? restMotion()
+
+/** How long the part that plays takes, in seconds; 0 for one pose. */
+export const motionSeconds = (m: ModelMotion): number => (isClipMotion(m) ? m.to - m.from : (m.to - m.from) * m.interval)
+
+/** Whether the motion is one pose. */
+export const isStill = (m: ModelMotion): boolean => !(motionSeconds(m) > 0)
+
+/**
+ * A motion as text, the same for motions that look the same: a still one
+ * is its pose (a keyframe's, or a moment of an animation), so the rest of
+ * its keyframes don't matter.
+ */
+export function motionKey(m: ModelMotion): string {
+  if (isClipMotion(m)) return isStill(m) ? `clip:${m.clip}@${m.from}` : `clip:${m.clip}@${m.from}-${m.to}${m.once ? ':once' : ''}`
+  if (isStill(m)) return poseKey(m.keyframes[m.from])
+  const poses = m.keyframes.slice(m.from, m.to + 1).map(poseKey).join('|')
+  return `keys:${m.interval}:${poses}${m.once ? ':once' : ''}`
+}
+
+/** Whether a motion is at rest (so a costume needn't keep it). */
+export const isRestMotion = (m: ModelMotion): boolean =>
+  !isClipMotion(m) && m.keyframes.length === 1 && Object.keys(m.keyframes[0]).length === 0 && m.interval === DEFAULT_KEYFRAME_INTERVAL && !m.once
 
 export interface Costume {
   name: string
@@ -159,13 +226,13 @@ export interface Look {
   picture: AssetRef | null
   layout: CostumeLayout
   model: AssetRef | null
-  /** The model's pose. */
-  pose: ModelPose
+  /** The model's motion. */
+  motion: ModelMotion
   stretch: [number, number, number]
   extent: [number, number, number]
 }
 
-export const plainLook = (shape: number): Look => ({ shape, picture: null, layout: 'same', model: null, pose: {}, stretch: [1, 1, 1], extent: [1, 1, 1] })
+export const plainLook = (shape: number): Look => ({ shape, picture: null, layout: 'same', model: null, motion: restMotion(), stretch: [1, 1, 1], extent: [1, 1, 1] })
 
 /**
  * Every look in use, each once, so entities can name theirs by number (the
@@ -181,10 +248,10 @@ export class Looks {
     const stretch = costumeStretch(costume)
     const stretchKey = stretch.every((n) => Math.abs(n - 1) < 1e-9) ? '' : `:${stretch.join(',')}`
     const model = costume.model
-    if (model) return this.intern(`model:${assetFileName(model.asset)}:${poseKey(model.pose)}${stretchKey}`, () => ({
+    if (model) return this.intern(`model:${assetFileName(model.asset)}:${motionKey(modelMotion(model))}${stretchKey}`, () => ({
       ...plainLook(0),
       model: { ...model.asset },
-      pose: structuredClone(model.pose ?? {}),
+      motion: structuredClone(modelMotion(model)),
       stretch,
       extent: [model.size[0] * stretch[0], model.size[1] * stretch[1], model.size[2] * stretch[2]],
     }))

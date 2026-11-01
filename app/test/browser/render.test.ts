@@ -10,10 +10,11 @@ import { EntityStore, F_ALIVE, F_VISIBLE } from '../../src/engine/store'
 import { SHAPES } from '../../src/engine/types'
 import { EntityInstances, usePoseAttributes, writeMatrix } from '../../src/stage/instances'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
-import { plainCostume } from '../../src/engine/costume'
+import { plainCostume, type ModelMotion } from '../../src/engine/costume'
 import { modelSize, readModel } from '../../src/stage/models'
 import { Stage3D } from '../../src/stage/Stage3D'
 import { makeSprite } from '../helpers'
+import { stick } from './stick'
 
 const SIZE = 256
 
@@ -196,6 +197,28 @@ describe('Stage3D', () => {
     expect(greenish(colorAt(41, 0, 20))).toBe(true)
     // The sprite's color doesn't show, and beside it (y = 30) is the floor.
     expect(bluish(colorAt(0, 30, 20))).toBe(false)
+  })
+
+  it('skins a moving model on the GPU as its costume’s motion plays', async () => {
+    const errors = vi.spyOn(console, 'error')
+    const rt = new Runtime({ randomSeed: 1 })
+    const glb = await stick()
+    const asset = await rt.assets.add(glb, 'glb')
+    const size = modelSize(await readModel(glb))!
+    // Bends its top half forward in a tenth of a second, and stays so.
+    const motion: ModelMotion = { keyframes: [{}, { middle: [0, 90, 0] }], interval: 0.1, from: 0, to: 1, once: true }
+    const bending = { ...plainCostume('bending', 'cube'), model: { asset, size, motion } }
+    // 80 high from the floor, its middle bone at 40.
+    rt.addSprite(makeSprite('stick', [], { z: 40, size: 200, costumes: [bending] }))
+    const { colorAt } = open(rt)
+    // Upright at first.
+    await vi.waitFor(() => expect(reddish(colorAt(0, 0, 70))).toBe(true))
+    expect(reddish(colorAt(30, 0, 40))).toBe(false)
+    for (let k = 0; k < 12; k++) rt.step()
+    expect(reddish(colorAt(30, 0, 40))).toBe(true)
+    expect(reddish(colorAt(0, 0, 70))).toBe(false)
+    expect(errors).not.toHaveBeenCalled()
+    errors.mockRestore()
   })
 
   it('interpolates between the start and end of the last tick', () => {

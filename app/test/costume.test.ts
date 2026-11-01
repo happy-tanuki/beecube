@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 import type { AssetRef } from '../src/engine/assets'
-import { Looks, plainCostume, type Costume } from '../src/engine/costume'
+import { Looks, plainCostume, restMotion, type Costume, type ModelMotion, type ModelPose } from '../src/engine/costume'
 import { boundingRadius, shapesIntersect } from '../src/engine/collision'
 import { parseProject, projectAssets, serializeProject } from '../src/engine/project'
 import { SHAPES } from '../src/engine/types'
@@ -46,7 +46,7 @@ describe('costumes', () => {
     ticks(1)
     expect(s.shape).toBe('sphere')
     const look = rt.looks.list[rt.store.look[s.slot]]
-    expect(look).toEqual({ shape: SHAPES.indexOf('sphere'), picture: ball.picture, layout: 'same', model: null, pose: {}, stretch: [1, 1, 1], extent: [1, 1, 1] })
+    expect(look).toEqual({ shape: SHAPES.indexOf('sphere'), picture: ball.picture, layout: 'same', model: null, motion: restMotion(), stretch: [1, 1, 1], extent: [1, 1, 1] })
     // The same costume again is the same look.
     expect(rt.looks.of(ball)).toBe(rt.store.look[s.slot])
   })
@@ -151,16 +151,49 @@ describe('costumes', () => {
     expect(E.extentZ[clone.slot]).toBe(0.25)
   })
 
-  it('makes a look for each pose of a model, the same for the same pose', () => {
+  it('makes a look for each pose and motion of a model, the same for the same', () => {
     const asset = { assetId: 'c'.repeat(64), dataFormat: 'glb' as const }
-    const model = (pose?: Record<string, [number, number, number]>): Costume => ({ ...plainCostume('m', 'cube'), model: { asset, size: [1, 1, 1], pose } })
+    const model = (motion?: ModelMotion): Costume => ({ ...plainCostume('m', 'cube'), model: { asset, size: [1, 1, 1], ...(motion && { motion }) } })
+    const keys = (keyframes: Record<string, [number, number, number]>[], from = 0, to = 0, once = false): ModelMotion => ({ keyframes, interval: 0.5, from, to, ...(once && { once }) })
     const looks = new Looks()
     const still = looks.of(model())
-    const nod = looks.of(model({ head: [0, 20, 0], arm: [10, 0, 0] }))
+    const nod = looks.of(model(keys([{ head: [0, 20, 0], arm: [10, 0, 0] }])))
     expect(nod).not.toBe(still)
-    expect(looks.of(model({ arm: [10, 0, 0], head: [0, 20, 0] }))).toBe(nod)
-    expect(looks.of(model({}))).toBe(still)
-    expect(looks.list[nod].pose).toEqual({ head: [0, 20, 0], arm: [10, 0, 0] })
+    expect(looks.of(model(keys([{ arm: [10, 0, 0], head: [0, 20, 0] }])))).toBe(nod)
+    expect(looks.of(model(keys([{}])))).toBe(still)
+    // A still motion is its pose: the keyframes that don't play don't matter.
+    expect(looks.of(model(keys([{ arm: [5, 0, 0] }, { head: [0, 20, 0], arm: [10, 0, 0] }], 1, 1)))).toBe(nod)
+    // Moving: each part, ending and interval is a look of its own.
+    const both: ModelPose[] = [{}, { head: [0, 20, 0] }]
+    const moving = looks.of(model(keys(both, 0, 1)))
+    expect(new Set([still, nod, moving, looks.of(model(keys(both, 0, 1, true))), looks.of(model({ ...keys(both, 0, 1), interval: 1 }))]).size).toBe(5)
+    expect(looks.of(model(keys(both, 0, 1)))).toBe(moving)
+    expect(looks.list[moving].motion).toEqual(keys(both, 0, 1))
+    // An animation, still at a moment or playing a part.
+    const walk = (from: number, to: number): ModelMotion => ({ clip: 'walk', from, to })
+    expect(looks.of(model(walk(0.5, 0.5)))).not.toBe(looks.of(model(walk(0.5, 1))))
+    expect(looks.of(model(walk(0.5, 1)))).toBe(looks.of(model(walk(0.5, 1))))
+  })
+
+  it('starts a model’s motion when its costume is put on, not when the same one is switched to again', () => {
+    const asset = { assetId: 'c'.repeat(64), dataFormat: 'glb' as const }
+    const walking: Costume = { ...plainCostume('walking', 'cube'), model: { asset, size: [1, 1, 1], motion: { clip: 'walk', from: 0, to: 1 } } }
+    const { rt, ticks, sprites: [s] } = setup([
+      makeSprite('a', [flag(wait(0.1), switchTo('walking'), blk('control_forever', { inputs: { SUBSTACK: { block: switchTo('walking') } } }))], { costumes: [plainCostume('box', 'cube'), walking] }),
+    ])
+    const E = rt.store
+    rt.greenFlag()
+    ticks(10)
+    expect(s.costume).toBe(1)
+    const started = E.costumeTick[s.slot]
+    expect(started).toBeGreaterThan(0)
+    ticks(10)
+    expect(E.costumeTick[s.slot]).toBe(started)
+    // Clones keep the time they were made with, and the pen stamps the moment.
+    rt.createClone(s.slot, -1)
+    expect(E.costumeTick[rt.clonesOf(s)[0].slot]).toBe(started)
+    rt.pen.stamp(E, s.slot, started + 30)
+    expect(rt.pen.stampPoses[10]).toBe(0.5)
   })
 
   it('saves models, and rejects ones that are not binary glTF or have no size', () => {
@@ -172,12 +205,24 @@ describe('costumes', () => {
     const withModel = (m: unknown) => ({ ...saved, sprites: [{ ...saved.sprites[0], costumes: [{ ...saved.sprites[0].costumes[0], model: m }] }] })
     expect(() => parseProject(withModel({ ...model, asset: { ...model.asset, dataFormat: 'png' } }))).toThrow(/model\.asset\.dataFormat/)
     expect(() => parseProject(withModel({ ...model, size: [1, 0, 1] }))).toThrow(/model\.size/)
-    // A pose is saved, and is three angles for each bone.
-    const posed = { ...model, pose: { head: [0, 30, -10] as [number, number, number] } }
-    expect(parseProject(withModel(posed)).sprites[0].costumes[0].model).toEqual(posed)
-    expect(parseProject(withModel({ ...model, pose: {} })).sprites[0].costumes[0].model).toEqual(model)
-    expect(() => parseProject(withModel({ ...model, pose: { head: [0, 30] } }))).toThrow(/pose\["head"\]/)
-    expect(() => parseProject(withModel({ ...model, pose: { head: [0, 'x', 0] } }))).toThrow(/pose\["head"\]/)
+    // A motion is saved: keyframes, three angles for each bone, or an animation's part.
+    const parsed = (m: unknown) => parseProject(withModel(m)).sprites[0].costumes[0].model
+    const nod = { keyframes: [{}, { head: [0, 30, -10] as [number, number, number] }], interval: 0.25, from: 0, to: 1, once: true }
+    expect(parsed({ ...model, motion: nod })).toEqual({ ...model, motion: nod })
+    const walk = { clip: 'walk', from: 0.5, to: 1.25 }
+    expect(parsed({ ...model, motion: walk })).toEqual({ ...model, motion: walk })
+    // At rest, it is left out.
+    expect(parsed({ ...model, motion: { keyframes: [{}], interval: 0.5, from: 0, to: 0 } })).toEqual(model)
+    // Older files' one pose is a keyframe.
+    expect(parsed({ ...model, pose: { head: [0, 30, -10] } })).toEqual({ ...model, motion: { keyframes: [{ head: [0, 30, -10] }], interval: 0.5, from: 0, to: 0 } })
+    expect(parsed({ ...model, pose: {} })).toEqual(model)
+    expect(() => parsed({ ...model, motion: { ...nod, keyframes: [{ head: [0, 30] }] } })).toThrow(/keyframes\[0\]\["head"\]/)
+    expect(() => parsed({ ...model, motion: { ...nod, keyframes: [{ head: [0, 'x', 0] }] } })).toThrow(/\["head"\]/)
+    expect(() => parsed({ ...model, motion: { ...nod, to: 2 } })).toThrow(/keyframes it has/)
+    expect(() => parsed({ ...model, motion: { ...nod, from: 1, to: 0 } })).toThrow(/keyframes it has/)
+    expect(() => parsed({ ...model, motion: { ...nod, interval: 0 } })).toThrow(/interval/)
+    expect(() => parsed({ ...model, motion: { ...walk, from: 2 } })).toThrow(/part of the animation/)
+    expect(() => parsed({ ...model, motion: { ...walk, once: 'yes' } })).toThrow(/once/)
     // A picture can't be a model either.
     const picture = { ...saved.sprites[0].costumes[0], model: null, picture: model.asset }
     expect(() => parseProject({ ...saved, sprites: [{ ...saved.sprites[0], costumes: [picture] }] })).toThrow(/picture\.dataFormat/)

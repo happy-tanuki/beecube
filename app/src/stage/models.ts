@@ -7,14 +7,16 @@
  * (its left +y). The model is turned so, centered on its box, and scaled so
  * the box's longest side is as long as a cube's (BASE_SIZE).
  *
- * A model with a skeleton is drawn in a pose (engine/costume.ts): its bones
- * turned, and its skinned meshes shaped so once. Poses can be taken from
- * the file's animations, a moment of one at a time. The box is always the
- * model's as the file has it.
+ * A model with a skeleton moves (engine/costume.ts's motion). Standing
+ * still, it is drawn in a pose: its bones turned, and its skinned meshes
+ * shaped so once. Moving, its meshes keep their skins, and the bones'
+ * matrices are sampled through the part that plays (MOTION_FPS), for the
+ * vertex shader to skin them with (looks.ts). Only how bones turn is used.
+ * The box is always the model's as the file has it.
  */
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import type { ModelPose } from '../engine/costume'
+import { isClipMotion, type ClipMotion, type KeyframeMotion, type ModelMotion, type ModelPose } from '../engine/costume'
 import { BASE_SIZE } from '../engine/types'
 
 /** A model read from its file. */
@@ -96,21 +98,37 @@ const RADIANS = Math.PI / 180
 const turnRotation = ([x, y, z]: [number, number, number]) =>
   new THREE.Quaternion().setFromEuler(new THREE.Euler(x * RADIANS, y * RADIANS, z * RADIANS, 'ZYX'))
 
-/** Stands the model in a pose (from rest). */
-function standInPose(root: THREE.Object3D, pose: ModelPose): void {
+/** Stands the model with its bones turned (from rest), each by a rotation in sprite space or none. */
+function standTurned(root: THREE.Object3D, turnOf: (bone: string) => THREE.Quaternion | null): void {
   standAtRest(root)
   const turned: [THREE.Bone, THREE.Quaternion][] = []
   for (const [name, bones] of bonesByName(root)) {
-    const turn = pose[name]
+    const turn = turnOf(name)
     if (!turn) continue
     for (const bone of bones) {
       // The turn is in sprite space, so turned there: into the parent's space, turned, and back.
       const parent = parentRotation(bone)
-      turned.push([bone, parent.clone().invert().multiply(turnRotation(turn)).multiply(parent).multiply(bone.quaternion)])
+      turned.push([bone, parent.clone().invert().multiply(turn).multiply(parent).multiply(bone.quaternion)])
     }
   }
   for (const [bone, q] of turned) bone.quaternion.copy(q)
   root.updateMatrixWorld(true)
+}
+
+/** Stands the model in a pose (from rest). */
+function standInPose(root: THREE.Object3D, pose: ModelPose): void {
+  standTurned(root, (name) => (pose[name] ? turnRotation(pose[name]) : null))
+}
+
+const NO_TURN = new THREE.Quaternion()
+
+/** Stands the model between two poses, `f` (0–1) of the way from one to the other, turning each bone smoothly. */
+function standBetween(root: THREE.Object3D, a: ModelPose, b: ModelPose, f: number): void {
+  standTurned(root, (name) => {
+    if (!a[name] && !b[name]) return null
+    const from = a[name] ? turnRotation(a[name]) : NO_TURN.clone()
+    return b[name] ? from.slerp(turnRotation(b[name]), f) : from.slerp(NO_TURN, f)
+  })
 }
 
 /** The animations that move bones. */
@@ -121,27 +139,98 @@ export function modelClips(model: Model): THREE.AnimationClip[] {
   )
 }
 
+/** The animation of the model by name (one that moves bones), or null. */
+export function findClip(model: Model, name: string): THREE.AnimationClip | null {
+  return modelClips(model).find((c) => c.name === name) ?? null
+}
+
+const turningClips = new WeakMap<THREE.AnimationClip, THREE.AnimationClip>()
+
+/** The animation turning bones only: its other tracks (moving, scaling, other nodes) are left out. Made once. */
+function turningOnly(model: Model, clip: THREE.AnimationClip): THREE.AnimationClip {
+  let turning = turningClips.get(clip)
+  if (!turning) {
+    const bones = bonesByName(model.root)
+    const tracks = clip.tracks.filter((track) => {
+      const { nodeName, propertyName } = THREE.PropertyBinding.parseTrackName(track.name)
+      return bones.has(nodeName) && propertyName === 'quaternion'
+    })
+    turning = new THREE.AnimationClip(clip.name, clip.duration, tracks)
+    turningClips.set(clip, turning)
+  }
+  return turning
+}
+
+/**
+ * Plays an animation, turning bones only, for `use` to stand the model's
+ * bones as they are at times (in seconds) in it; after, the model stands
+ * at rest again (stopping the animation puts its bones back).
+ */
+function inClip<T>(model: Model, clip: THREE.AnimationClip, use: (standAt: (time: number) => void) => T): T {
+  const { root } = model
+  standAtRest(root)
+  const mixer = new THREE.AnimationMixer(root)
+  // Played once and held, so its end is its last pose, not its first again.
+  const action = mixer.clipAction(turningOnly(model, clip))
+  action.setLoop(THREE.LoopOnce, 1)
+  action.clampWhenFinished = true
+  action.play()
+  try {
+    return use((time) => {
+      mixer.setTime(Math.min(Math.max(0, time), clip.duration))
+      root.updateMatrixWorld(true)
+    })
+  } finally {
+    mixer.stopAllAction()
+    mixer.uncacheRoot(root)
+    standAtRest(root)
+  }
+}
+
 /** The pose the model's bones are in at a time (in seconds) in an animation; only how they turn is kept. */
 export function clipPose(model: Model, clip: THREE.AnimationClip, time: number): ModelPose {
   const { root } = model
   standAtRest(root)
   const bones = [...bonesByName(root)].map(([name, [bone]]) => ({ name, bone, parent: parentRotation(bone), rest: bone.quaternion.clone() }))
-  const mixer = new THREE.AnimationMixer(root)
-  mixer.clipAction(clip).play()
-  mixer.setTime(time)
-  const pose: ModelPose = {}
-  for (const { name, bone, parent, rest } of bones) {
-    // The turn standInPose undoes: in sprite space, from the parent standing at rest.
-    const turn = parent.clone().multiply(bone.quaternion).multiply(rest.invert()).multiply(parent.clone().invert())
-    const e = new THREE.Euler().setFromQuaternion(turn, 'ZYX')
-    // To a tenth of a degree (and never -0).
-    const angles = [e.x, e.y, e.z].map((r) => Math.round((r / RADIANS) * 10) / 10 || 0) as [number, number, number]
-    if (angles.some((a) => a !== 0)) pose[name] = angles
-  }
-  mixer.stopAllAction()
-  mixer.uncacheRoot(root)
-  standAtRest(root)
-  return pose
+  return inClip(model, clip, (standAt) => {
+    standAt(time)
+    const pose: ModelPose = {}
+    for (const { name, bone, parent, rest } of bones) {
+      // The turn standInPose undoes: in sprite space, from the parent standing at rest.
+      const turn = parent.clone().multiply(bone.quaternion).multiply(rest.clone().invert()).multiply(parent.clone().invert())
+      const e = new THREE.Euler().setFromQuaternion(turn, 'ZYX')
+      // To a tenth of a degree (and never -0).
+      const angles = [e.x, e.y, e.z].map((r) => Math.round((r / RADIANS) * 10) / 10 || 0) as [number, number, number]
+      if (angles.some((a) => a !== 0)) pose[name] = angles
+    }
+    return pose
+  })
+}
+
+/** The pose a motion starts in (all of a still one); at rest if its animation isn't in the file. */
+export function motionPose(model: Model, motion: ModelMotion): ModelPose {
+  if (!isClipMotion(motion)) return motion.keyframes[motion.from] ?? {}
+  const clip = findClip(model, motion.clip)
+  return clip ? clipPose(model, clip, motion.from) : {}
+}
+
+/** How many keyframes a second an animation is turned into. */
+export const KEYFRAMES_PER_SECOND = 10
+
+/**
+ * An animation's motion as keyframes, sampled through all of it
+ * (KEYFRAMES_PER_SECOND), playing the keyframes nearest its part; null if
+ * the animation isn't in the file.
+ */
+export function clipKeyframes(model: Model, motion: ClipMotion, maxKeyframes: number): KeyframeMotion | null {
+  const clip = findClip(model, motion.clip)
+  if (!clip) return null
+  const steps = Math.max(1, Math.min(maxKeyframes - 1, Math.round(clip.duration * KEYFRAMES_PER_SECOND)))
+  const interval = clip.duration / steps
+  const keyframes: ModelPose[] = []
+  for (let i = 0; i <= steps; i++) keyframes.push(clipPose(model, clip, i * interval))
+  const at = (seconds: number) => Math.min(steps, Math.max(0, Math.round(seconds / interval)))
+  return { keyframes, interval, from: at(motion.from), to: at(motion.to), ...(motion.once && { once: true }) }
 }
 
 /** The model's meshes, each with the matrix that puts it in sprite space (before centering and scaling). */
@@ -198,19 +287,25 @@ function copyMaterial(m: THREE.Material): THREE.Material {
   return copy
 }
 
+/** The matrix that centers the model (standing at rest) and scales it to the shapes' size; null for an empty model. */
+function fitMatrix(root: THREE.Object3D): THREE.Matrix4 | null {
+  standAtRest(root)
+  const b = box(root)
+  const size = b.getSize(new THREE.Vector3())
+  const longest = Math.max(size.x, size.y, size.z)
+  if (!(longest > 0)) return null
+  const center = b.getCenter(new THREE.Vector3())
+  return new THREE.Matrix4().makeScale(BASE_SIZE / longest, BASE_SIZE / longest, BASE_SIZE / longest).multiply(new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z))
+}
+
 /**
  * The model's parts in sprite space, in a pose, centered and scaled to the
  * shapes' size as it stands at rest. Materials are copies of the model's.
  */
 export function modelParts(model: Model, pose: ModelPose = {}): ModelPart[] {
   const { root } = model
-  standAtRest(root)
-  const b = box(root)
-  const size = b.getSize(new THREE.Vector3())
-  const longest = Math.max(size.x, size.y, size.z)
-  if (!(longest > 0)) return []
-  const center = b.getCenter(new THREE.Vector3())
-  const fit = new THREE.Matrix4().makeScale(BASE_SIZE / longest, BASE_SIZE / longest, BASE_SIZE / longest).multiply(new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z))
+  const fit = fitMatrix(root)
+  if (!fit) return []
   standInPose(root, pose)
   const parts = meshes(root).map(([mesh, matrix]) => {
     const geometry = (mesh as THREE.SkinnedMesh).isSkinnedMesh ? posed(mesh as THREE.SkinnedMesh) : mesh.geometry.clone()
@@ -223,4 +318,121 @@ export function modelParts(model: Model, pose: ModelPose = {}): ModelPart[] {
   })
   standAtRest(root)
   return parts
+}
+
+/** How many times a second a moving model's bones are sampled. */
+export const MOTION_FPS = 30
+
+/** The most samples of a motion (a minute's). */
+const MAX_SAMPLES = MOTION_FPS * 60
+
+/**
+ * A part of a moving model: its geometry as the file has it, with which
+ * bones move each vertex (`motionBones`, up to four) and how much
+ * (`motionWeights`), and the bones' matrices at each sample, a row of the
+ * texture each (four texels, the columns, per bone). A matrix takes a
+ * vertex to sprite space, centered, scaled and stretched as a still model
+ * is. A mesh without a skin moves with its node, as its only bone.
+ */
+export interface MovingPart extends ModelPart {
+  matrices: THREE.DataTexture
+}
+
+export interface MovingModel {
+  parts: MovingPart[]
+  /** Samples, through the part that plays, its start and end included. */
+  samples: number
+  /** How long the part that plays takes. */
+  seconds: number
+}
+
+/** Stands the model as keyframes have it `t` seconds into the part that plays. */
+function standInKeyframes(root: THREE.Object3D, motion: KeyframeMotion, t: number): void {
+  const u = Math.min(motion.to, motion.from + t / motion.interval)
+  const a = Math.floor(u)
+  const b = Math.min(a + 1, motion.to)
+  standBetween(root, motion.keyframes[a] ?? {}, motion.keyframes[b] ?? {}, u - a)
+}
+
+/** A vertex attribute as floats (skin indices may be integers). */
+function floatAttribute(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, size: number): THREE.Float32BufferAttribute {
+  const out = new Float32Array(attr.count * size)
+  for (let i = 0; i < attr.count; i++) for (let k = 0; k < size; k++) out[i * size + k] = attr.getComponent(i, k)
+  return new THREE.Float32BufferAttribute(out, size)
+}
+
+/** A mesh's geometry for moving: as the file has it, with its skin (or its node as the one bone) as motion attributes. */
+function movingGeometry(mesh: THREE.Mesh): THREE.BufferGeometry {
+  const geometry = mesh.geometry.clone()
+  const count = geometry.getAttribute('position').count
+  const skinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh
+  if (skinned && geometry.getAttribute('skinIndex') && geometry.getAttribute('skinWeight')) {
+    geometry.setAttribute('motionBones', floatAttribute(geometry.getAttribute('skinIndex'), 4))
+    geometry.setAttribute('motionWeights', floatAttribute(geometry.getAttribute('skinWeight'), 4))
+  } else {
+    geometry.setAttribute('motionBones', new THREE.Float32BufferAttribute(new Float32Array(count * 4), 4))
+    const weights = new Float32Array(count * 4)
+    for (let i = 0; i < count; i++) weights[i * 4] = 1
+    geometry.setAttribute('motionWeights', new THREE.Float32BufferAttribute(weights, 4))
+  }
+  if (!geometry.getAttribute('normal')) geometry.computeVertexNormals()
+  for (const name of Object.keys(geometry.attributes)) if (/^(skin|morph)/.test(name)) geometry.deleteAttribute(name)
+  geometry.morphAttributes = {}
+  return geometry
+}
+
+/**
+ * The model's parts moving as its motion plays its part, stretched by
+ * `stretch`; null for an empty model. A motion whose animation isn't in
+ * the file stands at rest.
+ */
+export function movingModelParts(model: Model, motion: ModelMotion, stretch: [number, number, number] = [1, 1, 1]): MovingModel | null {
+  const { root } = model
+  const fit = fitMatrix(root)
+  if (!fit) return null
+  fit.premultiply(new THREE.Matrix4().makeScale(...stretch))
+  const clip = isClipMotion(motion) ? findClip(model, motion.clip) : null
+  const seconds = isClipMotion(motion) ? (clip ? Math.min(motion.to, clip.duration) - motion.from : 0) : (motion.to - motion.from) * motion.interval
+  const samples = seconds > 0 ? Math.min(MAX_SAMPLES, Math.ceil(seconds * MOTION_FPS) + 1) : 1
+  const found = meshes(root).map(([mesh]) => mesh)
+  const bonesOf = (mesh: THREE.Mesh) => ((mesh as THREE.SkinnedMesh).isSkinnedMesh ? (mesh as THREE.SkinnedMesh).skeleton.bones.length : 1)
+  const data = found.map((mesh) => new Float32Array(bonesOf(mesh) * 4 * samples * 4))
+  const m = new THREE.Matrix4()
+  const sample = (k: number, standAt: (t: number) => void) => {
+    standAt(samples > 1 ? (seconds * k) / (samples - 1) : 0)
+    found.forEach((mesh, p) => {
+      const base = fit.clone().multiply(GLTF_TO_SPRITE).multiply(mesh.matrixWorld)
+      const row = bonesOf(mesh) * 16 * k
+      if (!(mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+        data[p].set(base.elements, row)
+        return
+      }
+      const skinned = mesh as THREE.SkinnedMesh
+      skinned.skeleton.bones.forEach((bone, j) => {
+        // As SkinnedMesh.applyBoneTransform, then the mesh's place: base · bindMatrixInverse · bone · boneInverse · bindMatrix.
+        m.copy(base).multiply(skinned.bindMatrixInverse).multiply(bone.matrixWorld).multiply(skinned.skeleton.boneInverses[j]).multiply(skinned.bindMatrix)
+        data[p].set(m.elements, row + j * 16)
+      })
+    })
+  }
+  const from = motion.from
+  if (isClipMotion(motion)) {
+    if (clip) inClip(model, clip, (standAt) => {
+      for (let k = 0; k < samples; k++) sample(k, (t) => standAt(from + t))
+    })
+    else {
+      // Not in the file: at rest.
+      for (let k = 0; k < samples; k++) sample(k, () => standAtRest(root))
+    }
+  } else {
+    for (let k = 0; k < samples; k++) sample(k, (t) => standInKeyframes(root, motion, t))
+  }
+  standAtRest(root)
+  const parts = found.map((mesh, p) => {
+    const matrices = new THREE.DataTexture(data[p], bonesOf(mesh) * 4, samples, THREE.RGBAFormat, THREE.FloatType)
+    matrices.needsUpdate = true
+    const material = Array.isArray(mesh.material) ? mesh.material.map(copyMaterial) : copyMaterial(mesh.material)
+    return { geometry: movingGeometry(mesh), material, matrices }
+  })
+  return { parts, samples, seconds }
 }

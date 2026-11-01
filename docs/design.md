@@ -88,23 +88,43 @@ what follows from that.
   things, bounces and takes part in physics as that box: the costume keeps
   the box's proportions, and the store an extent per axis that collisions
   multiply width, depth and height by. Skinned models are drawn as their
-  skeleton stands, in the costume's pose. The library adds 24
+  skeleton stands, in the costume's pose or motion. The library adds 24
   models from Kenney's kits (CC0): animals, children, cars, space, trees
   and food, re-exported with their textures inside. Models are assets like
   pictures, so they are saved, shared and moderated the same way (the
   moderation page draws them).
-- **Poses.** A costume of a model with a skeleton keeps a pose: bones by
-  name, each turned by three angles in degrees about the sprite's front,
-  left and up axes (as seen with its parent bone at rest), so a slider
-  means the same on every bone. The Costumes tab turns the chosen bone with
-  three sliders, and makes costumes from one of the file's animations: a
-  number of moments evenly through it, each a costume with that pose (only
-  how bones turn is kept). Switching such costumes moves the model like a
-  flip book; animations are not played as they are, and blocks don't turn
-  bones. A pose is drawn by shaping the skinned meshes once, as a look of
-  its own; the box stays the model's at rest, so switching poses doesn't
-  change what it touches. The library's children keep their kit's
-  animations (walk, run, jump, sit and more).
+- **Poses and motion.** Settled on 2026-10-31. A costume of a model with a
+  skeleton moves its bones in one of two ways:
+  - **Keyframes**: poses, evenly spaced by an interval in seconds. A pose
+    is bones by name, each turned by three angles in degrees about the
+    sprite's front, left and up axes (as seen with its parent bone at
+    rest), so a slider means the same on every bone. A new costume has one
+    keyframe, the model at rest. The Costumes tab lists the keyframes: the
+    three sliders turn the chosen bone in the chosen keyframe, "add"
+    puts a copy of a keyframe after it and chooses it, and "delete" takes
+    it out. Between keyframes the bones turn smoothly.
+  - **An animation of the file**, played as it is: the tab adds a costume
+    for one of them. A button turns it into keyframes, sampled ten times a
+    second; this can't be undone, but a costume of the animation can be
+    added again.
+
+  Either way, a two-handled slider along the costume's timeline (its
+  keyframes, which the handles snap to, or the animation's seconds) picks
+  the part that plays, and the costume either repeats it or plays it once
+  and stays at its end. With both handles together, the costume is that
+  one pose. Only how bones turn is used, not how they move, so a model
+  stays where its blocks put it. The motion starts when the costume is put
+  on; switching to the costume already worn doesn't start it again, so
+  "switch costume" in a loop doesn't stop it. Clones keep their own time,
+  and a stamp keeps the pose of the moment. Costumes in a row still move a
+  model like a flip book, and blocks don't turn bones.
+
+  A still costume is drawn by shaping the skinned meshes once, as a look of
+  its own. A moving one is sampled thirty times a second into a texture of
+  bone matrices, and its instances are skinned on the GPU, each at its own
+  time. The box stays the model's at rest, so motion doesn't change what
+  it touches. The library's children keep their kit's animations (walk,
+  run, jump, sit and more).
 - **The picture editor** (`app/src/ui/PaintEditor.tsx`) paints a costume's
   picture or a backdrop face's, like Scratch's paint editor in bitmap mode
   (there is no vector mode): brush, eraser, fill, line, rectangle, ellipse,
@@ -306,8 +326,8 @@ sprites. Extension blocks are left out, as they act on sprites.
   The sprite library has the costume library's models and pictured shapes,
   and the plain shapes, in categories (animals, people, vehicles, space,
   nature, food, things, shapes); a sprite chosen is named after it and
-  stands on the floor, and the library's children come with walking
-  costumes. The backdrop library makes a new backdrop of scenery or a room.
+  stands on the floor, and the library's children come with a walking
+  costume as well. The backdrop library makes a new backdrop of scenery or a room.
   Upload takes a picture or a 3D model, told apart by the file. Costumes
   are shown as they look on the stage, drawn in 3D (`app/src/ui/costumeThumbnails.ts`),
   and the library's models' animations and bones have translated names.
@@ -327,7 +347,7 @@ sprites. Extension blocks are left out, as they act on sprites.
   moves), and the picture editor below (a picture is
   uploaded as a new costume, from the "+" menu, and cleared with the
   editor's Clear); a model costume shows the model large, with its
-  pose. Adding a costume to paint adds one without a picture. A backdrop's form shows the scenery and the room
+  motion: the part that plays, its keyframes and their bones. Adding a costume to paint adds one without a picture. A backdrop's form shows the scenery and the room
   as two big cards, chosen by pressing their pictures; each face's color
   and picture are under "More".
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
