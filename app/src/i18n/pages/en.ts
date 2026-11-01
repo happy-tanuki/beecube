@@ -58,14 +58,14 @@ export const en: Pages = {
         id: 'support',
         heading: 'Supporting {app}',
         paragraphs: [
-          '{app} is free, with no ads. Grown-ups who want to help keep it running can give a little money on Buy Me a Coffee, another site. You don’t have to: everything here stays free.',
+          '{app} is free. Grown-ups who want to help keep it running can give a little money on Buy Me a Coffee, another site. You don’t have to: everything here stays free.',
         ],
       },
     ],
   },
   privacy: {
     title: 'Privacy policy',
-    updated: 'Last updated: October 26, 2026',
+    updated: 'Last updated: November 1, 2026',
     sections: [
       {
         id: 'short',
@@ -106,10 +106,14 @@ export const en: Pages = {
         ],
       },
       {
-        id: 'nothing-else',
-        heading: 'Ads and tracking',
+        id: 'ads',
+        heading: 'Ads and counting visits',
         paragraphs: [
-          'There are no ads and no tracking. If that changes, we will update this page first.',
+          'To help pay for running {app}, some pages may show ads from an ad service (for example, Google AdSense). There are never ads in the editor, on the stage or in full screen.',
+          'Because {app} is made for children, its ads are not chosen from what you do on other sites (they are not “personalized”). The ad service, and companies working with it such as Google, may still use cookies or similar technology to show ads, count how often they are seen, and stop fake clicks. [How Google uses information from sites that use its services](https://policies.google.com/technologies/partner-sites)',
+          'Grown-ups can turn off personalized ads from Google in [My Ad Center](https://myadcenter.google.com/), and from many other companies at [aboutads.info](https://www.aboutads.info/choices/).',
+          'To know how many people visit each page, we may use a service that counts visits. It uses no cookies and doesn’t know who you are.',
+          'We don’t follow what you do on other sites, and we don’t sell information about you.',
         ],
       },
       {

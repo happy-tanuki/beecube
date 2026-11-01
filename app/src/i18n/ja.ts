@@ -325,6 +325,8 @@ export const ja: Messages = {
     'about.about': 'このサイトについて',
     'about.privacy': 'プライバシー',
     'about.terms': '利用規約',
+    'notFound.title': 'このページは見つかりませんでした。',
+    'notFound.home': '{app} へ行く',
     'admin.title': 'モデレーション',
     'admin.token': '管理用トークン',
     'admin.signIn': 'ログイン',

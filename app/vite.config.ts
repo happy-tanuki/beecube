@@ -69,8 +69,9 @@ export default defineConfig({
   worker: { format: 'es' },
   build: {
     rolldownOptions: {
-      // The editor, the player for shared projects, the About page and the moderation page.
-      input: { main: 'index.html', play: 'play.html', about: 'about.html', admin: 'admin.html' },
+      // The editor, the player for shared projects, the About page, the moderation
+      // page, and the page for paths that don't exist.
+      input: { main: 'index.html', play: 'play.html', about: 'about.html', admin: 'admin.html', notFound: '404.html' },
     },
   },
   test: {

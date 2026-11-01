@@ -30,14 +30,14 @@ export const ja: Pages = {
         id: 'support',
         heading: '{app} を応援する',
         paragraphs: [
-          '{app} は無料で、広告もありません。続けるのを手伝ってくださる大人の方は、別のサイトの Buy Me a Coffee から少しのお金で応援できます。しなくても、ここにあるものはずっと無料で使えます。',
+          '{app} は無料です。続けるのを手伝ってくださる大人の方は、別のサイトの Buy Me a Coffee から少しのお金で応援できます。しなくても、ここにあるものはずっと無料で使えます。',
         ],
       },
     ],
   },
   privacy: {
     title: 'プライバシーポリシー',
-    updated: '最終更新日: 2026年10月26日',
+    updated: '最終更新日: 2026年11月1日',
     sections: [
       {
         id: 'short',
@@ -78,9 +78,15 @@ export const ja: Pages = {
         ],
       },
       {
-        id: 'nothing-else',
-        heading: '広告と追跡',
-        paragraphs: ['広告も、あなたの行動の追跡もありません。変えるときは、先にこのページを更新します。'],
+        id: 'ads',
+        heading: '広告と、見た人の数',
+        paragraphs: [
+          '{app} を続けるためのお金にするために、いくつかのページに広告サービス（たとえば Google AdSense）の広告がのることがあります。エディター、ステージ、全画面には、広告はのりません。',
+          '{app} は子ども向けに作っているので、ほかのサイトであなたがしたことから広告を選ぶこと（「パーソナライズ」）はしません。それでも広告サービスや、Google などいっしょに働く会社は、広告を出したり、何回見られたかを数えたり、ずるいクリックを防いだりするために、Cookie などを使うことがあります。[Google のサービスを使うサイトの情報を Google が使う方法](https://policies.google.com/technologies/partner-sites?hl=ja)',
+          'おうちの人は、Google のパーソナライズ広告を[マイ アド センター](https://myadcenter.google.com/)で、ほかの多くの会社のものを [aboutads.info](https://www.aboutads.info/choices/) で止められます。',
+          'それぞれのページを何人が見たかを知るために、見た人の数を数えるサービスを使うことがあります。Cookie は使わず、あなたがだれかもわかりません。',
+          'わたしたちが、ほかのサイトでのあなたの行動を追いかけることはありません。あなたの情報を売ることもありません。',
+        ],
       },
       {
         id: 'contact',

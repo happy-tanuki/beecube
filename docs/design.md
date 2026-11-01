@@ -390,8 +390,7 @@ Made for children, not only for them: anyone can use it, and what follows
 keeps it safe for the youngest.
 
 - **No personal data.** There are no accounts. Nothing identifying the people
-  who share or report projects is stored. Analytics, if added, must not use
-  cookies.
+  who share or report projects is stored. Analytics must not use cookies.
 - **Sharing is by link**, with no public gallery, comments or messages
   between users. Projects can be reported, and reported projects are hidden
   until reviewed (see sharing.md).
@@ -404,8 +403,12 @@ keeps it safe for the youngest.
   shown in the privacy policy.
 - **Ads**, if any, are non-personalized ads for a child-directed site. They
   stay away from the editor, the stage and full screen. For now the pages
-  carry only AdSense's site verification tag, and no ads; the privacy policy
-  is updated before any ads appear.
+  carry only AdSense's site verification tag and `ads.txt`, and no ads.
+- **The privacy policy describes ads and analytics by what they may do, not
+  by provider**, so it need not change when a provider is added or switched,
+  as long as the provider keeps to the rules above. It names Google only as
+  an example, because AdSense asks for that disclosure before it approves a
+  site.
 - **Support** from grown-ups goes through Buy Me a Coffee (`SUPPORT_URL` in
   `app/src/brand.ts`): a section of the About page with a button, and a link
   to it under the player. It is a plain link, so the site loads nothing from

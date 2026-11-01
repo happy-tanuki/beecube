@@ -325,6 +325,8 @@ export const en = {
     'about.about': 'About',
     'about.privacy': 'Privacy',
     'about.terms': 'Terms of use',
+    'notFound.title': 'This page could not be found.',
+    'notFound.home': 'Go to {app}',
     'admin.title': 'Moderation',
     'admin.token': 'Admin token',
     'admin.signIn': 'Sign in',
