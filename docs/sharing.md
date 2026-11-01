@@ -37,6 +37,10 @@ open, including on a phone. The audience is children (see
     without the selection outline) and sends it with the project. It is kept
     in R2 at `thumbnails/<id>.jpg`; its URL changes with each update so
     previews don't show an old picture.
+  - Link-preview tags point at the picture as `/p/<id>/thumbnail.jpg`, not
+    at the API: `robots.txt` keeps crawlers out of `/api/`, and link-preview
+    crawlers (X's among them) obey it, so a picture there would be dropped
+    from previews.
   - `/?open=<id>` ("See inside" on the player) opens a shared project in the
     editor, after asking, since it replaces the project being edited.
   - `/p/<id>?embed` is the player for other pages: only the stage, fitted

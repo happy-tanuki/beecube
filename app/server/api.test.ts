@@ -7,7 +7,7 @@ import sample from '../public/samples/pen-cube.json'
 import { hashAsset } from '../src/engine/assets'
 import { PROJECT_FORMAT } from '../src/engine/project'
 import rooms from '../src/ui/roomLibrary.json'
-import { handleApi, UPLOAD_LIMIT, type Deps, type Env } from './api'
+import { handleApi, sharedProjectInfo, sharedThumbnail, UPLOAD_LIMIT, type Deps, type Env } from './api'
 import { glbFile, jpegFile, pngFile } from './testFiles'
 
 /** A valid project: the bundled sample's. */
@@ -148,11 +148,19 @@ describe('sharing API', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('image/jpeg')
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(jpegFile())
+    // Link previews take it from /p/, which robots.txt leaves open to crawlers.
+    expect((await sharedProjectInfo(env, id))?.thumbnailPath).toMatch(new RegExp(`^/p/${id}/thumbnail\\.jpg\\?v=\\d+$`))
+    expect((await sharedProjectInfo(env, plain.id))?.thumbnailPath).toBeNull()
+    const page = await sharedThumbnail(env, id)
+    expect(page.headers.get('content-type')).toBe('image/jpeg')
+    expect(new Uint8Array(await page.arrayBuffer())).toEqual(jpegFile())
+    expect((await sharedThumbnail(env, plain.id)).status).toBe(404)
     // Updating without a thumbnail keeps the old one.
     expect((await call('PUT', `projects/${id}`, { title: 'x', project, turnstileToken: 'human' }, editKey)).status).toBe(200)
     expect((await call('GET', `projects/${id}/thumbnail`)).status).toBe(200)
     expect((await call('DELETE', `projects/${id}`, undefined, editKey)).status).toBe(204)
     expect((await call('GET', `projects/${id}/thumbnail`)).status).toBe(404)
+    expect((await sharedThumbnail(env, id)).status).toBe(404)
   })
 
   it('keeps the pictures a project uses, per project', async () => {

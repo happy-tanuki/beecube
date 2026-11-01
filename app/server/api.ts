@@ -3,7 +3,8 @@
  *
  *   POST   /api/projects                 share: { title, notes, project, thumbnail? } → { id, editKey }
  *   GET    /api/projects/:id             → { id, title, notes, project, createdAt, updatedAt }
- *   GET    /api/projects/:id/thumbnail   the link-preview picture (JPEG)
+ *   GET    /api/projects/:id/thumbnail   the link-preview picture (JPEG); link previews use
+ *                                         /p/:id/thumbnail.jpg (sharedThumbnail), outside robots.txt's /api/
  *   GET    /api/projects/:id/assets/:file   a picture or 3D model the project uses (<sha-256>.<png|jpg|glb>)
  *   PUT    /api/projects/:id/assets/:file   upload one (Authorization: Bearer <editKey>);
  *                                        the body is the file itself, checked through
@@ -364,7 +365,11 @@ async function createProject(env: Env, deps: Deps, request: Request): Promise<Re
 export interface SharedInfo {
   title: string
   notes: string
-  /** Path of the link-preview picture (changing when it does), or null if there is none. */
+  /**
+   * Path of the link-preview picture (changing when it does), or null if
+   * there is none. It is under /p/, not /api/: robots.txt keeps crawlers out
+   * of /api/, and link-preview crawlers (X's among them) obey it.
+   */
   thumbnailPath: string | null
 }
 
@@ -375,7 +380,7 @@ export async function sharedProjectInfo(env: Env, id: string): Promise<SharedInf
   return {
     title: row.title,
     notes: row.notes,
-    thumbnailPath: row.has_thumbnail ? `/api/projects/${id}/thumbnail?v=${row.updated_at}` : null,
+    thumbnailPath: row.has_thumbnail ? `/p/${id}/thumbnail.jpg?v=${row.updated_at}` : null,
   }
 }
 
@@ -388,6 +393,19 @@ async function getThumbnail(env: Env, id: string): Promise<Response> {
     // Not kept to this site: link previews show it on others.
     headers: { 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=300', ...SAFE_HEADERS },
   })
+}
+
+/**
+ * A shared project's link-preview picture, served at /p/<id>/thumbnail.jpg
+ * (see SharedInfo.thumbnailPath), or a 404.
+ */
+export async function sharedThumbnail(env: Env, id: string): Promise<Response> {
+  try {
+    return await getThumbnail(env, id)
+  } catch (err) {
+    if (err instanceof HttpError) return json({ error: err.code }, err.status)
+    throw err
+  }
 }
 
 async function getProject(env: Env, id: string): Promise<Response> {
