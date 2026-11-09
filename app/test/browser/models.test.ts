@@ -1,12 +1,14 @@
 /**
  * 3D models in a real browser (glTF is read and written with the page's
  * Blob and FileReader): poses of a model with a skeleton, set by hand and
- * taken from its animations, and its motion sampled for the GPU.
+ * taken from its animations, the same for a model made of pieces, and its
+ * motion sampled for the GPU.
  */
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
-import { clipKeyframes, clipPose, modelBones, modelClips, modelParts, modelSize, movingModelParts, readModel, type MovingModel } from '../../src/stage/models'
+import { clipKeyframes, clipPose, modelJoints, modelClips, modelParts, modelSize, movingModelParts, readModel, type MovingModel } from '../../src/stage/models'
 import type { ModelMotion, ModelPose } from '../../src/engine/costume'
+import { pieces } from './pieces'
 import { stick } from './stick'
 
 /** The box around the model's parts drawn in a pose, in sprite space. */
@@ -24,7 +26,7 @@ const rounded = (v: THREE.Vector3) => v.toArray().map((n) => Math.round(n))
 describe('model poses', () => {
   it('turns bones about the sprite’s axes, and keeps the box the file has', async () => {
     const model = await readModel(await stick())
-    expect(modelBones(model)).toEqual(['foot', 'middle'])
+    expect(modelJoints(model)).toEqual(['foot', 'middle'])
     // 2 high and 0.2 thick: scaled to 40 high, from z = -20 to 20, the middle bone at z = 0.
     expect(rounded(partsBox(model).max)).toEqual([2, 2, 20])
     // Leaning forward by 90° about the sprite's y: the top half points to the front (+x).
@@ -48,6 +50,25 @@ describe('model poses', () => {
     expect(clipPose(model, bend, 0)).toEqual({})
     // Its top (20 up, 2 thick) is then at 20 · sin 45° + 2 · cos 45° to the front and as high.
     expect(rounded(partsBox(model, halfway).max)).toEqual([16, 2, 16])
+  })
+
+  it('turns the pieces of a model without a skeleton, each about its own place', async () => {
+    const model = await readModel(await pieces())
+    // The group holds them all and the patch stands where it does: neither is a part.
+    expect(modelJoints(model)).toEqual(['body', 'leg'])
+    expect(rounded(partsBox(model).max)).toEqual([2, 2, 20])
+    // The leg hangs from the top (z = 20): turned 90° about the sprite's y, it points to the back.
+    const swung = partsBox(model, { leg: [0, 90, 0] })
+    expect(rounded(swung.min)).toEqual([-40, -2, -20])
+    expect(rounded(swung.max)).toEqual([2, 2, 22])
+    // Its animation turns it the same way, and the model stands at rest again.
+    expect(modelClips(model).map((c) => c.name)).toEqual(['swing'])
+    expect(clipPose(model, modelClips(model)[0], 1)).toEqual({ leg: [0, 90, 0] })
+    expect(rounded(partsBox(model).min)).toEqual([-2, -2, -20])
+    // Moving, a piece moves with its node.
+    const moving = movingModelParts(model, { keyframes: [{}, { leg: [0, 90, 0] }], seconds: 1, from: 0, to: 1 })!
+    expect(rounded(sampleBox(moving, 0).min)).toEqual([-2, -2, -20])
+    expect(rounded(sampleBox(moving, 30).min)).toEqual([-40, -2, -20])
   })
 })
 

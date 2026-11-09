@@ -93,18 +93,24 @@ what follows from that.
   and food, re-exported with their textures inside. Models are assets like
   pictures, so they are saved, shared and moderated the same way (the
   moderation page draws them).
-- **Poses and motion.** Settled on 2026-10-31. A costume of a model with a
-  skeleton moves its bones in one of two ways:
+- **Poses and motion.** Settled on 2026-10-31. A costume of a model moves
+  by turning its joints: the bones of its skeleton, or, for a model made
+  of pieces without one (Kenney's animals, cars and spacemen), its parts
+  (added 2026-11-09). A part is a named node with meshes, placed or turned
+  in its parent so it has a place of its own to turn about (a leg turns
+  at its hip, a wheel at its axle), and not holding the whole model; the
+  pieces of one mesh, standing where their node does, aren't parts. The
+  tab calls them bones or parts. It moves them in one of two ways:
   - **Keyframes**: poses, evenly spaced over a length in seconds, from
     the first keyframe to the last, as an animation has one (1 at first);
     adding a keyframe keeps the length and spaces them closer. A pose
-    is bones by name, each turned by three angles in degrees about the
-    sprite's front, left and up axes (as seen with its parent bone at
-    rest), so a slider means the same on every bone. A new costume has one
+    is joints by name, each turned by three angles in degrees about the
+    sprite's front, left and up axes (as seen with its parent at
+    rest), so a slider means the same on every joint. A new costume has one
     keyframe, the model at rest. The Costumes tab lists the keyframes: the
-    three sliders turn the chosen bone in the chosen keyframe, "add"
+    three sliders turn the chosen joint in the chosen keyframe, "add"
     puts a copy of a keyframe after it and chooses it, and "delete" takes
-    it out. Between keyframes the bones turn smoothly.
+    it out. Between keyframes the joints turn smoothly.
   - **An animation of the file**, played as it is. The costume chooses
     it from a menu, beside its own keyframes;
     no costume is added. Choosing an animation over hand-made keyframes
@@ -131,12 +137,12 @@ what follows from that.
   costume's paint options are. Below, the model is drawn
   in the pose shown, beside the way it moves (the menu, and the button
   that turns an animation into keyframes) and the keyframes' list and
-  bones. Only how bones turn is used, not how they move, so a model
+  joints. Only how joints turn is used, not how they move, so a model
   stays where its blocks put it. The motion starts when the costume is put
   on; switching to the costume already worn doesn't start it again, so
   "switch costume" in a loop doesn't stop it. Clones keep their own time,
   and a stamp keeps the pose of the moment. Costumes in a row still move a
-  model like a flip book, and blocks don't turn bones.
+  model like a flip book, and blocks don't turn joints.
 
   A still costume is drawn by shaping the skinned meshes once, as a look of
   its own. A moving one is sampled thirty times a second into a texture of
@@ -349,7 +355,7 @@ sprites. Extension blocks are left out, as they act on sprites.
   costume as well. The backdrop library makes a new backdrop of scenery or a room.
   Upload takes a picture or a 3D model, told apart by the file. Costumes
   are shown as they look on the stage, drawn in 3D (`app/src/ui/costumeThumbnails.ts`),
-  and the library's models' animations and bones have translated names.
+  and the library's models' animations and joints have translated names.
 - **Few fields.** A sprite's information is its name and whether it
   shows, and below them x, y and z (kept together on one row, as they are
   read together, with their labels above them), direction and size. Like Scratch's direction, which pops up a dial, the direction pops

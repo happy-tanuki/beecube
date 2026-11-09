@@ -3,7 +3,7 @@
  * the sprite), adding one (from the library, uploaded, painted, a 3D model,
  * or without a picture), and the chosen one's name, shape, width, depth and height, picture
  * and how the picture wraps the shape, or its model and how the model's
- * bones move (engine/costume.ts).
+ * joints move (engine/costume.ts).
  */
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { assetFileName, type AssetRef, type Assets } from '../engine/assets'
@@ -34,11 +34,11 @@ import { COSTUME_LIBRARY, libraryCostumeName } from './library'
 import { costumeGuide, newCostumeSize } from './paint'
 import { PaintEditor } from './PaintEditor'
 import { costumeThumbnail, libraryThumbnail, loadModel, modelThumbnail, shapeThumbnail } from './costumeThumbnails'
-import { findClip, modelBones, modelClips, type Model } from '../stage/models'
+import { findClip, hasSkeleton, modelClips, modelJoints, type Model } from '../stage/models'
 import { NumberField } from './fields'
 import { SHAPE_ICONS } from './SpritePane'
 import { SHAPES, shapeName, type ProjectStore } from './store'
-import { boneLabel, clipLabel } from './modelNames'
+import { jointLabel, clipLabel } from './modelNames'
 
 /** Applied on Enter or leaving the field, so blocks that refer to the costume follow once. */
 function NameField({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
@@ -95,14 +95,22 @@ function commitOnRelease(commit: () => void) {
   }
 }
 
-/** Turning a model's bones in a pose, one at a time; `onChange` gets the pose as a slider is let go. */
-function PoseEditor({ pose, bones, onChange }: { pose: ModelPose; bones: string[]; onChange: (pose: ModelPose) => void }) {
-  const [chosen, setChosen] = useState(bones[0])
+/**
+ * Turning a model's joints in a pose, one at a time (`skeleton`: they are
+ * bones, else parts); `onChange` gets the pose as a slider is let go.
+ */
+function PoseEditor({ pose, joints, skeleton, onChange }: {
+  pose: ModelPose
+  joints: string[]
+  skeleton: boolean
+  onChange: (pose: ModelPose) => void
+}) {
+  const [chosen, setChosen] = useState(joints[0])
   const [draft, setDraft] = useState<[number, number, number] | null>(null)
   // Read when the slider is let go, which may be after this render (see commitOnRelease).
   const latest = useRef(draft)
   latest.current = draft
-  const bone = bones.includes(chosen) ? chosen : bones[0]
+  const bone = joints.includes(chosen) ? chosen : joints[0]
   const angles = draft ?? pose[bone] ?? [0, 0, 0]
   const commit = () => {
     const turn = latest.current
@@ -117,11 +125,11 @@ function PoseEditor({ pose, bones, onChange }: { pose: ModelPose; bones: string[
   return (
     <>
       <div className="field costume-pose">
-        <span>{t('costume.bone')}</span>
+        <span>{t(skeleton ? 'costume.bone' : 'costume.piece')}</span>
         <select value={bone} onChange={(e) => setChosen(e.target.value)}>
-          {bones.map((b) => (
+          {joints.map((b) => (
             <option key={b} value={b}>
-              {boneLabel(b)}
+              {jointLabel(b)}
             </option>
           ))}
         </select>
@@ -255,7 +263,7 @@ function OnceField({ once, onChange }: { once: boolean; onChange: (once: boolean
   )
 }
 
-/** A costume's keyframes, one chosen to turn its bones; each can be copied after itself or deleted. */
+/** A costume's keyframes, one chosen to turn its joints; each can be copied after itself or deleted. */
 function KeyframeList({ motion, chosen, onChoose, onChange }: {
   motion: KeyframeMotion
   chosen: number
@@ -360,12 +368,13 @@ function MotionFields({ store, index, model, motion, onMove }: {
   )
 }
 
-/** Keyframes' list and the chosen one's bones, beside the view. */
-function KeyframeEditor({ store, index, motion, bones, keyframe, onChoose }: {
+/** Keyframes' list and the chosen one's joints, beside the view. */
+function KeyframeEditor({ store, index, motion, joints, skeleton, keyframe, onChoose }: {
   store: ProjectStore
   index: number
   motion: KeyframeMotion
-  bones: string[]
+  joints: string[]
+  skeleton: boolean
   keyframe: number
   onChoose: (keyframe: number) => void
 }) {
@@ -384,7 +393,8 @@ function KeyframeEditor({ store, index, motion, bones, keyframe, onChoose }: {
       <PoseEditor
         key={`${index}:${keyframe}`}
         pose={motion.keyframes[keyframe]}
-        bones={bones}
+        joints={joints}
+        skeleton={skeleton}
         onChange={(pose) => set({ ...motion, keyframes: motion.keyframes.map((p, i) => (i === keyframe ? pose : p)) })}
       />
       <p className="costume-note">{t('costume.poseNote')}</p>
@@ -455,22 +465,18 @@ function DimensionFields({ store, index, costume }: { store: ProjectStore; index
 }
 
 /**
- * A model costume: its name, width, depth and height and the model (which
- * can be taken off to leave the shape) above; the model drawn large, and
- * how its bones move if it has them, below.
- */
-/**
- * A model costume: laid out as a shape costume, its name and size first,
- * then the model, and (with a skeleton) under the header its motion's part
- * and timing, as a shape costume's paint options; below, the model in the pose shown (the keyframe chosen, or where a
- * part handle is being moved) beside how it moves (keyframes or an
- * animation) and, for keyframes, their list and bones.
+ * A model costume: laid out as a shape costume, its name and size in the
+ * header, and (with joints to turn) under it its motion's part and timing,
+ * as a shape costume's paint options; below, the model in the pose shown
+ * (the keyframe chosen, or where a part handle is being moved) beside how
+ * it moves (keyframes or an animation) and, for keyframes, their list and
+ * joints.
  */
 function ModelCostume({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
   const model = useModel(store.rt.assets, costume.model!.asset)
-  const bones = model ? modelBones(model) : []
+  const joints = model ? modelJoints(model) : []
   const motion = modelMotion(costume.model!)
-  const moves = model !== null && bones.length > 0
+  const moves = model !== null && joints.length > 0
   const [chosen, setChosen] = useState(0)
   const [held, setHeld] = useState<number | null>(null)
   const keyframe = isClipMotion(motion) ? 0 : Math.min(chosen, motion.keyframes.length - 1)
@@ -502,7 +508,7 @@ function ModelCostume({ store, index, costume }: { store: ProjectStore; index: n
             </MoveField>
           )}
           {moves && !isClipMotion(motion) && (
-            <KeyframeEditor store={store} index={index} motion={motion} bones={bones} keyframe={keyframe} onChoose={setChosen} />
+            <KeyframeEditor store={store} index={index} motion={motion} joints={joints} skeleton={model !== null && hasSkeleton(model)} keyframe={keyframe} onChoose={setChosen} />
           )}
           {moves && isClipMotion(motion) && <p className="costume-note">{t('costume.toKeyframesNote')}</p>}
           <p className="costume-note">{t('costume.modelNote')}</p>

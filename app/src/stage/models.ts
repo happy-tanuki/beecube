@@ -7,12 +7,15 @@
  * (its left +y). The model is turned so, centered on its box, and scaled so
  * the box's longest side is as long as a cube's (BASE_SIZE).
  *
- * A model with a skeleton moves (engine/costume.ts's motion). Standing
- * still, it is drawn in a pose: its bones turned, and its skinned meshes
- * shaped so once. Moving, its meshes keep their skins, and the bones'
- * matrices are sampled through the part that plays (MOTION_FPS), for the
- * vertex shader to skin them with (looks.ts). Only how bones turn is used.
- * The box is always the model's as the file has it.
+ * A model moves (engine/costume.ts's motion) by turning its joints: the
+ * bones of its skeletons, and its parts, the pieces of a model made of
+ * pieces (a panda's legs, a car's wheels), each turning about its own
+ * place. Standing still, it is drawn in a pose: its joints turned, and its
+ * skinned meshes shaped so once. Moving, its meshes keep their skins, and
+ * the bones' matrices (a mesh without a skin has its node's) are sampled
+ * through the part that plays (MOTION_FPS), for the vertex shader to skin
+ * them with (looks.ts). Only how joints turn is used. The box is always
+ * the model's as the file has it.
  */
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
@@ -66,28 +69,77 @@ function standAtRest(root: THREE.Object3D): void {
   root.updateMatrixWorld(true)
 }
 
-/** The bones of the model's skeletons by name (one name can be on several, if meshes have skeletons of their own). */
-function bonesByName(root: THREE.Object3D): Map<string, THREE.Bone[]> {
-  const found = new Map<string, THREE.Bone[]>()
+const isSkinned = (o: THREE.Object3D) => (o as THREE.SkinnedMesh).isSkinnedMesh === true
+
+/** How many meshes without a skin are in a node (itself included). */
+function rigidMeshes(node: THREE.Object3D): number {
+  let n = 0
+  node.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh && !isSkinned(o)) n++
+  })
+  return n
+}
+
+/**
+ * The model's parts: named nodes, not bones, with meshes (not skinned) in
+ * them, placed or turned in their parent (so they have a place of their
+ * own to turn about) and not holding the whole model. The pieces of one
+ * mesh, standing where their node does, aren't parts.
+ */
+function parts(root: THREE.Object3D): THREE.Object3D[] {
+  const all = rigidMeshes(root)
+  const found: THREE.Object3D[] = []
   root.traverse((o) => {
-    if (!(o as THREE.SkinnedMesh).isSkinnedMesh) return
-    for (const bone of (o as THREE.SkinnedMesh).skeleton.bones) {
-      if (!bone.name) continue
-      const list = found.get(bone.name) ?? []
-      if (!list.includes(bone)) list.push(bone)
-      found.set(bone.name, list)
-    }
+    if (o === root || !o.name || (o as THREE.Bone).isBone || isSkinned(o)) return
+    const placed = o.position.lengthSq() > 0 || o.quaternion.w < 1
+    const meshes = placed ? rigidMeshes(o) : 0
+    if (meshes > 0 && meshes < all) found.push(o)
   })
   return found
 }
 
-/** The names of the model's bones, in its skeletons' order; none if it has no skeleton. */
-export function modelBones(model: Model): string[] {
-  return [...bonesByName(model.root).keys()]
+const joints = new WeakMap<THREE.Object3D, Map<string, THREE.Object3D[]>>()
+
+/**
+ * The model's joints by name: its skeletons' bones, then its parts (one
+ * name can be on several, if meshes have skeletons of their own). Found
+ * once, standing at rest.
+ */
+function jointsByName(root: THREE.Object3D): Map<string, THREE.Object3D[]> {
+  const known = joints.get(root)
+  if (known) return known
+  const found = new Map<string, THREE.Object3D[]>()
+  const add = (o: THREE.Object3D) => {
+    if (!o.name) return
+    const list = found.get(o.name) ?? []
+    if (!list.includes(o)) list.push(o)
+    found.set(o.name, list)
+  }
+  root.traverse((o) => {
+    if (isSkinned(o)) for (const bone of (o as THREE.SkinnedMesh).skeleton.bones) add(bone)
+  })
+  standAtRest(root)
+  for (const part of parts(root)) add(part)
+  joints.set(root, found)
+  return found
 }
 
-/** How a bone's parent is turned in sprite space, standing at rest. */
-function parentRotation(bone: THREE.Bone): THREE.Quaternion {
+/** The names of the model's joints (bones, then parts); none if it has neither. */
+export function modelJoints(model: Model): string[] {
+  return [...jointsByName(model.root).keys()]
+}
+
+/** Whether the model has a skeleton (its joints are bones, not only parts). */
+export function hasSkeleton(model: Model): boolean {
+  let found = false
+  model.root.traverse((o) => {
+    if (isSkinned(o)) found = true
+  })
+  return found
+}
+
+/** How a joint's parent is turned in sprite space, standing at rest. */
+function parentRotation(bone: THREE.Object3D): THREE.Quaternion {
   const q = bone.parent ? bone.parent.getWorldQuaternion(new THREE.Quaternion()) : new THREE.Quaternion()
   return SPRITE_ROTATION.clone().multiply(q)
 }
@@ -98,11 +150,11 @@ const RADIANS = Math.PI / 180
 const turnRotation = ([x, y, z]: [number, number, number]) =>
   new THREE.Quaternion().setFromEuler(new THREE.Euler(x * RADIANS, y * RADIANS, z * RADIANS, 'ZYX'))
 
-/** Stands the model with its bones turned (from rest), each by a rotation in sprite space or none. */
-function standTurned(root: THREE.Object3D, turnOf: (bone: string) => THREE.Quaternion | null): void {
+/** Stands the model with its joints turned (from rest), each by a rotation in sprite space or none. */
+function standTurned(root: THREE.Object3D, turnOf: (joint: string) => THREE.Quaternion | null): void {
   standAtRest(root)
-  const turned: [THREE.Bone, THREE.Quaternion][] = []
-  for (const [name, bones] of bonesByName(root)) {
+  const turned: [THREE.Object3D, THREE.Quaternion][] = []
+  for (const [name, bones] of jointsByName(root)) {
     const turn = turnOf(name)
     if (!turn) continue
     for (const bone of bones) {
@@ -122,7 +174,7 @@ function standInPose(root: THREE.Object3D, pose: ModelPose): void {
 
 const NO_TURN = new THREE.Quaternion()
 
-/** Stands the model between two poses, `f` (0–1) of the way from one to the other, turning each bone smoothly. */
+/** Stands the model between two poses, `f` (0–1) of the way from one to the other, turning each joint smoothly. */
 function standBetween(root: THREE.Object3D, a: ModelPose, b: ModelPose, f: number): void {
   standTurned(root, (name) => {
     if (!a[name] && !b[name]) return null
@@ -131,26 +183,31 @@ function standBetween(root: THREE.Object3D, a: ModelPose, b: ModelPose, f: numbe
   })
 }
 
-/** The animations that move bones. */
+/** The animations that turn joints. */
 export function modelClips(model: Model): THREE.AnimationClip[] {
-  const bones = bonesByName(model.root)
+  const bones = jointsByName(model.root)
   return model.clips.filter(
-    (clip) => clip.duration > 0 && clip.tracks.some((track) => bones.has(THREE.PropertyBinding.parseTrackName(track.name).nodeName)),
+    (clip) =>
+      clip.duration > 0 &&
+      clip.tracks.some((track) => {
+        const { nodeName, propertyName } = THREE.PropertyBinding.parseTrackName(track.name)
+        return bones.has(nodeName) && propertyName === 'quaternion'
+      }),
   )
 }
 
-/** The animation of the model by name (one that moves bones), or null. */
+/** The animation of the model by name (one that turns joints), or null. */
 export function findClip(model: Model, name: string): THREE.AnimationClip | null {
   return modelClips(model).find((c) => c.name === name) ?? null
 }
 
 const turningClips = new WeakMap<THREE.AnimationClip, THREE.AnimationClip>()
 
-/** The animation turning bones only: its other tracks (moving, scaling, other nodes) are left out. Made once. */
+/** The animation turning joints only: its other tracks (moving, scaling, other nodes) are left out. Made once. */
 function turningOnly(model: Model, clip: THREE.AnimationClip): THREE.AnimationClip {
   let turning = turningClips.get(clip)
   if (!turning) {
-    const bones = bonesByName(model.root)
+    const bones = jointsByName(model.root)
     const tracks = clip.tracks.filter((track) => {
       const { nodeName, propertyName } = THREE.PropertyBinding.parseTrackName(track.name)
       return bones.has(nodeName) && propertyName === 'quaternion'
@@ -162,9 +219,9 @@ function turningOnly(model: Model, clip: THREE.AnimationClip): THREE.AnimationCl
 }
 
 /**
- * Plays an animation, turning bones only, for `use` to stand the model's
- * bones as they are at times (in seconds) in it; after, the model stands
- * at rest again (stopping the animation puts its bones back).
+ * Plays an animation, turning joints only, for `use` to stand the model's
+ * joints as they are at times (in seconds) in it; after, the model stands
+ * at rest again (stopping the animation puts its joints back).
  */
 function inClip<T>(model: Model, clip: THREE.AnimationClip, use: (standAt: (time: number) => void) => T): T {
   const { root } = model
@@ -187,11 +244,11 @@ function inClip<T>(model: Model, clip: THREE.AnimationClip, use: (standAt: (time
   }
 }
 
-/** The pose the model's bones are in at a time (in seconds) in an animation; only how they turn is kept. */
+/** The pose the model's joints are in at a time (in seconds) in an animation; only how they turn is kept. */
 export function clipPose(model: Model, clip: THREE.AnimationClip, time: number): ModelPose {
   const { root } = model
   standAtRest(root)
-  const bones = [...bonesByName(root)].map(([name, [bone]]) => ({ name, bone, parent: parentRotation(bone), rest: bone.quaternion.clone() }))
+  const bones = [...jointsByName(root)].map(([name, [bone]]) => ({ name, bone, parent: parentRotation(bone), rest: bone.quaternion.clone() }))
   return inClip(model, clip, (standAt) => {
     standAt(time)
     const pose: ModelPose = {}
