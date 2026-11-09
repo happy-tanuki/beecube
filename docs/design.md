@@ -391,13 +391,15 @@ sprites. Extension blocks are left out, as they act on sprites.
   as two big cards, chosen by pressing their pictures; each face's color
   and picture are under "More".
 - **3D handling, Tinkercad style.** Drag a sprite to move it on its height
-  plane. Drag the cone above the selected sprite to change its height.
+  plane. Drag the cone above the selected sprite to change its height, and
+  the nose in front of it to turn it (Shift turns it in steps of 15°).
   Dragging empty space orbits the camera, Shift+drag pans and the wheel zooms.
   The home button and the top, front and side buttons reset the camera.
   On a touch screen one finger does what the mouse does, and two fingers
   pinch to zoom and pan, even when the first one landed on a sprite (its
   drag stops). A finger moves farther before a press becomes a drag, and
-  presses the height cone when near it (a sprite under it comes first).
+  presses the height cone or the nose when near it (a sprite under it
+  comes first).
   Popups stay open while their sliders are used, though those take no
   focus on touch screens and in Safari.
 - **Words for children.** The interface keeps Scratch's words children

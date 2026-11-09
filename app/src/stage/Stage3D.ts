@@ -3,6 +3,7 @@
  * provides Tinkercad-style manipulation:
  *   - drag a sprite: move it on its current height plane
  *   - drag the cone above the selected sprite: change its height (z)
+ *   - drag the nose in front of the selected sprite: turn it (its direction)
  *   - left/right drag on empty space: orbit; shift+drag or middle drag: pan; wheel: zoom
  *
  * Entities are drawn as instanced shapes (instances.ts).
@@ -26,6 +27,7 @@ import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer
 import { APP_ID } from '../brand'
 import { fovOf, type ViewName } from '../engine/camera'
 import { boundingRadius } from '../engine/collision'
+import { wrapDirection } from '../engine/ops'
 import type { Runtime } from '../engine/runtime'
 import type { EntityView } from '../engine/sprite'
 import { F_ALIVE, F_VISIBLE, type EntityStore } from '../engine/store'
@@ -58,8 +60,19 @@ const PICK_SCALE = new THREE.Matrix4()
 const DRAG_THRESHOLD_PX = 3
 /** A finger wobbles more than a mouse: it moves this far before a press becomes a drag. */
 const TOUCH_DRAG_THRESHOLD_PX = 10
-/** A finger presses the height handle when this close to it on the screen, as the cone is small. */
+/** A finger presses the height cone or the nose when this close to it on the screen, as they are small. */
 const TOUCH_HANDLE_PX = 28
+
+/** Over the nose: a circling arrow, as there is no standard cursor for turning. */
+const TURN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">' +
+    '<g stroke="#fff" stroke-width="5"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M17.5 3v4.5H13"/></g>' +
+    '<g stroke="#222" stroke-width="2"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M17.5 3v4.5H13"/></g>' +
+    '</svg>',
+)}") 12 12, crosshair`
+
+/** What a drag does: move the sprite on its height plane, change its height, or turn it. */
+type DragMode = 'move' | 'height' | 'turn'
 
 const dragThreshold = (e: PointerEvent) => (e.pointerType === 'touch' ? TOUCH_DRAG_THRESHOLD_PX : DRAG_THRESHOLD_PX)
 /** Speech bubbles shown at once; the ones nearest the camera win. */
@@ -141,13 +154,13 @@ export class Stage3D {
   private readonly touches = new Set<number>()
 
   private drag: {
-    mode: 'move' | 'height'
+    mode: DragMode
     entity: EntityView
     pointerId: number
     startX: number
     startY: number
     moved: boolean
-    /** move: entity position minus the grab point on `plane`. */
+    /** move: entity position minus the grab point on `plane`. turn: `plane` is the entity's height plane. */
     offset: THREE.Vector2
     plane: THREE.Plane
     /** height: z when grabbed and world units per screen pixel at the entity. */
@@ -542,17 +555,19 @@ export class Stage3D {
     if (e.button !== 0 || e.shiftKey) return
     this.setRay(e)
 
-    // The height handle when pressed on, a sprite when pressed on, and (for a finger) the handle when pressed near.
+    // A handle when pressed on, a sprite when pressed on, and (for a finger) a handle when pressed near.
     const selected = this.selectedSlot()
-    const handle = selected >= 0 && this.heightHandle.visible
-    if (handle && this.raycaster.intersectObject(this.heightHandle).length > 0) {
-      this.beginDrag(e, 'height', this.rt.entity(selected)!, new THREE.Plane(), new THREE.Vector2())
+    const handles = selected >= 0 ? this.handles() : []
+    const grabbed = handles.find(([, mesh]) => this.raycaster.intersectObject(mesh).length > 0)
+    if (grabbed) {
+      this.beginHandleDrag(e, grabbed[0], selected)
       return
     }
 
     const entity = this.pickEntity()
-    if (!entity && handle && this.nearHeightHandle(e)) {
-      this.beginDrag(e, 'height', this.rt.entity(selected)!, new THREE.Plane(), new THREE.Vector2())
+    const near = entity ? undefined : handles.find(([, mesh]) => this.nearHandle(e, mesh))
+    if (near) {
+      this.beginHandleDrag(e, near[0], selected)
       return
     }
     if (!entity) {
@@ -565,11 +580,22 @@ export class Stage3D {
     this.beginDrag(e, 'move', entity, plane, offset)
   }
 
-  /** Whether a finger is near the height handle on the screen (the cone is small for fingers). */
-  private nearHeightHandle(e: PointerEvent): boolean {
+  /** The selected sprite's handles that show: the height cone and the nose. */
+  private handles(): [DragMode, THREE.Object3D][] {
+    if (!this.selection.visible) return []
+    return [['height', this.heightHandle], ['turn', this.selection.children[1]]]
+  }
+
+  private beginHandleDrag(e: PointerEvent, mode: DragMode, slot: number): void {
+    const entity = this.rt.entity(slot)!
+    this.beginDrag(e, mode, entity, new THREE.Plane(new THREE.Vector3(0, 0, 1), -entity.z), new THREE.Vector2())
+  }
+
+  /** Whether a finger is near a handle on the screen (the cone and the nose are small for fingers). */
+  private nearHandle(e: PointerEvent, handle: THREE.Object3D): boolean {
     if (e.pointerType !== 'touch') return false
     const rect = this.renderer.domElement.getBoundingClientRect()
-    const at = this.heightHandle.getWorldPosition(new THREE.Vector3()).project(this.camera)
+    const at = handle.getWorldPosition(new THREE.Vector3()).project(this.camera)
     const x = rect.left + ((at.x + 1) / 2) * rect.width
     const y = rect.top + ((1 - at.y) / 2) * rect.height
     return Math.hypot(e.clientX - x, e.clientY - y) < TOUCH_HANDLE_PX
@@ -577,7 +603,7 @@ export class Stage3D {
 
   private beginDrag(
     e: PointerEvent,
-    mode: 'move' | 'height',
+    mode: DragMode,
     entity: EntityView,
     plane: THREE.Plane,
     offset: THREE.Vector2,
@@ -624,6 +650,15 @@ export class Stage3D {
     // Direct manipulation moves the entity without drawing with its pen, and without interpolation.
     if (drag.mode === 'height') {
       drag.entity.z = Math.round(drag.startZ - (e.clientY - drag.startY) * drag.unitsPerPixel)
+    } else if (drag.mode === 'turn') {
+      // The nose points at the pointer on the sprite's height plane (Shift snaps to 15°, as the direction dial).
+      const hit = this.rayOnPlane(drag.plane)
+      if (!hit) return
+      const dx = hit.x - drag.entity.x
+      const dy = hit.y - drag.entity.y
+      if (Math.hypot(dx, dy) < 1) return
+      const step = e.shiftKey ? 15 : 1
+      drag.entity.direction = wrapDirection(Math.round(Math.atan2(dx, dy) / DEG / step) * step)
     } else {
       const hit = this.rayOnPlane(drag.plane)
       if (!hit) return
@@ -634,7 +669,8 @@ export class Stage3D {
   }
 
   private hoverCursor(): string {
-    if (this.heightHandle.visible && this.raycaster.intersectObject(this.heightHandle).length > 0) return 'ns-resize'
+    const handle = this.selectedSlot() >= 0 ? this.handles().find(([, mesh]) => this.raycaster.intersectObject(mesh).length > 0) : undefined
+    if (handle) return handle[0] === 'height' ? 'ns-resize' : TURN_CURSOR
     if (!this.pickEntity()) return 'default'
     return this.editable ? 'grab' : 'pointer'
   }

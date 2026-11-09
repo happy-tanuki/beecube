@@ -278,7 +278,30 @@ describe('Stage3D', () => {
     expect(reddish(colorAt(0, 0, 25))).toBe(false)
   })
 
-  const viewCamera = () => (stage as unknown as { camera: THREE.PerspectiveCamera }).camera
+  it('turns the selected sprite when its nose is dragged', () => {
+    const rt = new Runtime({ randomSeed: 1 })
+    const s = rt.addSprite(makeSprite('red', [], { z: 25, color: '#e02020' }))
+    const { canvas, colorAt } = open(rt)
+    stage!.setView('top')
+    stage!.setSelected(s.id)
+    colorAt(0, 0, 0)
+    const nose = (stage as unknown as { selection: THREE.Group }).selection.children[1].getWorldPosition(new THREE.Vector3())
+    const pointer = (type: string, x: number, y: number, z: number) => {
+      const p = stage!.toClient(x, y, z)
+      canvas.dispatchEvent(new PointerEvent(type, { clientX: p.x, clientY: p.y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 1, bubbles: true }))
+    }
+    canvas.setPointerCapture = () => {}
+    canvas.hasPointerCapture = () => false
+    pointer('pointerdown', nose.x, nose.y, nose.z)
+    pointer('pointermove', 60, 60, 25)
+    pointer('pointermove', 0, -80, 25)
+    pointer('pointerup', 0, -80, 25)
+    // It points at the pointer (180 is -y) and stays where it was.
+    expect(s.direction).toBe(180)
+    expect([s.x, s.y, s.z]).toEqual([0, 0, 25])
+  })
+
+  const viewCamera = () =>(stage as unknown as { camera: THREE.PerspectiveCamera }).camera
   const selectionShown = () => (stage as unknown as { selection: THREE.Group }).selection.visible
 
   it('sees from the sprite that is the camera without drawing it, and goes back to the viewer\'s camera', () => {
