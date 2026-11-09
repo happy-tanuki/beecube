@@ -11,10 +11,10 @@
 import * as THREE from 'three'
 import { APP_ID } from '../brand'
 import { wrapDirection } from '../engine/ops'
-import { F_ALIVE, F_VISIBLE } from '../engine/store'
+import { F_ALIVE, F_VISIBLE, motionSeconds, type MotionColumns } from '../engine/store'
 import { Assets } from '../engine/assets'
 import { plainLook, type Look } from '../engine/costume'
-import { BASE_SIZE, SHAPES, TICKS_PER_SECOND, type ShapeKind } from '../engine/types'
+import { BASE_SIZE, SHAPES, type ShapeKind } from '../engine/types'
 import { isMovingLook, LookResources } from './looks'
 
 type Floats = Float64Array<ArrayBufferLike>
@@ -44,8 +44,10 @@ export interface RenderColumns {
   readonly width: Floats
   readonly depth: Floats
   readonly height: Floats
-  /** The tick each costume was put on. */
+  /** Where each costume's motion is (see EntityStore). */
   readonly costumeTick: Floats
+  readonly motionAt: Floats
+  readonly motionSpeed: Floats
 }
 
 /** Pose values EntityInstances remembers per slot: x, y, z, direction, pitch, roll, size, width, depth, height. */
@@ -379,9 +381,9 @@ export class ShapeBatch {
   }
 
   /** For a moving look, writes each instance's seconds in its costume at `now` (in ticks) and uploads them. */
-  writeTimes(costumeTick: Floats, now: number): void {
+  writeTimes(columns: MotionColumns, now: number): void {
     if (!this.moving || this.count === 0) return
-    for (let j = 0; j < this.count; j++) this.motionTime[j] = Math.max(0, (now - costumeTick[this.slots[j]]) / TICKS_PER_SECOND)
+    for (let j = 0; j < this.count; j++) this.motionTime[j] = motionSeconds(columns, this.slots[j], now)
     this.markUsed(this.attributes[MOTION_TIME], 1)
   }
 
@@ -584,6 +586,6 @@ export class EntityInstances {
   /** Moving costumes' times, as drawn: the end of the last tick at `alpha` 1, its start at 0. */
   private writeTimes(source: PoseSource, alpha: number): void {
     const now = source.tick - 1 + alpha
-    for (const b of this.batches) b.writeTimes(source.store.costumeTick, now)
+    for (const b of this.batches) b.writeTimes(source.store, now)
   }
 }

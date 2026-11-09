@@ -123,11 +123,26 @@ what follows from that.
   Either way, a two-handled slider along the costume's timeline, in
   seconds (snapping to the keyframes), picks the part that plays, and the
   costume either repeats it or plays it once and stays at its end. The
-  same fields serve both: the length (typed for keyframes, the
-  animation's own shown for an animation), the speed as a percentage (100
-  as it is, 10 to 1000) and the ending. The speed changes only how long
-  the part takes, not where the handles are. With both handles together,
-  the costume is that one pose.
+  same fields serve both: the length and the ending. The costume's timing
+  is in seconds as it plays, as its width, depth and height are in stage
+  units (changed 2026-11-10, from a speed in percent): the length is the
+  whole timeline's, shared out between keyframes, and for an animation
+  typing a longer or shorter one than its own plays it slower or faster
+  (kept as a speed, from a tenth to ten times). That changes only how
+  long the part takes, not where the handles are; the timeline's seconds
+  are shown as it plays. With both handles together, the costume is that
+  one pose.
+
+  The percent is the sprite's alone, as its size is: its animation speed
+  (added 2026-11-09), 100 at first, plays its costumes' motion faster or
+  slower than they say, from 0 (held still) to 1000. Each clone has its
+  own, starting with its parent's, so clones can walk at different
+  speeds. "Set animation speed to (%)", "change animation speed by" and
+  "animation speed" set and read it. A new speed carries on from where the
+  motion is. As the size, it is saved with the sprite and stays when the
+  scripts stop. The Costumes tab shows it at the end of a moving
+  costume's header row, as it shows the sprite's color in a shape
+  costume's header, so what the blocks set can be seen and changed.
 
   The tab lays a model costume out as a shape costume: its name and size
   in the header (with no second row: a shape costume's shape, color and
@@ -270,7 +285,7 @@ or changed:
 | Category | Blocks |
 |---|---|
 | Motion | go to (random position, mouse pointer, a sprite: in 3D); point towards (a sprite: direction and pitch; the mouse pointer or a random direction: direction only); go to x/y/z; glide to (the same targets as go to, where the target is when the glide starts) and glide to x/y/z; set z / change z / z position; turn up / turn down, roll right / roll left (about the own axes; turn right/left too); set pitch / pitch; set roll / roll |
-| Looks | set color to; switch costume to, next costume, costume (number / name), as in Scratch; set / change (width, depth, height); width / depth / height; switch backdrop to, next backdrop, backdrop (number / name), and on the stage switch backdrop to and wait, as in Scratch |
+| Looks | set color to; switch costume to, next costume, costume (number / name), as in Scratch; set animation speed to (%) / change animation speed by / animation speed (the sprite's, for its model costumes' motion); set / change (width, depth, height); width / depth / height; switch backdrop to, next backdrop, backdrop (number / name), and on the stage switch backdrop to and wait, as in Scratch |
 | Camera (new) | make this sprite the camera; set view to (home, top, front, side); set / change camera zoom |
 | Events | when I touch (a sprite, or my own clones); when backdrop switches to, and on the stage when stage clicked (a click where there is no sprite), as in Scratch |
 | Sensing | touched sprite (a sprite reference); "of" for another sprite's properties and sprite-only variables |

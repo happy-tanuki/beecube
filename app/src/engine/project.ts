@@ -287,6 +287,7 @@ function parseSprite(v: unknown, where: string): SavedSprite {
     ...(v.width === undefined ? {} : { width: num(v, 'width', where) }),
     ...(v.depth === undefined ? {} : { depth: num(v, 'depth', where) }),
     ...(v.height === undefined ? {} : { height: num(v, 'height', where) }),
+    ...(v.motionSpeed === undefined ? {} : { motionSpeed: num(v, 'motionSpeed', where) }),
     color: str(v, 'color', where),
     ...parseCostumes(v, where),
     visible: v.visible !== false,

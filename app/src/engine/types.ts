@@ -68,6 +68,8 @@ export interface SpriteData {
   width?: number
   depth?: number
   height?: number
+  /** Percent of its costumes' own speed that their motion plays at; 100 when absent. */
+  motionSpeed?: number
   /** `#rrggbb`: the shape's, under its costume's picture. */
   color: string
   /** At least one. Clones wear the same costumes. */

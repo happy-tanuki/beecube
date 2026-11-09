@@ -219,35 +219,51 @@ function PartSlider({ max, step, from, to, format, onMove, onChange }: {
 }
 
 /**
- * A motion's length, speed and ending, the same for keyframes and an
- * animation: keyframes' length can be typed (they share it out evenly),
- * an animation's is its own. The speed is a percentage, 100 as it is.
+ * A motion's length and ending, the same for keyframes and an animation:
+ * the length is the whole timeline's, in seconds as it plays (keyframes
+ * share it out evenly; an animation played in a longer or shorter time is
+ * slower or faster). The sprite's own speed, in percent of this, is in
+ * the header (MotionSpeedField).
  */
 function TimingFields<M extends ModelMotion>({ motion, length, onLength, onChange }: {
   motion: M
   length: number
-  onLength?: (seconds: number) => void
+  onLength: (seconds: number) => void
   onChange: (motion: M) => void
 }) {
-  const speed = (percent: number) => {
-    const s = Math.min(MAX_MOTION_SPEED, Math.max(MIN_MOTION_SPEED, percent / 100))
-    const { speed: _, ...rest } = motion
-    onChange((s === 1 ? rest : { ...rest, speed: s }) as M)
-  }
   return (
     <>
-      {onLength ? (
-        <NumberField label={t('costume.length')} value={length} onChange={onLength} />
-      ) : (
-        <label className="field">
-          <span>{t('costume.length')}</span>
-          <input readOnly value={Math.round(length * 100) / 100} />
-        </label>
-      )}
-      <NumberField label={t('costume.speed')} value={motionSpeed(motion) * 100} onChange={speed} />
+      <NumberField label={t('costume.length')} value={Math.round(length * 100) / 100} onChange={(v) => v > 0 && onLength(v)} />
       <OnceField once={motion.once === true} onChange={(once) => onChange({ ...motion, once })} />
     </>
   )
+}
+
+/**
+ * The sprite's animation speed, in percent of its costumes' own, as the
+ * animation speed blocks set it: the sprite's, as the color of a shape
+ * costume's header is, at the end of the header's row.
+ */
+function MotionSpeedField({ store }: { store: ProjectStore }) {
+  return (
+    <div className="costume-sprite-speed">
+      <NumberField
+        label={t('sprite.motionSpeed')}
+        value={Math.round(store.editing.motionSpeed * 100) / 100}
+        onChange={(v) => {
+          store.editing.motionSpeed = v
+          store.notify()
+        }}
+      />
+    </div>
+  )
+}
+
+/** A motion at a new speed (1 as it is, which isn't kept), within the speeds a costume takes. */
+function atSpeed<M extends ModelMotion>(motion: M, speed: number): M {
+  const s = Math.min(MAX_MOTION_SPEED, Math.max(MIN_MOTION_SPEED, speed))
+  const { speed: _, ...rest } = motion
+  return (s === 1 ? rest : { ...rest, speed: s }) as M
 }
 
 /** Whether the motion plays its part over and over or once. */
@@ -328,6 +344,8 @@ function MotionFields({ store, index, model, motion, onMove }: {
   onMove: (v: number | null) => void
 }) {
   const set = (m: ModelMotion) => store.setModelMotion(index, m)
+  // Seconds on the timeline as they play.
+  const speed = motionSpeed(motion)
   if (isClipMotion(motion)) {
     const clip = findClip(model, motion.clip)
     const duration = clip?.duration ?? motion.to
@@ -338,11 +356,11 @@ function MotionFields({ store, index, model, motion, onMove }: {
           step={CLIP_STEP}
           from={motion.from}
           to={motion.to}
-          format={formatSeconds}
+          format={(v) => formatSeconds(v / speed)}
           onMove={onMove}
           onChange={(from, to) => set({ ...motion, from, to })}
         />
-        <TimingFields motion={motion} length={duration} onChange={set} />
+        <TimingFields motion={motion} length={duration / speed} onLength={(v) => set(atSpeed(motion, duration / v))} onChange={set} />
       </>
     )
   }
@@ -354,14 +372,14 @@ function MotionFields({ store, index, model, motion, onMove }: {
         step={1}
         from={motion.from}
         to={motion.to}
-        format={(v) => formatSeconds(v * keyframeInterval(motion))}
+        format={(v) => formatSeconds((v * keyframeInterval(motion)) / speed)}
         onMove={onMove}
         onChange={(from, to) => set({ ...motion, from, to })}
       />
       <TimingFields
         motion={motion}
-        length={motion.seconds}
-        onLength={(v) => set({ ...motion, seconds: Math.min(MAX_KEYFRAME_SECONDS, Math.max(MIN_KEYFRAME_SECONDS, v)) })}
+        length={motion.seconds / speed}
+        onLength={(v) => set(atSpeed({ ...motion, seconds: Math.min(MAX_KEYFRAME_SECONDS, Math.max(MIN_KEYFRAME_SECONDS, v)) }, 1))}
         onChange={set}
       />
     </>
@@ -487,6 +505,7 @@ function ModelCostume({ store, index, costume }: { store: ProjectStore; index: n
         <div className="costume-header-row">
           <NameField store={store} index={index} costume={costume} />
           <DimensionFields store={store} index={index} costume={costume} />
+          {moves && <MotionSpeedField store={store} />}
         </div>
       </div>
       {/* Under the header, as a shape costume's paint options are. */}

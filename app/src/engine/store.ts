@@ -6,6 +6,7 @@
  * only replaced between ticks and generated code may keep them in locals.
  */
 import { clampPercent, hsvToRgb, mod, rgbToHsv } from './ops'
+import { TICKS_PER_SECOND } from './types'
 
 export const F_ALIVE = 1
 export const F_VISIBLE = 2
@@ -28,6 +29,30 @@ export type Dimension = (typeof DIMENSIONS)[number]
 /** Handles pack a generation above the slot number. */
 const SLOT_SPAN = 2 ** 22
 export const NO_HANDLE = -1
+
+/**
+ * An entity's speed for its costume's motion, in percent of the costume's
+ * own: 0 holds it still, up to ten times as fast.
+ */
+export const MAX_MOTION_SPEED_PERCENT = 1000
+export function clampMotionSpeed(percent: number): number {
+  return Math.min(MAX_MOTION_SPEED_PERCENT, Math.max(0, percent || 0))
+}
+
+/** The columns that say where an entity's motion is. */
+export interface MotionColumns {
+  readonly costumeTick: ArrayLike<number>
+  readonly motionAt: ArrayLike<number>
+  readonly motionSpeed: ArrayLike<number>
+}
+
+/**
+ * How many seconds into its costume's motion an entity is at tick `now`
+ * (which may fall between ticks), as the costume plays it at its own speed.
+ */
+export function motionSeconds(E: MotionColumns, slot: number, now: number): number {
+  return E.motionAt[slot] + (Math.max(0, now - E.costumeTick[slot]) / TICKS_PER_SECOND) * (E.motionSpeed[slot] / 100)
+}
 
 export const POSE_COLUMNS = ['x', 'y', 'z', 'direction', 'pitch', 'roll', 'size'] as const
 export type PoseColumn = (typeof POSE_COLUMNS)[number]
@@ -75,8 +100,15 @@ export class EntityStore {
   costume = new Uint16Array(0)
   /** What the stage draws: index into the runtime's looks (costume.ts), set with the costume. */
   look = new Uint16Array(0)
-  /** The tick the look was put on, which a moving costume (a model's motion) plays from. */
+  /**
+   * A moving costume (a model's motion) is `motionAt` seconds in at tick
+   * `costumeTick`, and plays on at `motionSpeed` percent of the costume's
+   * own speed: putting a look on starts it at 0, and a new speed (of the
+   * entity or of the costume) carries on from where it is.
+   */
   costumeTick = new Float64Array(0)
+  motionAt = new Float64Array(0)
+  motionSpeed = new Float64Array(0)
   /**
    * The look's own extent along the local axes, as fractions: 1 for the
    * shapes, a model's box in a cube. Collisions and physics stretch the
@@ -138,6 +170,8 @@ export class EntityStore {
     this.costume = grow(this.costume, (n) => new Uint16Array(n))
     this.look = grow(this.look, (n) => new Uint16Array(n))
     this.costumeTick = grow(this.costumeTick, f64)
+    this.motionAt = grow(this.motionAt, f64)
+    this.motionSpeed = grow(this.motionSpeed, f64)
     this.extentX = grow(this.extentX, f64)
     this.extentY = grow(this.extentY, f64)
     this.extentZ = grow(this.extentZ, f64)
@@ -150,8 +184,9 @@ export class EntityStore {
   }
 
   /**
-   * Takes a free slot, or returns -1 when full. Width, depth and height start
-   * at 100% and the extents at 1; the slot's other columns are left as they were.
+   * Takes a free slot, or returns -1 when full. Width, depth, height and the
+   * motion's speed start at 100% and the extents at 1; the slot's other
+   * columns are left as they were.
    */
   alloc(): number {
     let slot: number
@@ -160,6 +195,8 @@ export class EntityStore {
     else return -1
     this.flags[slot] = F_ALIVE
     this.width[slot] = this.depth[slot] = this.height[slot] = 100
+    this.motionAt[slot] = 0
+    this.motionSpeed[slot] = 100
     this.extentX[slot] = this.extentY[slot] = this.extentZ[slot] = 1
     this.saying[slot] = null
     this.count++
@@ -232,9 +269,24 @@ export class EntityStore {
     this.costume[to] = this.costume[from]
     this.look[to] = this.look[from]
     this.costumeTick[to] = this.costumeTick[from]
+    this.motionAt[to] = this.motionAt[from]
+    this.motionSpeed[to] = this.motionSpeed[from]
     this.extentX[to] = this.extentX[from]
     this.extentY[to] = this.extentY[from]
     this.extentZ[to] = this.extentZ[from]
+  }
+
+  /** Starts the motion of the look worn again, at tick `tick`. */
+  startMotion(slot: number, tick: number): void {
+    this.costumeTick[slot] = tick
+    this.motionAt[slot] = 0
+  }
+
+  /** Sets the speed of the entity's motion (clamped, see clampMotionSpeed), carrying on from where it is at tick `tick`. */
+  setMotionSpeed(slot: number, percent: number, tick: number): void {
+    this.motionAt[slot] = motionSeconds(this, slot, tick)
+    this.costumeTick[slot] = tick
+    this.motionSpeed[slot] = clampMotionSpeed(percent)
   }
 
   /** Sets the pen color from 0xRRGGBB; as in Scratch, the pen becomes opaque. */

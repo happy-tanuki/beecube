@@ -77,6 +77,9 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = [], stage = false):
       sep(),
       block('looks_switchcostumeto', costumeMenu),
       block('looks_nextcostume'),
+      block('looks_changemotionspeedby', num('CHANGE', 10)),
+      block('looks_setmotionspeedto', num('SPEED', 100)),
+      sep(),
     ),
     block('looks_switchbackdropto', backdropMenu),
     ...(stage ? [block('looks_switchbackdroptoandwait', backdropMenu)] : []),
@@ -94,7 +97,7 @@ export function makeToolboxXml(extensions: ExtensionSpec[] = [], stage = false):
     ),
     ...sprite(block('looks_costumenumbername')),
     block('looks_backdropnumbername'),
-    ...sprite(block('looks_size'), block('looks_width'), block('looks_depth'), block('looks_height')),
+    ...sprite(block('looks_size'), block('looks_width'), block('looks_depth'), block('looks_height'), block('looks_motionspeed')),
   ].join('')
 
   const camera = [

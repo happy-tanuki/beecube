@@ -1,5 +1,4 @@
-import type { EntityStore } from './store'
-import { TICKS_PER_SECOND } from './types'
+import { motionSeconds, type EntityStore } from './store'
 
 export interface Vec3 {
   x: number
@@ -88,7 +87,7 @@ export class PenBuffer {
     p[o + 7] = E.width[i]
     p[o + 8] = E.depth[i]
     p[o + 9] = E.height[i]
-    p[o + 10] = Math.max(0, (tick - E.costumeTick[i]) / TICKS_PER_SECOND)
+    p[o + 10] = motionSeconds(E, i, tick)
     this.stampLooks[n] = E.look[i]
     this.stampColors[n] = E.color[i]
   }

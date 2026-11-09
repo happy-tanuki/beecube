@@ -394,6 +394,10 @@ body,
   font-size: 18px;
 }
 
+.costume-sprite-speed {
+  margin-left: auto;
+}
+
 .costume-header .unused {
   visibility: hidden;
 }

@@ -4,6 +4,7 @@ import type { AssetRef } from '../src/engine/assets'
 import { Looks, plainCostume, restMotion, type Costume, type ModelMotion, type ModelPose } from '../src/engine/costume'
 import { boundingRadius, shapesIntersect } from '../src/engine/collision'
 import { parseProject, projectAssets, serializeProject } from '../src/engine/project'
+import { motionSeconds } from '../src/engine/store'
 import { SHAPES } from '../src/engine/types'
 import { EntityInstances } from '../src/stage/instances'
 import { blk, cloneOf, flag, makeSprite, num, reporter, setVar, setup, startAsClone, text, wait } from './helpers'
@@ -195,6 +196,54 @@ describe('costumes', () => {
     expect(E.costumeTick[rt.clonesOf(s)[0].slot]).toBe(started)
     rt.pen.stamp(E, s.slot, started + 30)
     expect(rt.pen.stampPoses[10]).toBe(0.5)
+  })
+
+  it('plays a model’s motion at the sprite’s own speed, carrying on from where it is', () => {
+    const asset = { assetId: 'c'.repeat(64), dataFormat: 'glb' as const }
+    const walking: Costume = { ...plainCostume('walking', 'cube'), model: { asset, size: [1, 1, 1], motion: { clip: 'walk', from: 0, to: 1, speed: 2 } } }
+    const setSpeed = (n: number) => blk('looks_setmotionspeedto', { inputs: { SPEED: num(n) } })
+    const changeSpeed = (n: number) => blk('looks_changemotionspeedby', { inputs: { CHANGE: num(n) } })
+    const speed = reporter(blk('looks_motionspeed'))
+    const { rt, ticks, sprites: [s] } = setup([
+      makeSprite('a', [flag(
+        wait(1), setSpeed(50), setVar('half', speed),
+        wait(1), setSpeed(0), changeSpeed(-10), setVar('still', speed),
+        wait(1), changeSpeed(2000), setVar('fast', speed),
+      )], { costumes: [walking] }),
+    ])
+    rt.variableDefs = [{ id: 'half', name: 'half' }, { id: 'still', name: 'still' }, { id: 'fast', name: 'fast' }]
+    const E = rt.store
+    // Seconds as the costume plays them (its own speed is on its look, so it doesn't change).
+    const at = (slot = s.slot) => motionSeconds(E, slot, rt.tick)
+    rt.greenFlag()
+    ticks(61)
+    expect(at()).toBeCloseTo(1, 1)
+    // At half the speed, a second of the costume takes two.
+    ticks(60)
+    expect(at()).toBeCloseTo(1.5, 1)
+    // At 0 (it doesn't go lower) it holds still.
+    ticks(60)
+    expect(at()).toBeCloseTo(1.5, 1)
+    // Up to ten times as fast.
+    ticks(6)
+    expect(at()).toBeCloseTo(2.5, 1)
+    expect([rt.getVariable('half'), rt.getVariable('still'), rt.getVariable('fast')]).toEqual([50, 0, 1000])
+    // The costume keeps its own speed.
+    expect(s.costumes[0].model!.motion!.speed).toBe(2)
+    // Clones start with their parent's speed, and each has its own.
+    rt.createClone(s.slot, -1)
+    const clone = rt.clonesOf(s)[0]
+    rt.setMotionSpeed(clone.slot, 30)
+    expect([s.motionSpeed, clone.motionSpeed]).toEqual([1000, 30])
+    expect(at(clone.slot)).toBeCloseTo(2.5, 1)
+    // As the size, it stays when the scripts stop, and is saved with the sprite (left out at 100).
+    rt.stopAll()
+    expect(s.motionSpeed).toBe(1000)
+    expect(parseProject(serializeProject(rt)).sprites[0].motionSpeed).toBe(1000)
+    s.motionSpeed = 100
+    expect(serializeProject(rt).sprites[0]).not.toHaveProperty('motionSpeed')
+    const { rt: loaded, sprites: [again] } = setup([{ ...makeSprite('b', [], { costumes: [walking] }), motionSpeed: 75 }])
+    expect([again.motionSpeed, loaded.store.motionSpeed[again.slot]]).toEqual([75, 75])
   })
 
   it('saves models, and rejects ones that are not binary glTF or have no size', () => {

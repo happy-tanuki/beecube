@@ -383,6 +383,9 @@ export function defineCustomBlocks(): void {
   defineReporter('looks_width', 'LOOKS_WIDTH', 'looks')
   defineReporter('looks_depth', 'LOOKS_DEPTH', 'looks')
   defineReporter('looks_height', 'LOOKS_HEIGHT', 'looks')
+  defineStatement('looks_setmotionspeedto', 'LOOKS_SETMOTIONSPEEDTO', [arg('SPEED')], 'looks')
+  defineStatement('looks_changemotionspeedby', 'LOOKS_CHANGEMOTIONSPEEDBY', [arg('CHANGE')], 'looks')
+  defineReporter('looks_motionspeed', 'LOOKS_MOTIONSPEED', 'looks')
   // scratch-blocks defines the costume and backdrop blocks but leaves their menus to the editor.
   defineCostumeMenu()
   defineBackdropMenus()

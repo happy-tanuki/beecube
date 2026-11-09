@@ -476,8 +476,10 @@ collision, determinism in stage 8), not for the compiler.
   the exception: their bones are skinned in the vertex shader from a
   texture of bone matrices sampled thirty times a second (a mesh without
   a skin, a model's part, has its node's as its one bone), and every frame
-  writes each such instance's time in its costume (one float), from the
-  tick it was put on (the store's `costumeTick`).
+  writes each such instance's time in its costume (one float): the
+  store's `motionAt` seconds at tick `costumeTick`, played on at the
+  entity's `motionSpeed` percent (a look put on starts at 0; a new speed
+  carries on from where the motion is).
 - **Selection outline and direction marker**: only on the selected sprite.
   (They used to be three meshes per sprite.)
 - **Speech bubbles**: DOM (CSS2D) bubbles are pooled; at most 64 are shown,

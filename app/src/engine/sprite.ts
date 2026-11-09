@@ -31,6 +31,9 @@ export class EntityView {
   get size(): number { return this.rt.store.size[this.slot] }
   set size(v: number) { this.setPose('size', v) }
   get width(): number { return this.rt.store.width[this.slot] }
+  /** The speed of its costume's motion, in percent of the costume's own (see Runtime.setMotionSpeed). */
+  get motionSpeed(): number { return this.rt.store.motionSpeed[this.slot] }
+  set motionSpeed(v: number) { this.rt.setMotionSpeed(this.slot, v) }
   set width(v: number) { this.setDimension('width', v) }
   get depth(): number { return this.rt.store.depth[this.slot] }
   set depth(v: number) { this.setDimension('depth', v) }
@@ -215,6 +218,7 @@ export class Sprite extends EntityView {
       width: this.width,
       depth: this.depth,
       height: this.height,
+      ...(this.motionSpeed !== 100 && { motionSpeed: this.motionSpeed }),
       color: this.color,
       costumes: structuredClone(this._costumes),
       costume: this.costume,

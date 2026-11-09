@@ -128,7 +128,7 @@ const num = (v: V) => (v.k !== undefined ? toNumber(v.k) : undefined)
 const COLUMNS: Record<string, string> = {
   x: 'X', y: 'Y', z: 'Z', direction: 'D', pitch: 'PT', roll: 'RL', size: 'SZ',
   width: 'WD', depth: 'DP', height: 'HT',
-  color: 'CO', penSize: 'PSZ', flags: 'FL', costume: 'CS',
+  color: 'CO', penSize: 'PSZ', flags: 'FL', costume: 'CS', motionSpeed: 'MSP',
 }
 
 /** Flag bits, as in store.ts. */
@@ -654,6 +654,12 @@ function plainStmt(s: Stmt, ctx: Ctx, m: ModuleGen): void {
         emit(ctx, `${col}[i] = L.clampDimension(${v});`)
       }
       break
+    case 'looks_setmotionspeedto':
+      emit(ctx, `rt.setMotionSpeed(i, ${n('SPEED')});`)
+      break
+    case 'looks_changemotionspeedby':
+      emit(ctx, `rt.setMotionSpeed(i, ${f.col('motionSpeed')}[i] + ${n('CHANGE')});`)
+      break
     case 'looks_switchcostumeto':
       emit(ctx, `rt.switchCostume(i, ${e('COSTUME').c});`)
       break
@@ -1121,6 +1127,8 @@ function expr(e: Expr, ctx: Ctx, m: ModuleGen): V {
     case 'looks_depth':
     case 'looks_height':
       return { c: `Math.round(${f.col(e.op.slice('looks_'.length))}[i])`, t: 'num' }
+    case 'looks_motionspeed':
+      return { c: `${f.col('motionSpeed')}[i]`, t: 'num' }
     case 'looks_costumenumbername':
       return e.f.NUMBER_NAME === 'name' ? { c: 'rt.costumeName(i)', t: 'str' } : { c: `(${f.col('costume')}[i] + 1)`, t: 'num' }
     case 'looks_backdropnumbername':

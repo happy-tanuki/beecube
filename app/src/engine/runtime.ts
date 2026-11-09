@@ -27,7 +27,7 @@ import { Random } from './random'
 import { EntityRef } from './ref'
 import { availableName, availableSpriteName, BACKDROP_MENUS, COSTUME_MENUS, renameSpriteReferences } from './rename'
 import { EntityView, Sprite } from './sprite'
-import { EntityStore, F_ALIVE, F_CLONE, F_DYING, F_PEN, F_VISIBLE } from './store'
+import { clampMotionSpeed, EntityStore, F_ALIVE, F_CLONE, F_DYING, F_PEN, F_VISIBLE } from './store'
 import { TouchWatcher } from './touch'
 import { DEFAULT_CLONE_LIMIT, EDGE, MYSELF, STAGE_ID, TICKS_PER_SECOND, type BlockJson, type LocalList, type LocalVariable, type SpriteData, type Value, type VariableDef } from './types'
 
@@ -273,7 +273,8 @@ export class Runtime {
     s.penTransparency[slot] = clampPercent(data.pen.transparency ?? 0)
     s.penSize[slot] = clampPenSize(data.pen.size ?? 1)
     s.costume[slot] = 0
-    s.costumeTick[slot] = this.tick
+    s.startMotion(slot, this.tick)
+    s.motionSpeed[slot] = clampMotionSpeed(data.motionSpeed ?? 100)
     s.flags[slot] = F_ALIVE | (data.visible ? F_VISIBLE : 0) | (data.pen.down ? F_PEN : 0)
     const sprite = new Sprite(this, slot, data.id, data.name, structuredClone(data.blocks))
     const kind = new Kind(this.kinds.length - 1, sprite)
@@ -398,7 +399,7 @@ export class Runtime {
     const look = sprite.lookOf[costume]
     const { shape, extent } = this.looks.list[look]
     // Its motion starts again only when the look changes, so "switch costume" in a loop doesn't hold it still.
-    if (s.costume[slot] !== costume || s.look[slot] !== look) s.costumeTick[slot] = this.tick
+    if (s.costume[slot] !== costume || s.look[slot] !== look) s.startMotion(slot, this.tick)
     s.costume[slot] = costume
     s.look[slot] = look
     if (s.shape[slot] !== shape || s.extentX[slot] !== extent[0] || s.extentY[slot] !== extent[1] || s.extentZ[slot] !== extent[2]) {
@@ -408,6 +409,15 @@ export class Runtime {
       s.extentZ[slot] = extent[2]
       this.posesChanged(slot)
     }
+  }
+
+  /**
+   * "Set animation speed to (percent)": the entity's own speed for its
+   * costume's motion (as "set size" sets its own size), carrying on from
+   * where the motion is. Clones have their own.
+   */
+  setMotionSpeed(slot: number, percent: number): void {
+    this.store.setMotionSpeed(slot, percent, this.tick)
   }
 
   /** "Switch costume to (v)": by name, next / previous / random, or number (see resolveSwitch). */
