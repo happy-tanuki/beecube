@@ -278,31 +278,27 @@ describe('Stage3D', () => {
     expect(reddish(colorAt(0, 0, 25))).toBe(false)
   })
 
-  it('turns the selected sprite when its nose is dragged', () => {
+  it('moves a sprite up and down when dragged in a level view', () => {
     const rt = new Runtime({ randomSeed: 1 })
-    const s = rt.addSprite(makeSprite('red', [], { z: 25, color: '#e02020' }))
+    const s = rt.addSprite(makeSprite('red', [], { y: 30, z: 25, color: '#e02020' }))
     const { canvas, colorAt } = open(rt)
-    stage!.setView('top')
-    stage!.setSelected(s.id)
+    stage!.setView('front')
     colorAt(0, 0, 0)
-    const nose = (stage as unknown as { selection: THREE.Group }).selection.children[1].getWorldPosition(new THREE.Vector3())
-    const pointer = (type: string, x: number, y: number, z: number) => {
-      const p = stage!.toClient(x, y, z)
+    // In the front view, points on the sprite's x-z plane.
+    const pointer = (type: string, x: number, z: number) => {
+      const p = stage!.toClient(x, 30, z)
       canvas.dispatchEvent(new PointerEvent(type, { clientX: p.x, clientY: p.y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 1, bubbles: true }))
     }
     canvas.setPointerCapture = () => {}
     canvas.hasPointerCapture = () => false
-    pointer('pointerdown', nose.x, nose.y, nose.z)
-    pointer('pointermove', 60, 60, 25)
-    pointer('pointermove', 0, -80, 25)
-    pointer('pointerup', 0, -80, 25)
-    // It points at the pointer (180 is -y) and stays where it was.
-    expect(s.direction).toBe(180)
-    expect([s.x, s.y, s.z]).toEqual([0, 0, 25])
+    pointer('pointerdown', 0, 25)
+    pointer('pointermove', 40, 60)
+    pointer('pointermove', 80, 105)
+    pointer('pointerup', 80, 105)
+    expect([Math.round(s.x / 10), s.y, Math.round(s.z / 10)]).toEqual([8, 30, 11])
   })
 
   const viewCamera = () =>(stage as unknown as { camera: THREE.PerspectiveCamera }).camera
-  const selectionShown = () => (stage as unknown as { selection: THREE.Group }).selection.visible
 
   it('sees from the sprite that is the camera without drawing it, and goes back to the viewer\'s camera', () => {
     const rt = new Runtime({ randomSeed: 1 })
@@ -310,13 +306,10 @@ describe('Stage3D', () => {
     rt.addSprite(makeSprite('blue', [], { x: 100, z: 30, color: '#2040e0', size: 200 }))
     const { colorAt } = open(rt)
     stage!.setView('front')
-    stage!.setSelected(red.id)
     const before = viewCamera().position.clone()
     rt.camera.sprite = rt.store.handle(red.slot)
     rt.camera.setZoom(200)
     rt.step()
-    // Nor is its selection drawn.
-    expect(selectionShown()).toBe(false)
     // Facing +x (direction 90), the blue sprite fills the middle of the view.
     expect(bluish(colorAt(100, 0, 30))).toBe(true)
     expect(viewCamera().position.toArray()).toEqual([-100, 0, 30])
@@ -331,7 +324,6 @@ describe('Stage3D', () => {
     expect(reddish(colorAt(-100, 0, 30))).toBe(true)
     expect(viewCamera().position.distanceTo(before)).toBeLessThan(1e-6)
     expect(viewCamera().fov).toBeCloseTo(45)
-    expect(selectionShown()).toBe(true)
   })
 
   it('goes to a view a script asks for, and the view buttons stop a sprite being the camera', () => {

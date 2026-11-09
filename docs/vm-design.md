@@ -480,8 +480,6 @@ collision, determinism in stage 8), not for the compiler.
   store's `motionAt` seconds at tick `costumeTick`, played on at the
   entity's `motionSpeed` percent (a look put on starts at 0; a new speed
   carries on from where the motion is).
-- **Selection outline and direction marker**: only on the selected sprite.
-  (They used to be three meshes per sprite.)
 - **Speech bubbles**: DOM (CSS2D) bubbles are pooled; at most 64 are shown,
   nearest to the camera first. Drawing text into textures for more is
   considered later.

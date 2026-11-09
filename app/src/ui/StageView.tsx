@@ -120,10 +120,6 @@ export function StageView({ rt, editing, fit, startOverlay, axisViews, onStage, 
   }, [rt])
 
   useEffect(() => {
-    stageRef.current?.setSelected(editing?.selectedId ?? null)
-  }, [editing?.selectedId])
-
-  useEffect(() => {
     stageRef.current?.setEditable(!!editing && !fullscreen)
     if (!fullscreen) return
     const onKey = (e: KeyboardEvent) => {

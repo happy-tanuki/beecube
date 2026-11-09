@@ -390,16 +390,18 @@ sprites. Extension blocks are left out, as they act on sprites.
   motion: the part that plays, its keyframes and their bones. Adding a costume to paint adds one without a picture. A backdrop's form shows the scenery and the room
   as two big cards, chosen by pressing their pictures; each face's color
   and picture are under "More".
-- **3D handling, Tinkercad style.** Drag a sprite to move it on its height
-  plane. Drag the cone above the selected sprite to change its height, and
-  the nose in front of it to turn it (Shift turns it in steps of 15°).
+- **3D handling.** Drag a sprite to move it on the plane facing the view:
+  its height plane when looking down (the home and top views), or upright
+  when the view is nearly level (the front and side views: x and height,
+  or y and height), so changing a sprite's height needs no handle. As in
+  Scratch, nothing on the stage marks the selected sprite (the sprite list
+  does) or its direction (set with the dial), so the stage shows only the
+  project.
   Dragging empty space orbits the camera, Shift+drag pans and the wheel zooms.
   The home button and the top, front and side buttons reset the camera.
   On a touch screen one finger does what the mouse does, and two fingers
   pinch to zoom and pan, even when the first one landed on a sprite (its
-  drag stops). A finger moves farther before a press becomes a drag, and
-  presses the height cone or the nose when near it (a sprite under it
-  comes first).
+  drag stops). A finger moves farther before a press becomes a drag.
   Popups stay open while their sliders are used, though those take no
   focus on touch screens and in Safari.
 - **Words for children.** The interface keeps Scratch's words children
