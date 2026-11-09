@@ -46,6 +46,10 @@ model, made by `scripts/make-costume-library.mjs`. The pictures are drawn by
 user uploads for a costume. The list, with each one's shape and how its
 picture wraps it, is in `src/ui/costumeLibrary.json`.
 
+A picture the library replaces stays here, and is listed in
+`src/ui/libraryFiles.ts`: projects that use it, saved or shared, still refer
+to it.
+
 The costumes are drawn for BeeCube, except the Earth and the Moon, which are
 NASA's maps (public domain), scaled down:
 

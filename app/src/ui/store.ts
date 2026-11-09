@@ -12,7 +12,7 @@ import { BASE_SIZE, STAGE_ID, type ShapeKind, type SpriteData } from '../engine/
 import { t } from '../i18n'
 import { SCENARIOS, scenarioProject, type ScenarioName } from '../bench/scenarios'
 import { loadStoredAsset, pruneStoredAssets, storeAssets } from './assetStorage'
-import { isLibraryAsset, libraryCostumeName, libraryRoomName, librarySceneryName, loadLibraryAsset, SPRITE_MOVES, type LibraryCostume, type LibraryRoom, type LibraryScenery } from './library'
+import { COSTUME_LIBRARY, isLibraryAsset, libraryCostumeName, libraryRoomName, librarySceneryName, loadLibraryAsset, SPRITE_MOVES, type LibraryCostume, type LibraryRoom, type LibraryScenery } from './library'
 import { clipLabel } from './modelNames'
 import { clipKeyframes, findClip, modelSize, readModel } from '../stage/models'
 import { loadModel } from './costumeThumbnails'
@@ -93,9 +93,14 @@ export class ProjectStore {
 
   // ---- whole-project operations -------------------------------------
 
-  /** Replaces the project with the starter project (one cube with the sample script). */
+  /** Replaces the project with the starter project (the bee of the costume library, with the sample script). */
   newProject(): void {
     const first = this.makeSprite('cube', [])
+    const bee = COSTUME_LIBRARY.find((entry) => entry.key === 'bee')
+    if (bee) {
+      first.costumes = [libraryCostume(bee)]
+      first.name = first.costumes[0].name
+    }
     first.blocks = sampleScript()
     this.replace({ ...emptyProject(), sprites: [first], backdrops: [plainBackdrop(t('backdrop.defaultName'))] })
   }

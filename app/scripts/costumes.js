@@ -81,76 +81,84 @@ function dice() {
   })
 }
 
+/** The bee of the app's icon (public/logo.svg), standing up: its colors, face, stripes and outline. */
 function bee() {
+  const YELLOW = '#FFC83A'
+  const BROWN = '#3B2A1F'
   return cubeNet((g, face) => {
-    g.fillStyle = '#ffc61a'
+    g.fillStyle = YELLOW
     g.fillRect(0, 0, CELL, CELL)
+    g.lineCap = 'round'
+    g.lineJoin = 'round'
+    if (face !== 'top' && face !== 'bottom') {
+      // Two stripes round the lower part of the body, meeting across the edges.
+      g.fillStyle = BROWN
+      for (const [y0, y1] of [[0.533, 0.667], [0.767, 0.9]]) g.fillRect(0, y0 * CELL, CELL, (y1 - y0) * CELL)
+    }
     if (face === 'front') {
-      // A face.
-      for (const x of [0.32, 0.68]) {
-        g.fillStyle = '#fff'
+      // A face above the stripes: dark eyes with a glint, pink cheeks and a small smile.
+      for (const x of [0.317, 0.683]) {
+        g.fillStyle = BROWN
         g.beginPath()
-        g.ellipse(x * CELL, 0.42 * CELL, 30, 36, 0, 0, Math.PI * 2)
-        g.fill()
-        g.fillStyle = '#222'
-        g.beginPath()
-        g.arc(x * CELL + 6, 0.44 * CELL, 17, 0, Math.PI * 2)
+        g.arc(x * CELL, 0.25 * CELL, 19, 0, Math.PI * 2)
         g.fill()
         g.fillStyle = '#fff'
         g.beginPath()
-        g.arc(x * CELL + 11, 0.4 * CELL, 6, 0, Math.PI * 2)
+        g.arc(x * CELL - 6, 0.225 * CELL, 6.5, 0, Math.PI * 2)
         g.fill()
       }
-      g.strokeStyle = '#222'
-      g.lineWidth = 9
-      g.lineCap = 'round'
+      g.fillStyle = '#FF8FA3'
+      for (const x of [0.183, 0.817]) {
+        g.beginPath()
+        g.ellipse(x * CELL, 0.4 * CELL, 19, 13, 0, 0, Math.PI * 2)
+        g.fill()
+      }
+      g.strokeStyle = BROWN
+      g.lineWidth = 13
       g.beginPath()
-      g.arc(CELL / 2, 0.6 * CELL, 40, 0.2 * Math.PI, 0.8 * Math.PI)
+      g.moveTo(0.417 * CELL, 0.367 * CELL)
+      g.quadraticCurveTo(0.5 * CELL, 0.45 * CELL, 0.583 * CELL, 0.367 * CELL)
       g.stroke()
-      g.fillStyle = 'rgba(255,120,120,0.55)'
-      for (const x of [0.18, 0.82]) {
+    } else if (face === 'top') {
+      // Wings at the back (the top of this square), and the antennae
+      // growing from the front edge (the bottom) back toward them.
+      for (const x of [0.3, 0.7]) {
+        const turn = x < 0.5 ? -0.35 : 0.35
+        g.save()
+        g.translate(x * CELL, 0.32 * CELL)
+        g.rotate(turn)
+        g.fillStyle = '#E3F4FF'
+        g.strokeStyle = BROWN
+        g.lineWidth = 12
         g.beginPath()
-        g.ellipse(x * CELL, 0.62 * CELL, 20, 13, 0, 0, Math.PI * 2)
+        g.ellipse(0, 0, 44, 56, 0, 0, Math.PI * 2)
         g.fill()
-      }
-    } else if (face === 'back') {
-      // The end of the body, with a sting.
-      for (const [r, color] of [[80, '#2a2a2a'], [50, '#ffc61a'], [18, '#2a2a2a']]) {
-        g.fillStyle = color
-        g.beginPath()
-        g.arc(CELL / 2, CELL / 2, r, 0, Math.PI * 2)
-        g.fill()
-      }
-    } else {
-      // Stripes round the body, which runs from the front to the back: placed
-      // evenly, they meet across the edges whichever way each face is turned.
-      g.fillStyle = '#2a2a2a'
-      for (const k of [0.25, 0.59]) {
-        if (face === 'top' || face === 'bottom') g.fillRect(0, k * CELL, CELL, 0.16 * CELL)
-        else g.fillRect(k * CELL, 0, 0.16 * CELL, CELL)
-      }
-      if (face === 'top') {
-        // Wings, and the antennae at the front edge (the bottom of this square).
-        g.fillStyle = 'rgba(255,255,255,0.85)'
-        g.strokeStyle = '#8fb8de'
-        g.lineWidth = 5
-        for (const x of [0.3, 0.7]) {
-          g.beginPath()
-          g.ellipse(x * CELL, 0.42 * CELL, 52, 78, x < 0.5 ? -0.35 : 0.35, 0, Math.PI * 2)
-          g.fill()
-          g.stroke()
-        }
-        g.strokeStyle = '#222'
+        g.stroke()
+        g.strokeStyle = '#9CC9E8'
         g.lineWidth = 8
-        g.lineCap = 'round'
-        for (const x of [0.38, 0.62]) {
-          g.beginPath()
-          g.moveTo(x * CELL, CELL)
-          g.lineTo(x * CELL + (x < 0.5 ? -18 : 18), CELL - 50)
-          g.stroke()
-        }
+        g.beginPath()
+        g.moveTo(0, 26)
+        g.quadraticCurveTo(-6, 0, 0, -26)
+        g.stroke()
+        g.restore()
+      }
+      g.strokeStyle = BROWN
+      g.lineWidth = 17
+      for (const side of [-1, 1]) {
+        g.beginPath()
+        g.moveTo((0.5 + side * 0.1) * CELL, 0.9 * CELL)
+        g.quadraticCurveTo((0.5 + side * 0.12) * CELL, 0.7 * CELL, (0.5 + side * 0.32) * CELL, 0.68 * CELL)
+        g.stroke()
+        g.fillStyle = BROWN
+        g.beginPath()
+        g.arc((0.5 + side * 0.32) * CELL, 0.68 * CELL, 17, 0, Math.PI * 2)
+        g.fill()
       }
     }
+    // The outline along every edge, as the icon draws it.
+    g.strokeStyle = BROWN
+    g.lineWidth = 17
+    g.strokeRect(0, 0, CELL, CELL)
   })
 }
 
