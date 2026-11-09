@@ -79,13 +79,15 @@ export function poseKey(pose: ModelPose | undefined): string {
 export type ModelMotion = KeyframeMotion | ClipMotion
 
 export interface KeyframeMotion {
-  /** At least one; evenly spaced. */
+  /** At least one; evenly spaced over `seconds`. */
   keyframes: ModelPose[]
-  /** Seconds from one keyframe to the next. */
-  interval: number
+  /** Seconds from the first keyframe to the last, as an animation's length. */
+  seconds: number
   from: number
   to: number
   once?: boolean
+  /** How fast it plays, 1 as it is; missing means 1. */
+  speed?: number
 }
 
 export interface ClipMotion {
@@ -94,26 +96,41 @@ export interface ClipMotion {
   from: number
   to: number
   once?: boolean
+  /** How fast it plays, 1 as it is; missing means 1. */
+  speed?: number
 }
 
 export const isClipMotion = (m: ModelMotion): m is ClipMotion => 'clip' in m
 
-/** Seconds between keyframes, at first and at most. */
-export const DEFAULT_KEYFRAME_INTERVAL = 0.5
-export const MIN_KEYFRAME_INTERVAL = 0.05
-export const MAX_KEYFRAME_INTERVAL = 10
+/** Seconds from the first keyframe to the last, at first and at least and most. */
+export const DEFAULT_KEYFRAME_SECONDS = 1
+export const MIN_KEYFRAME_SECONDS = 0.1
+export const MAX_KEYFRAME_SECONDS = 600
+
+/** How fast a motion can play, at least and at most (1 as it is). */
+export const MIN_MOTION_SPEED = 0.1
+export const MAX_MOTION_SPEED = 10
 
 /** The most keyframes a costume can have. */
 export const MAX_KEYFRAMES = 600
 
 /** A model at rest: one keyframe without a turn. */
-export const restMotion = (): KeyframeMotion => ({ keyframes: [{}], interval: DEFAULT_KEYFRAME_INTERVAL, from: 0, to: 0 })
+export const restMotion = (): KeyframeMotion => ({ keyframes: [{}], seconds: DEFAULT_KEYFRAME_SECONDS, from: 0, to: 0 })
 
 /** A model costume's motion, at rest if it has none. */
 export const modelMotion = (model: CostumeModel): ModelMotion => model.motion ?? restMotion()
 
-/** How long the part that plays takes, in seconds; 0 for one pose. */
-export const motionSeconds = (m: ModelMotion): number => (isClipMotion(m) ? m.to - m.from : (m.to - m.from) * m.interval)
+/** Seconds from one keyframe to the next: the length shared out between them. */
+export const keyframeInterval = (m: KeyframeMotion): number => m.seconds / Math.max(1, m.keyframes.length - 1)
+
+/** A motion's speed (1 as it is). */
+export const motionSpeed = (m: ModelMotion): number => m.speed ?? 1
+
+/** The part that plays, in the motion's own seconds (before its speed); 0 for one pose. */
+export const motionSpan = (m: ModelMotion): number => (isClipMotion(m) ? m.to - m.from : (m.to - m.from) * keyframeInterval(m))
+
+/** How long the part that plays takes, in seconds at its speed; 0 for one pose. */
+export const motionSeconds = (m: ModelMotion): number => motionSpan(m) / motionSpeed(m)
 
 /** Whether the motion is one pose. */
 export const isStill = (m: ModelMotion): boolean => !(motionSeconds(m) > 0)
@@ -124,15 +141,21 @@ export const isStill = (m: ModelMotion): boolean => !(motionSeconds(m) > 0)
  * its keyframes don't matter.
  */
 export function motionKey(m: ModelMotion): string {
-  if (isClipMotion(m)) return isStill(m) ? `clip:${m.clip}@${m.from}` : `clip:${m.clip}@${m.from}-${m.to}${m.once ? ':once' : ''}`
+  const ending = `${m.once ? ':once' : ''}${m.speed !== undefined && m.speed !== 1 ? `:x${m.speed}` : ''}`
+  if (isClipMotion(m)) return isStill(m) ? `clip:${m.clip}@${m.from}` : `clip:${m.clip}@${m.from}-${m.to}${ending}`
   if (isStill(m)) return poseKey(m.keyframes[m.from])
   const poses = m.keyframes.slice(m.from, m.to + 1).map(poseKey).join('|')
-  return `keys:${m.interval}:${poses}${m.once ? ':once' : ''}`
+  return `keys:${keyframeInterval(m)}:${poses}${ending}`
 }
 
 /** Whether a motion is at rest (so a costume needn't keep it). */
 export const isRestMotion = (m: ModelMotion): boolean =>
-  !isClipMotion(m) && m.keyframes.length === 1 && Object.keys(m.keyframes[0]).length === 0 && m.interval === DEFAULT_KEYFRAME_INTERVAL && !m.once
+  !isClipMotion(m) &&
+  m.keyframes.length === 1 &&
+  Object.keys(m.keyframes[0]).length === 0 &&
+  m.seconds === DEFAULT_KEYFRAME_SECONDS &&
+  !m.once &&
+  motionSpeed(m) === 1
 
 export interface Costume {
   name: string

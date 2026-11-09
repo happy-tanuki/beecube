@@ -5,17 +5,22 @@
  * and how the picture wraps the shape, or its model and how the model's
  * bones move (engine/costume.ts).
  */
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { assetFileName, type AssetRef, type Assets } from '../engine/assets'
 import {
   COSTUME_LAYOUTS,
   costumeDimensions,
   costumeStretch,
   isClipMotion,
-  MAX_KEYFRAME_INTERVAL,
+  isRestMotion,
+  keyframeInterval,
+  MAX_KEYFRAME_SECONDS,
   MAX_KEYFRAMES,
-  MIN_KEYFRAME_INTERVAL,
+  MAX_MOTION_SPEED,
+  MIN_KEYFRAME_SECONDS,
+  MIN_MOTION_SPEED,
   modelMotion,
+  motionSpeed,
   type Costume,
   type CostumeLayout,
   type KeyframeMotion,
@@ -205,6 +210,38 @@ function PartSlider({ max, step, from, to, format, onMove, onChange }: {
   )
 }
 
+/**
+ * A motion's length, speed and ending, the same for keyframes and an
+ * animation: keyframes' length can be typed (they share it out evenly),
+ * an animation's is its own. The speed is a percentage, 100 as it is.
+ */
+function TimingFields<M extends ModelMotion>({ motion, length, onLength, onChange }: {
+  motion: M
+  length: number
+  onLength?: (seconds: number) => void
+  onChange: (motion: M) => void
+}) {
+  const speed = (percent: number) => {
+    const s = Math.min(MAX_MOTION_SPEED, Math.max(MIN_MOTION_SPEED, percent / 100))
+    const { speed: _, ...rest } = motion
+    onChange((s === 1 ? rest : { ...rest, speed: s }) as M)
+  }
+  return (
+    <>
+      {onLength ? (
+        <NumberField label={t('costume.length')} value={length} onChange={onLength} />
+      ) : (
+        <label className="field">
+          <span>{t('costume.length')}</span>
+          <input readOnly value={Math.round(length * 100) / 100} />
+        </label>
+      )}
+      <NumberField label={t('costume.speed')} value={motionSpeed(motion) * 100} onChange={speed} />
+      <OnceField once={motion.once === true} onChange={(once) => onChange({ ...motion, once })} />
+    </>
+  )
+}
+
 /** Whether the motion plays its part over and over or once. */
 function OnceField({ once, onChange }: { once: boolean; onChange: (once: boolean) => void }) {
   return (
@@ -262,122 +299,136 @@ function KeyframeList({ motion, chosen, onChoose, onChange }: {
   )
 }
 
-const formatSeconds = (s: number) => t('costume.seconds', { n: String(Math.round(s * 100) / 100) })
+/** Always to two places, so the part's readout keeps its width as a handle moves. */
+const formatSeconds = (s: number) => t('costume.seconds', { n: s.toFixed(2) })
 
 /** Seconds on an animation's timeline: to a thirtieth of a second, as the stage samples it. */
 const CLIP_STEP = 1 / 30
 
 /**
- * How a model costume's bones move, and the pose the view shows: the
- * keyframe chosen, or where a handle is being moved. Keyframes have their
- * list and turn their bones; an animation can be turned into them.
+ * A moving costume's motion fields, in a bar under the header as a shape
+ * costume's paint options are: the part that plays and its timing, the same
+ * for keyframes and an animation (choosing between them is MoveField's,
+ * beside the view). `onMove` gets the pose a part handle is moved to (see
+ * PartSlider).
  */
-function MotionEditor({ store, index, costume, model, bones }: { store: ProjectStore; index: number; costume: Costume; model: Model; bones: string[] }) {
-  const motion = modelMotion(costume.model!)
-  const [chosen, setChosen] = useState(0)
-  const [held, setHeld] = useState<number | null>(null)
+function MotionFields({ store, index, model, motion, onMove }: {
+  store: ProjectStore
+  index: number
+  model: Model
+  motion: ModelMotion
+  onMove: (v: number | null) => void
+}) {
   const set = (m: ModelMotion) => store.setModelMotion(index, m)
   if (isClipMotion(motion)) {
     const clip = findClip(model, motion.clip)
     const duration = clip?.duration ?? motion.to
-    const at = held ?? motion.from
     return (
       <>
-        <ModelView store={store} costume={costume} motion={{ ...motion, from: at, to: at }} />
-        <div className="costume-model-pose">
-          <div className="field costume-pose">
-            <span>{t('costume.move')}</span>
-            <strong>{clipLabel(motion.clip)}</strong>
-            <button onClick={() => void store.convertToKeyframes(index)} disabled={!clip}>
-              {t('costume.toKeyframes')}
-            </button>
-          </div>
-          <PartSlider
-            max={Math.round(duration * 1000) / 1000}
-            step={CLIP_STEP}
-            from={motion.from}
-            to={motion.to}
-            format={formatSeconds}
-            onMove={setHeld}
-            onChange={(from, to) => set({ ...motion, from, to })}
-          />
-          <OnceField once={motion.once === true} onChange={(once) => set({ ...motion, once })} />
-          <p className="costume-note">{t('costume.toKeyframesNote')}</p>
-          <MoveCostume store={store} index={index} model={model} />
-          <p className="costume-note">{t('costume.modelNote')}</p>
-        </div>
+        <PartSlider
+          max={Math.round(duration * 1000) / 1000}
+          step={CLIP_STEP}
+          from={motion.from}
+          to={motion.to}
+          format={formatSeconds}
+          onMove={onMove}
+          onChange={(from, to) => set({ ...motion, from, to })}
+        />
+        <TimingFields motion={motion} length={duration} onChange={set} />
       </>
     )
   }
-  const last = motion.keyframes.length - 1
-  const keyframe = Math.min(chosen, last)
-  const at = held ?? keyframe
   return (
     <>
-      <ModelView store={store} costume={costume} motion={{ ...motion, from: at, to: at }} />
-      <div className="costume-model-pose">
-        {last > 0 && (
-          <>
-            <PartSlider
-              max={last}
-              step={1}
-              from={motion.from}
-              to={motion.to}
-              format={(v) => String(v + 1)}
-              onMove={setHeld}
-              onChange={(from, to) => set({ ...motion, from, to })}
-            />
-            <div className="field costume-pose">
-              <OnceField once={motion.once === true} onChange={(once) => set({ ...motion, once })} />
-              <NumberField
-                label={t('costume.interval')}
-                value={motion.interval}
-                onChange={(v) => set({ ...motion, interval: Math.min(MAX_KEYFRAME_INTERVAL, Math.max(MIN_KEYFRAME_INTERVAL, v)) })}
-              />
-            </div>
-          </>
-        )}
-        <KeyframeList
-          motion={motion}
-          chosen={keyframe}
-          onChoose={setChosen}
-          onChange={(m, i) => {
-            set(m)
-            setChosen(i)
-          }}
-        />
-        <PoseEditor
-          key={`${index}:${keyframe}`}
-          pose={motion.keyframes[keyframe]}
-          bones={bones}
-          onChange={(pose) => set({ ...motion, keyframes: motion.keyframes.map((p, i) => (i === keyframe ? pose : p)) })}
-        />
-        <p className="costume-note">{t('costume.poseNote')}</p>
-        <MoveCostume store={store} index={index} model={model} />
-        <p className="costume-note">{t('costume.modelNote')}</p>
-      </div>
+      {/* Shown with one keyframe too, so they don't appear out of nowhere when one is added. */}
+      <PartSlider
+        max={motion.keyframes.length - 1}
+        step={1}
+        from={motion.from}
+        to={motion.to}
+        format={(v) => formatSeconds(v * keyframeInterval(motion))}
+        onMove={onMove}
+        onChange={(from, to) => set({ ...motion, from, to })}
+      />
+      <TimingFields
+        motion={motion}
+        length={motion.seconds}
+        onLength={(v) => set({ ...motion, seconds: Math.min(MAX_KEYFRAME_SECONDS, Math.max(MIN_KEYFRAME_SECONDS, v)) })}
+        onChange={set}
+      />
     </>
   )
 }
 
-/** Adding a costume of the model playing one of its animations. */
-function MoveCostume({ store, index, model }: { store: ProjectStore; index: number; model: Model }) {
+/** Keyframes' list and the chosen one's bones, beside the view. */
+function KeyframeEditor({ store, index, motion, bones, keyframe, onChoose }: {
+  store: ProjectStore
+  index: number
+  motion: KeyframeMotion
+  bones: string[]
+  keyframe: number
+  onChoose: (keyframe: number) => void
+}) {
+  const set = (m: ModelMotion) => store.setModelMotion(index, m)
+  return (
+    <>
+      <KeyframeList
+        motion={motion}
+        chosen={keyframe}
+        onChoose={onChoose}
+        onChange={(m, i) => {
+          set(m)
+          onChoose(i)
+        }}
+      />
+      <PoseEditor
+        key={`${index}:${keyframe}`}
+        pose={motion.keyframes[keyframe]}
+        bones={bones}
+        onChange={(pose) => set({ ...motion, keyframes: motion.keyframes.map((p, i) => (i === keyframe ? pose : p)) })}
+      />
+      <p className="costume-note">{t('costume.poseNote')}</p>
+    </>
+  )
+}
+
+/** The value of MoveField's menu for a costume's own keyframes (an animation's is its name). */
+const OWN_MOVE = ''
+
+/**
+ * How the costume moves: by its own keyframes or as one of the model's
+ * animations, chosen here for this costume. Hand-made keyframes are lost
+ * by choosing an animation, so that asks first.
+ */
+function MoveField({ store, index, model, motion, children }: {
+  store: ProjectStore
+  index: number
+  model: Model
+  motion: ModelMotion
+  children?: ReactNode
+}) {
   const clips = modelClips(model).map((c) => c.name)
-  // Walking first, if the model can.
-  const [chosen, setChosen] = useState(clips.includes('walk') ? 'walk' : clips[0])
+  const current = isClipMotion(motion) ? motion.clip : OWN_MOVE
+  // An animation missing from the file is still shown, as it is the costume's.
+  if (current !== OWN_MOVE && !clips.includes(current)) clips.push(current)
   if (clips.length === 0) return null
-  const clip = clips.includes(chosen) ? chosen : clips[0]
+  const choose = (value: string) => {
+    if (value === current) return
+    if (value !== OWN_MOVE && !isRestMotion(motion) && !isClipMotion(motion) && !window.confirm(t('costume.replaceKeyframes'))) return
+    void store.chooseMove(index, value === OWN_MOVE ? null : value)
+  }
   return (
     <div className="field costume-pose">
-      <span>{t('costume.fromClip')}</span>
-      <select value={clip} onChange={(e) => setChosen(e.target.value)}>
+      <span>{t('costume.move')}</span>
+      <select value={current} onChange={(e) => choose(e.target.value)}>
+        <option value={OWN_MOVE}>{t('costume.ownMove')}</option>
         {clips.map((c) => (
           <option key={c} value={c}>
             {clipLabel(c)}
           </option>
         ))}
       </select>
-      <button onClick={() => void store.addClipCostume(index, clip)}>{t('costume.addMove')}</button>
+      {children}
     </div>
   )
 }
@@ -408,42 +459,59 @@ function DimensionFields({ store, index, costume }: { store: ProjectStore; index
  * can be taken off to leave the shape) above; the model drawn large, and
  * how its bones move if it has them, below.
  */
+/**
+ * A model costume: laid out as a shape costume, its name and size first,
+ * then the model, and (with a skeleton) under the header its motion's part
+ * and timing, as a shape costume's paint options; below, the model in the pose shown (the keyframe chosen, or where a
+ * part handle is being moved) beside how it moves (keyframes or an
+ * animation) and, for keyframes, their list and bones.
+ */
 function ModelCostume({ store, index, costume }: { store: ProjectStore; index: number; costume: Costume }) {
   const model = useModel(store.rt.assets, costume.model!.asset)
   const bones = model ? modelBones(model) : []
+  const motion = modelMotion(costume.model!)
+  const moves = model !== null && bones.length > 0
+  const [chosen, setChosen] = useState(0)
+  const [held, setHeld] = useState<number | null>(null)
+  const keyframe = isClipMotion(motion) ? 0 : Math.min(chosen, motion.keyframes.length - 1)
+  const at = held ?? (isClipMotion(motion) ? motion.from : keyframe)
   return (
     <div className="costume-main">
       <div className="costume-header">
         <div className="costume-header-row">
           <NameField store={store} index={index} costume={costume} />
-          <div className="field costume-picture">
-            <span>{t('costume.model')}</span>
-            <button className="face-picture-remove" title={t('costume.removeModel')} onClick={() => store.removeModel(index)}>
-              ×
-            </button>
-          </div>
-        </div>
-        <div className="costume-header-row">
           <DimensionFields store={store} index={index} costume={costume} />
         </div>
       </div>
+      {/* Under the header, as a shape costume's paint options are. */}
+      {moves && (
+        <div className="costume-options">
+          <MotionFields store={store} index={index} model={model} motion={motion} onMove={setHeld} />
+        </div>
+      )}
       <div className="costume-model">
-        {model && bones.length > 0 ? (
-          <MotionEditor key={index} store={store} index={index} costume={costume} model={model} bones={bones} />
-        ) : (
-          <>
-            <ModelView store={store} costume={costume} motion={modelMotion(costume.model!)} />
-            <div className="costume-model-pose">
-              <p className="costume-note">{t('costume.modelNote')}</p>
-            </div>
-          </>
-        )}
+        <ModelView store={store} costume={costume} motion={moves ? { ...motion, from: at, to: at } : motion} />
+        <div className="costume-model-pose">
+          {moves && (
+            <MoveField store={store} index={index} model={model} motion={motion}>
+              {isClipMotion(motion) && (
+                <button onClick={() => void store.convertToKeyframes(index)} disabled={!findClip(model, motion.clip)}>
+                  {t('costume.toKeyframes')}
+                </button>
+              )}
+            </MoveField>
+          )}
+          {moves && !isClipMotion(motion) && (
+            <KeyframeEditor store={store} index={index} motion={motion} bones={bones} keyframe={keyframe} onChoose={setChosen} />
+          )}
+          {moves && isClipMotion(motion) && <p className="costume-note">{t('costume.toKeyframesNote')}</p>}
+          <p className="costume-note">{t('costume.modelNote')}</p>
+        </div>
       </div>
     </div>
   )
 }
 
-/** The sprite's color, which shows where a costume's shape has no picture (one for all its costumes). */
 function ColorField({ store }: { store: ProjectStore }) {
   return (
     <label className="field">

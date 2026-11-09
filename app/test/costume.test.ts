@@ -154,7 +154,7 @@ describe('costumes', () => {
   it('makes a look for each pose and motion of a model, the same for the same', () => {
     const asset = { assetId: 'c'.repeat(64), dataFormat: 'glb' as const }
     const model = (motion?: ModelMotion): Costume => ({ ...plainCostume('m', 'cube'), model: { asset, size: [1, 1, 1], ...(motion && { motion }) } })
-    const keys = (keyframes: Record<string, [number, number, number]>[], from = 0, to = 0, once = false): ModelMotion => ({ keyframes, interval: 0.5, from, to, ...(once && { once }) })
+    const keys = (keyframes: Record<string, [number, number, number]>[], from = 0, to = 0, once = false): ModelMotion => ({ keyframes, seconds: 1, from, to, ...(once && { once }) })
     const looks = new Looks()
     const still = looks.of(model())
     const nod = looks.of(model(keys([{ head: [0, 20, 0], arm: [10, 0, 0] }])))
@@ -163,16 +163,17 @@ describe('costumes', () => {
     expect(looks.of(model(keys([{}])))).toBe(still)
     // A still motion is its pose: the keyframes that don't play don't matter.
     expect(looks.of(model(keys([{ arm: [5, 0, 0] }, { head: [0, 20, 0], arm: [10, 0, 0] }], 1, 1)))).toBe(nod)
-    // Moving: each part, ending and interval is a look of its own.
+    // Moving: each part, ending, length and speed is a look of its own.
     const both: ModelPose[] = [{}, { head: [0, 20, 0] }]
     const moving = looks.of(model(keys(both, 0, 1)))
-    expect(new Set([still, nod, moving, looks.of(model(keys(both, 0, 1, true))), looks.of(model({ ...keys(both, 0, 1), interval: 1 }))]).size).toBe(5)
+    expect(new Set([still, nod, moving, looks.of(model(keys(both, 0, 1, true))), looks.of(model({ ...keys(both, 0, 1), seconds: 2 })), looks.of(model({ ...keys(both, 0, 1), speed: 2 }))]).size).toBe(6)
     expect(looks.of(model(keys(both, 0, 1)))).toBe(moving)
     expect(looks.list[moving].motion).toEqual(keys(both, 0, 1))
     // An animation, still at a moment or playing a part.
     const walk = (from: number, to: number): ModelMotion => ({ clip: 'walk', from, to })
     expect(looks.of(model(walk(0.5, 0.5)))).not.toBe(looks.of(model(walk(0.5, 1))))
     expect(looks.of(model(walk(0.5, 1)))).toBe(looks.of(model(walk(0.5, 1))))
+    expect(looks.of(model({ ...walk(0.5, 1), speed: 0.5 }))).not.toBe(looks.of(model(walk(0.5, 1))))
   })
 
   it('starts a model’s motion when its costume is put on, not when the same one is switched to again', () => {
@@ -207,20 +208,28 @@ describe('costumes', () => {
     expect(() => parseProject(withModel({ ...model, size: [1, 0, 1] }))).toThrow(/model\.size/)
     // A motion is saved: keyframes, three angles for each bone, or an animation's part.
     const parsed = (m: unknown) => parseProject(withModel(m)).sprites[0].costumes[0].model
-    const nod = { keyframes: [{}, { head: [0, 30, -10] as [number, number, number] }], interval: 0.25, from: 0, to: 1, once: true }
+    const nod = { keyframes: [{}, { head: [0, 30, -10] as [number, number, number] }], seconds: 0.25, from: 0, to: 1, once: true, speed: 1.5 }
     expect(parsed({ ...model, motion: nod })).toEqual({ ...model, motion: nod })
     const walk = { clip: 'walk', from: 0.5, to: 1.25 }
     expect(parsed({ ...model, motion: walk })).toEqual({ ...model, motion: walk })
+    // A speed of 1 is left out.
+    expect(parsed({ ...model, motion: { ...walk, speed: 1 } })).toEqual({ ...model, motion: walk })
     // At rest, it is left out.
+    expect(parsed({ ...model, motion: { keyframes: [{}], seconds: 1, from: 0, to: 0 } })).toEqual(model)
+    // Older files kept the seconds between keyframes: the length runs from the first to the last.
     expect(parsed({ ...model, motion: { keyframes: [{}], interval: 0.5, from: 0, to: 0 } })).toEqual(model)
+    const { seconds: _, ...olderNod } = { ...nod, keyframes: [...nod.keyframes, {}] }
+    expect(parsed({ ...model, motion: { ...olderNod, interval: 0.25 } })).toEqual({ ...model, motion: { ...olderNod, seconds: 0.5 } })
     // Older files' one pose is a keyframe.
-    expect(parsed({ ...model, pose: { head: [0, 30, -10] } })).toEqual({ ...model, motion: { keyframes: [{ head: [0, 30, -10] }], interval: 0.5, from: 0, to: 0 } })
+    expect(parsed({ ...model, pose: { head: [0, 30, -10] } })).toEqual({ ...model, motion: { keyframes: [{ head: [0, 30, -10] }], seconds: 1, from: 0, to: 0 } })
     expect(parsed({ ...model, pose: {} })).toEqual(model)
     expect(() => parsed({ ...model, motion: { ...nod, keyframes: [{ head: [0, 30] }] } })).toThrow(/keyframes\[0\]\["head"\]/)
     expect(() => parsed({ ...model, motion: { ...nod, keyframes: [{ head: [0, 'x', 0] }] } })).toThrow(/\["head"\]/)
     expect(() => parsed({ ...model, motion: { ...nod, to: 2 } })).toThrow(/keyframes it has/)
     expect(() => parsed({ ...model, motion: { ...nod, from: 1, to: 0 } })).toThrow(/keyframes it has/)
-    expect(() => parsed({ ...model, motion: { ...nod, interval: 0 } })).toThrow(/interval/)
+    expect(() => parsed({ ...model, motion: { ...nod, seconds: 0 } })).toThrow(/seconds/)
+    expect(() => parsed({ ...model, motion: { ...nod, speed: 0 } })).toThrow(/speed/)
+    expect(() => parsed({ ...model, motion: { ...walk, speed: 11 } })).toThrow(/speed/)
     expect(() => parsed({ ...model, motion: { ...walk, from: 2 } })).toThrow(/part of the animation/)
     expect(() => parsed({ ...model, motion: { ...walk, once: 'yes' } })).toThrow(/once/)
     // A picture can't be a model either.

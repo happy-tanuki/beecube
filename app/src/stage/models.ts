@@ -16,7 +16,7 @@
  */
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { isClipMotion, type ClipMotion, type KeyframeMotion, type ModelMotion, type ModelPose } from '../engine/costume'
+import { isClipMotion, keyframeInterval, MAX_KEYFRAME_SECONDS, MIN_KEYFRAME_SECONDS, motionSpeed, type ClipMotion, type KeyframeMotion, type ModelMotion, type ModelPose } from '../engine/costume'
 import { BASE_SIZE } from '../engine/types'
 
 /** A model read from its file. */
@@ -230,7 +230,8 @@ export function clipKeyframes(model: Model, motion: ClipMotion, maxKeyframes: nu
   const keyframes: ModelPose[] = []
   for (let i = 0; i <= steps; i++) keyframes.push(clipPose(model, clip, i * interval))
   const at = (seconds: number) => Math.min(steps, Math.max(0, Math.round(seconds / interval)))
-  return { keyframes, interval, from: at(motion.from), to: at(motion.to), ...(motion.once && { once: true }) }
+  const seconds = Math.min(MAX_KEYFRAME_SECONDS, Math.max(MIN_KEYFRAME_SECONDS, clip.duration))
+  return { keyframes, seconds, from: at(motion.from), to: at(motion.to), ...(motion.once && { once: true }), ...(motion.speed !== undefined && { speed: motion.speed }) }
 }
 
 /** The model's meshes, each with the matrix that puts it in sprite space (before centering and scaling). */
@@ -342,13 +343,13 @@ export interface MovingModel {
   parts: MovingPart[]
   /** Samples, through the part that plays, its start and end included. */
   samples: number
-  /** How long the part that plays takes. */
+  /** How long the part that plays takes, at its speed. */
   seconds: number
 }
 
 /** Stands the model as keyframes have it `t` seconds into the part that plays. */
 function standInKeyframes(root: THREE.Object3D, motion: KeyframeMotion, t: number): void {
-  const u = Math.min(motion.to, motion.from + t / motion.interval)
+  const u = Math.min(motion.to, motion.from + t / keyframeInterval(motion))
   const a = Math.floor(u)
   const b = Math.min(a + 1, motion.to)
   standBetween(root, motion.keyframes[a] ?? {}, motion.keyframes[b] ?? {}, u - a)
@@ -392,14 +393,16 @@ export function movingModelParts(model: Model, motion: ModelMotion, stretch: [nu
   if (!fit) return null
   fit.premultiply(new THREE.Matrix4().makeScale(...stretch))
   const clip = isClipMotion(motion) ? findClip(model, motion.clip) : null
-  const seconds = isClipMotion(motion) ? (clip ? Math.min(motion.to, clip.duration) - motion.from : 0) : (motion.to - motion.from) * motion.interval
+  // The part in the motion's own seconds, and how long it takes at its speed.
+  const span = isClipMotion(motion) ? (clip ? Math.min(motion.to, clip.duration) - motion.from : 0) : (motion.to - motion.from) * keyframeInterval(motion)
+  const seconds = span / motionSpeed(motion)
   const samples = seconds > 0 ? Math.min(MAX_SAMPLES, Math.ceil(seconds * MOTION_FPS) + 1) : 1
   const found = meshes(root).map(([mesh]) => mesh)
   const bonesOf = (mesh: THREE.Mesh) => ((mesh as THREE.SkinnedMesh).isSkinnedMesh ? (mesh as THREE.SkinnedMesh).skeleton.bones.length : 1)
   const data = found.map((mesh) => new Float32Array(bonesOf(mesh) * 4 * samples * 4))
   const m = new THREE.Matrix4()
   const sample = (k: number, standAt: (t: number) => void) => {
-    standAt(samples > 1 ? (seconds * k) / (samples - 1) : 0)
+    standAt(samples > 1 ? (span * k) / (samples - 1) : 0)
     found.forEach((mesh, p) => {
       const base = fit.clone().multiply(GLTF_TO_SPRITE).multiply(mesh.matrixWorld)
       const row = bonesOf(mesh) * 16 * k

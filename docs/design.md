@@ -95,7 +95,9 @@ what follows from that.
   moderation page draws them).
 - **Poses and motion.** Settled on 2026-10-31. A costume of a model with a
   skeleton moves its bones in one of two ways:
-  - **Keyframes**: poses, evenly spaced by an interval in seconds. A pose
+  - **Keyframes**: poses, evenly spaced over a length in seconds, from
+    the first keyframe to the last, as an animation has one (1 at first);
+    adding a keyframe keeps the length and spaces them closer. A pose
     is bones by name, each turned by three angles in degrees about the
     sprite's front, left and up axes (as seen with its parent bone at
     rest), so a slider means the same on every bone. A new costume has one
@@ -103,16 +105,33 @@ what follows from that.
     three sliders turn the chosen bone in the chosen keyframe, "add"
     puts a copy of a keyframe after it and chooses it, and "delete" takes
     it out. Between keyframes the bones turn smoothly.
-  - **An animation of the file**, played as it is: the tab adds a costume
-    for one of them. A button turns it into keyframes, sampled ten times a
-    second; this can't be undone, but a costume of the animation can be
-    added again.
+  - **An animation of the file**, played as it is. The costume chooses
+    it from a menu, beside its own keyframes;
+    no costume is added. Choosing an animation over hand-made keyframes
+    asks first, as they are lost. A button turns the whole animation into
+    keyframes of the same costume, sampled ten times a second, with the
+    animation's length and the costume's speed, the part that plays moved
+    to the nearest ones; this can't be undone, but the animation can be
+    chosen again.
 
-  Either way, a two-handled slider along the costume's timeline (its
-  keyframes, which the handles snap to, or the animation's seconds) picks
-  the part that plays, and the costume either repeats it or plays it once
-  and stays at its end. With both handles together, the costume is that
-  one pose. Only how bones turn is used, not how they move, so a model
+  Either way, a two-handled slider along the costume's timeline, in
+  seconds (snapping to the keyframes), picks the part that plays, and the
+  costume either repeats it or plays it once and stays at its end. The
+  same fields serve both: the length (typed for keyframes, the
+  animation's own shown for an animation), the speed as a percentage (100
+  as it is, 10 to 1000) and the ending. The speed changes only how long
+  the part takes, not where the handles are. With both handles together,
+  the costume is that one pose.
+
+  The tab lays a model costume out as a shape costume: its name and size
+  in the header (with no second row: a shape costume's shape, color and
+  layout have no counterpart, as a model isn't taken off and a costume of
+  another shape is a new costume), and under the header's border
+  the fields both ways share (the part and its timing), as a shape
+  costume's paint options are. Below, the model is drawn
+  in the pose shown, beside the way it moves (the menu, and the button
+  that turns an animation into keyframes) and the keyframes' list and
+  bones. Only how bones turn is used, not how they move, so a model
   stays where its blocks put it. The motion starts when the costume is put
   on; switching to the costume already worn doesn't start it again, so
   "switch costume" in a loop doesn't stop it. Clones keep their own time,
@@ -165,7 +184,7 @@ what follows from that.
 - **A costume's width, depth and height** are its shape, in stage units: a
   cube's are 40 each, a model's its box as drawn. Setting them in the
   Costumes tab makes a flat board from a cube or a tall boy from the boy
-  model; they stay when the shape changes or the model is taken off. A
+  model; they stay when the shape changes. A
   costume of other dimensions is a look of its own, its geometry scaled,
   and touches things as that box; the sprite's width, depth and height
   scale it in turn. Files before version 3 have none.

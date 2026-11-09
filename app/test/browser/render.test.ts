@@ -206,7 +206,7 @@ describe('Stage3D', () => {
     const asset = await rt.assets.add(glb, 'glb')
     const size = modelSize(await readModel(glb))!
     // Bends its top half forward in a tenth of a second, and stays so.
-    const motion: ModelMotion = { keyframes: [{}, { middle: [0, 90, 0] }], interval: 0.1, from: 0, to: 1, once: true }
+    const motion: ModelMotion = { keyframes: [{}, { middle: [0, 90, 0] }], seconds: 0.1, from: 0, to: 1, once: true }
     const bending = { ...plainCostume('bending', 'cube'), model: { asset, size, motion } }
     // 80 high from the floor, its middle bone at 40.
     rt.addSprite(makeSprite('stick', [], { z: 40, size: 200, costumes: [bending] }))

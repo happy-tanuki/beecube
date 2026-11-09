@@ -408,6 +408,8 @@ body,
   flex: 1;
   min-height: 0;
   flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: flex-start;
   gap: 16px 24px;
   padding: 16px 20px;
   overflow: auto;
@@ -423,12 +425,24 @@ body,
   background: #ffffff center / contain no-repeat;
 }
 
+/* One width whatever it holds, so it stays beside the view (or under it) when the move changes. */
 .costume-model-pose {
   display: flex;
+  flex: 0 1 360px;
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
-  max-width: 420px;
+  min-width: 0;
+}
+
+.costume-model-pose > .field {
+  flex-wrap: wrap;
+}
+
+/* A number shown where keyframes have one to type (an animation's length). */
+.field input[readonly]:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']) {
+  border-style: dashed;
+  background: transparent;
 }
 
 .choice-button {
@@ -984,15 +998,11 @@ body,
   background-size: contain;
 }
 
-.costume-picture .costume-model-thumb {
-  width: 80px;
-  height: 60px;
-}
-
 /* Bones' names and animations' are the model's own, and can be long. */
 .costume-pose select {
   width: auto;
-  max-width: 160px;
+  min-width: 0;
+  max-width: min(260px, 100%);
 }
 
 .costume-pose button:disabled {
@@ -1074,6 +1084,8 @@ body,
 }
 
 .costume-part output {
+  /* Room for most parts, so the row doesn't move as a handle is dragged or the move changes. */
+  min-width: 8em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1689,7 +1701,8 @@ body,
   font-weight: bold;
 }
 
-.paint-options {
+.paint-options,
+.costume-options {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1698,6 +1711,33 @@ body,
   border-bottom: 1px solid var(--border);
   background: var(--panel);
   font-size: 12px;
+}
+
+/* A motion's fields stay on one line; a narrow window scrolls them instead. */
+.costume-options {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.costume-options > * {
+  flex-shrink: 0;
+}
+
+/* The part's slider takes the room the other fields leave, from short to long. */
+.costume-options > .costume-part {
+  flex: 1 1 auto;
+  max-width: 480px;
+}
+
+.costume-options .part-slider {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 80px;
+}
+
+.costume-options .costume-part output {
+  flex-shrink: 0;
 }
 
 .paint-color {

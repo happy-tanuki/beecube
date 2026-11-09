@@ -1,7 +1,7 @@
 import { APP_ID } from '../brand'
 import { defineExtensionBlocks } from '../blocks/extensions'
 import { ASSET_MIME, assetFileName, type AssetLoader, type AssetRef } from '../engine/assets'
-import { clampCostumeDimension, costumeDimensions, isClipMotion, isRestMotion, MAX_KEYFRAMES, naturalDimensions, plainCostume, sameDimensions, type Costume, type CostumeDimensions, type CostumeModel, type ModelMotion } from '../engine/costume'
+import { clampCostumeDimension, costumeDimensions, isClipMotion, isRestMotion, MAX_KEYFRAMES, naturalDimensions, plainCostume, restMotion, sameDimensions, type Costume, type CostumeDimensions, type CostumeModel, type ModelMotion } from '../engine/costume'
 import { availableName, availableSpriteName } from '../engine/rename'
 import { availableBackdropName, FACES, plainBackdrop, type BackdropData, type FaceName } from '../engine/backdrop'
 import { emptyProject, loadProject, parseProject, projectAssets, serializeProject, type ProjectFile } from '../engine/project'
@@ -478,20 +478,20 @@ export class ProjectStore {
   }
 
   /**
-   * Adds a costume of a model costume's model playing one of its
-   * animations, all of it over and over, after that costume, and wears it.
-   * Does nothing if the animation isn't found.
+   * Chooses how a model costume moves: one of its model's animations, all of
+   * it over and over (nothing if it isn't found), or, with null, its own
+   * keyframes, starting from the model at rest.
    */
-  async addClipCostume(index: number, clipName: string): Promise<void> {
+  async chooseMove(index: number, clipName: string | null): Promise<void> {
     const sprite = this.editing
-    const costume = sprite.costumes[index]
-    const made = costume?.model && (await this.clipCostume(costume.model, clipName, sprite.costumes.map((o) => o.name)))
-    if (!made || this.editing !== sprite) return
-    const added: Costume = { ...made, ...(costume.dimensions && { dimensions: [...costume.dimensions] as CostumeDimensions }) }
-    const at = Math.min(index + 1, sprite.costumes.length)
-    sprite.costumes = [...sprite.costumes.slice(0, at), added, ...sprite.costumes.slice(at)]
-    sprite.costume = at
-    this.notify()
+    const model = sprite.costumes[index]?.model
+    if (!model) return
+    if (clipName === null) return this.setModelMotion(index, restMotion())
+    const read = await loadModel(this.rt.assets, model.asset)
+    const clip = read && findClip(read, clipName)
+    // Unless the costume changed meanwhile.
+    if (!clip || this.editing !== sprite || sprite.costumes[index]?.model !== model) return
+    this.setModelMotion(index, { clip: clip.name, from: 0, to: clip.duration })
   }
 
   /** A costume of a model playing all of an animation over and over, named after it and unlike the names taken; null if it isn't found. */
@@ -514,11 +514,6 @@ export class ProjectStore {
     // Unless the costume changed meanwhile.
     if (!keyframes || this.editing !== sprite || sprite.costumes[index]?.model?.motion !== motion) return
     this.setModelMotion(index, keyframes)
-  }
-
-  /** Takes the model off a costume: it is its shape again. */
-  removeModel(index: number): void {
-    this.updateCostume(index, { model: null })
   }
 
   /**

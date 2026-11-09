@@ -7,7 +7,7 @@
 import { APP_ID, APP_NAME } from '../brand'
 import { assetFileName, isAssetId, PICTURE_FORMATS, type AssetFormat, type AssetRef } from './assets'
 import { FACES, type BackdropData, type Face, type FaceName } from './backdrop'
-import { clampCostumeDimension, COSTUME_LAYOUTS, isRestMotion, MAX_KEYFRAME_INTERVAL, MAX_KEYFRAMES, MIN_KEYFRAME_INTERVAL, naturalDimensions, plainCostume, restMotion, sameDimensions, type Costume, type CostumeDimensions, type CostumeLayout, type CostumeModel, type ModelMotion, type ModelPose } from './costume'
+import { clampCostumeDimension, COSTUME_LAYOUTS, DEFAULT_KEYFRAME_SECONDS, isRestMotion, MAX_KEYFRAME_SECONDS, MAX_KEYFRAMES, MAX_MOTION_SPEED, MIN_KEYFRAME_SECONDS, MIN_MOTION_SPEED, naturalDimensions, plainCostume, restMotion, sameDimensions, type Costume, type CostumeDimensions, type CostumeLayout, type CostumeModel, type ModelMotion, type ModelPose } from './costume'
 import { isColorString } from './ops'
 import { savable } from './ref'
 import type { Runtime } from './runtime'
@@ -211,20 +211,31 @@ function parseMotion(v: unknown, where: string): ModelMotion | undefined {
   if (v === undefined || v === null) return undefined
   if (!isObj(v)) fail(`${where} must be an object`)
   const once = v.once === undefined ? false : typeof v.once === 'boolean' ? v.once : fail(`${where}.once must be true or false`)
+  const speed = v.speed === undefined ? 1 : num(v, 'speed', where)
+  if (!(speed >= MIN_MOTION_SPEED && speed <= MAX_MOTION_SPEED)) fail(`${where}.speed must be ${MIN_MOTION_SPEED} to ${MAX_MOTION_SPEED}`)
+  const extra = { ...(once && { once }), ...(speed !== 1 && { speed }) }
   const from = num(v, 'from', where)
   const to = num(v, 'to', where)
   if (v.clip !== undefined) {
     const clip = str(v, 'clip', where)
     if (!(from >= 0 && from <= to && to <= MAX_CLIP_SECONDS)) fail(`${where} must play a part of the animation`)
-    return { clip, from, to, ...(once && { once }) }
+    return { clip, from, to, ...extra }
   }
   if (!Array.isArray(v.keyframes) || v.keyframes.length === 0) fail(`${where}.keyframes must be a list of at least one pose`)
   if (v.keyframes.length > MAX_KEYFRAMES) fail(`${where}.keyframes has more than ${MAX_KEYFRAMES} poses`)
   const keyframes = v.keyframes.map((k, i) => parsePose(k, `${where}.keyframes[${i}]`) ?? {})
-  const interval = num(v, 'interval', where)
-  if (!(interval >= MIN_KEYFRAME_INTERVAL && interval <= MAX_KEYFRAME_INTERVAL)) fail(`${where}.interval must be ${MIN_KEYFRAME_INTERVAL} to ${MAX_KEYFRAME_INTERVAL} seconds`)
+  const seconds = v.seconds !== undefined ? num(v, 'seconds', where) : legacySeconds(v, keyframes.length, where)
+  if (!(seconds >= MIN_KEYFRAME_SECONDS && seconds <= MAX_KEYFRAME_SECONDS)) fail(`${where}.seconds must be ${MIN_KEYFRAME_SECONDS} to ${MAX_KEYFRAME_SECONDS}`)
   if (!(Number.isInteger(from) && Number.isInteger(to) && from >= 0 && from <= to && to < keyframes.length)) fail(`${where} must play keyframes it has`)
-  return { keyframes, interval, from, to, ...(once && { once }) }
+  return { keyframes, seconds, from, to, ...extra }
+}
+
+/** Older files kept the seconds between keyframes: the length is those between the first and the last, kept in range. */
+function legacySeconds(v: Record<string, unknown>, count: number, where: string): number {
+  const interval = num(v, 'interval', where)
+  if (!(interval > 0 && interval <= MAX_KEYFRAME_SECONDS)) fail(`${where}.interval must be a number of seconds`)
+  if (count < 2) return DEFAULT_KEYFRAME_SECONDS
+  return Math.min(MAX_KEYFRAME_SECONDS, Math.max(MIN_KEYFRAME_SECONDS, interval * (count - 1)))
 }
 
 /** The most bones a pose can name. */

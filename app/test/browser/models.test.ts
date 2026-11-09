@@ -80,7 +80,7 @@ function sampleBox(moving: MovingModel, k: number): THREE.Box3 {
 describe('model motion', () => {
   it('samples keyframes, turning bones smoothly between them, stretched as asked', async () => {
     const model = await readModel(await stick())
-    const nod: ModelMotion = { keyframes: [{}, { middle: [0, 90, 0] }], interval: 1, from: 0, to: 1 }
+    const nod: ModelMotion = { keyframes: [{}, { middle: [0, 90, 0] }], seconds: 1, from: 0, to: 1 }
     const moving = movingModelParts(model, nod)!
     // Thirty times a second, both ends included.
     expect([moving.samples, moving.seconds]).toEqual([31, 1])
@@ -91,7 +91,8 @@ describe('model motion', () => {
     // Stretched twice as high.
     expect(rounded(sampleBox(movingModelParts(model, nod, [1, 1, 2])!, 0).max)).toEqual([2, 2, 40])
     // Only the part that plays is sampled.
-    const second = movingModelParts(model, { ...nod, keyframes: [{}, {}, { middle: [0, 90, 0] }], from: 1, to: 2 })!
+    // Three keyframes share the same length: the second part is half of it.
+    const second = movingModelParts(model, { ...nod, keyframes: [{}, {}, { middle: [0, 90, 0] }], seconds: 2, from: 1, to: 2 })!
     expect(rounded(sampleBox(second, 0).max)).toEqual([2, 2, 20])
     expect(rounded(sampleBox(second, 30).max)).toEqual([20, 2, 2])
   })
@@ -102,13 +103,17 @@ describe('model motion', () => {
     expect([moving.samples, moving.seconds]).toEqual([16, 0.5])
     expect(rounded(sampleBox(moving, 0).max)).toEqual([16, 2, 16])
     expect(rounded(sampleBox(moving, 15).max)).toEqual([20, 2, 2])
+    // Twice as fast: the same part, in half the time.
+    const fast = movingModelParts(model, { clip: 'bend', from: 0.5, to: 1, speed: 2 })!
+    expect([fast.samples, fast.seconds]).toEqual([9, 0.25])
+    expect(rounded(sampleBox(fast, 8).max)).toEqual([20, 2, 2])
     // An animation that isn't in the file stands at rest.
     expect(movingModelParts(model, { clip: 'jump', from: 0, to: 1 })!.seconds).toBe(0)
     // Ten keyframes a second, the part moved to the keyframes nearest it.
-    const keys = clipKeyframes(model, { clip: 'bend', from: 0.5, to: 1, once: true }, 600)!
+    const keys = clipKeyframes(model, { clip: 'bend', from: 0.5, to: 1, once: true, speed: 2 }, 600)!
     expect(keys.keyframes).toHaveLength(11)
-    expect(keys.interval).toBeCloseTo(0.1)
-    expect([keys.from, keys.to, keys.once]).toEqual([5, 10, true])
+    expect(keys.seconds).toBeCloseTo(1)
+    expect([keys.from, keys.to, keys.once, keys.speed]).toEqual([5, 10, true, 2])
     expect(keys.keyframes[5]).toEqual({ middle: [0, 45, 0] })
     expect(clipKeyframes(model, { clip: 'jump', from: 0, to: 1 }, 600)).toBeNull()
   })
