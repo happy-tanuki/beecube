@@ -191,6 +191,7 @@ export function App() {
               blocksRevision={store.blocksRevision}
               extensionKey={store.extensionIds.join(',')}
               backdropKey={store.rt.backdrops.list.map((b) => b.name).join('\n')}
+              costumeKey={store.editingStage ? '' : store.editing.costumes.map((c) => c.name).join('\n')}
               stage={store.editingStage}
             />
             {showLooks && (store.editingStage ? <BackdropsTab store={store} /> : <CostumesTab store={store} />)}

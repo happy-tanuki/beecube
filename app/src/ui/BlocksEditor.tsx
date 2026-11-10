@@ -21,6 +21,8 @@ interface Props {
   extensionKey: string
   /** The backdrops' names, joined; the palette's backdrop menus are redrawn when it changes. */
   backdropKey: string
+  /** The editing sprite's costume names, joined; the palette's costume menu is redrawn when it changes. */
+  costumeKey: string
   /** Whether the stage is being edited: its palette differs. */
   stage: boolean
 }
@@ -123,7 +125,7 @@ function glow(blockId: string, on: boolean): void {
   }
 }
 
-export function BlocksEditor({ store, editingId, blocksRevision, extensionKey, backdropKey, stage }: Props) {
+export function BlocksEditor({ store, editingId, blocksRevision, extensionKey, backdropKey, costumeKey, stage }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<ScratchBlocks.WorkspaceSvg | null>(null)
   const [procedureRequest, setProcedureRequest] = useState<ProcedureRequest | null>(null)
@@ -308,13 +310,15 @@ export function BlocksEditor({ store, editingId, blocksRevision, extensionKey, b
     rerenderToolbox(ws, store)
   }, [store, extensionKey, stage])
 
-  const shownBackdrops = useRef(backdropKey)
+  // The palette's backdrop and costume menus show the first name when drawn.
+  const menuKey = `${backdropKey}|${costumeKey}`
+  const shownMenus = useRef(menuKey)
   useEffect(() => {
     const ws = wsRef.current
-    if (!ws || shownBackdrops.current === backdropKey) return
-    shownBackdrops.current = backdropKey
+    if (!ws || shownMenus.current === menuKey) return
+    shownMenus.current = menuKey
     rerenderToolbox(ws, store)
-  }, [store, backdropKey])
+  }, [store, menuKey])
 
   return (
     <>
